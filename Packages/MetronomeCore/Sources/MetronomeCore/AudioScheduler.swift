@@ -34,14 +34,15 @@ public actor AudioScheduler {
     public let format: AVAudioFormat
 
     private let clock = SystemClock()
-    /// Pre-rendered buffers keyed by (sound × accent). All 4 sounds × 5
-    /// accents = 20 buffers (~150 KB total at 48 kHz, 40–150 ms duration).
-    /// Pre-computing at init means switching ClickSound in Settings shows
-    /// up audibly within one refill pass (~50 ms) — no extra work on the
-    /// audio thread.
+    /// Pre-rendered buffers keyed by (sound × accent × pitch). 4 sounds ×
+    /// 5 accents × 3 pitches = 60 buffers (~450 KB total at 48 kHz).
+    /// Pre-computing at init means switching ClickSound or per-beat
+    /// pitch/sound overrides shows up audibly within one refill pass
+    /// (~50 ms) — no buffer generation on the audio path.
     private struct BufferKey: Hashable {
         let sound: ClickSound
         let accent: AccentLevel
+        let pitch: PitchShift
     }
     private var clickBuffers: [BufferKey: AVAudioPCMBuffer] = [:]
     private weak var engineRef: MetronomeEngine?
@@ -61,13 +62,15 @@ public actor AudioScheduler {
         self.playerNode = node
         self.format = fmt
 
-        // Pre-render one buffer per (sound, accent) pair.
+        // Pre-render one buffer per (sound, accent, pitch) combo.
         for sound in ClickSound.allCases {
             for level in AccentLevel.allCases {
-                if let buf = ClickBufferGenerator.makeBuffer(
-                    format: fmt, accent: level, sound: sound
-                ) {
-                    clickBuffers[BufferKey(sound: sound, accent: level)] = buf
+                for pitch in PitchShift.allCases {
+                    if let buf = ClickBufferGenerator.makeBuffer(
+                        format: fmt, accent: level, sound: sound, pitch: pitch
+                    ) {
+                        clickBuffers[BufferKey(sound: sound, accent: level, pitch: pitch)] = buf
+                    }
                 }
             }
         }
@@ -167,12 +170,6 @@ public actor AudioScheduler {
         let songPreset = await engine.currentSoundPreset
         let lookahead = await adaptiveLookahead(for: engine)
 
-        // Resolution order: currently-loaded song's soundPreset wins over
-        // the global setting. Unknown preset strings (e.g. a sample that
-        // doesn't map to a ClickSound case) fall through to the setting.
-        let effectiveSound: ClickSound =
-            songPreset.flatMap { ClickSound(rawValue: $0) } ?? settings.clickSound
-
         // Apply master volume each pass. AVAudioPlayerNode.volume is thread-
         // safe and the assignment is idempotent — keeping it here means
         // the slider's effect shows up within one refill interval (~50ms).
@@ -186,7 +183,25 @@ public actor AudioScheduler {
                 lastScheduledTime = click.time
                 continue
             }
-            let bufferKey = BufferKey(sound: effectiveSound, accent: click.accent)
+            // Sound resolution order, narrowest to broadest:
+            //   1. click.soundOverride — set per-beat in an AccentPattern
+            //   2. engine.currentSoundPreset — set per-song
+            //   3. settings.clickSound — global default
+            // Unknown rawValues fall through; final fallback always lands.
+            let effectiveSound: ClickSound = {
+                if let s = click.soundOverride, let cs = ClickSound(rawValue: s) {
+                    return cs
+                }
+                if let s = songPreset, let cs = ClickSound(rawValue: s) {
+                    return cs
+                }
+                return settings.clickSound
+            }()
+            let bufferKey = BufferKey(
+                sound: effectiveSound,
+                accent: click.accent,
+                pitch: click.pitchShift
+            )
             guard let buffer = clickBuffers[bufferKey] else { continue }
             // Apply latency calibration. Negative = fire earlier
             // (compensates for Bluetooth headphone output latency).

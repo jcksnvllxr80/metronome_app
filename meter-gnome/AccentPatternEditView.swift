@@ -25,7 +25,10 @@ struct AccentPatternEditView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
-    @State private var beats: [AccentLevel]
+    /// Per-beat configs. Each entry holds the accent + per-beat sound +
+    /// per-beat pitch shift. The editor builds an AccentPattern from this
+    /// array at save time.
+    @State private var beats: [BeatConfig]
 
     init(
         timeSignature: TimeSignature,
@@ -36,13 +39,13 @@ struct AccentPatternEditView: View {
         self.onSave = onSave
         if let current {
             self._name = State(initialValue: current.name)
-            self._beats = State(initialValue: current.beats.map(\.accent))
+            self._beats = State(initialValue: current.beats)
         } else {
             self._name = State(initialValue: "Custom \(timeSignature.numerator)/\(timeSignature.denominator.rawValue)")
             // Seed from the standard pattern so beat 1 is .accent and
             // others are .normal — what users hear by default.
             self._beats = State(
-                initialValue: AccentPattern.standard(for: timeSignature).beats.map(\.accent)
+                initialValue: AccentPattern.standard(for: timeSignature).beats
             )
         }
     }
@@ -88,36 +91,111 @@ struct AccentPatternEditView: View {
         }
     }
 
+    @ViewBuilder
     private var beatsSection: some View {
-        Section {
-            ForEach(0..<beats.count, id: \.self) { i in
-                beatRow(index: i)
+        // One Section per beat so each beat's three controls (accent +
+        // sound + pitch) are visually grouped. Section header doubles as
+        // the beat label.
+        ForEach(0..<beats.count, id: \.self) { i in
+            Section {
+                accentRow(index: i)
+                soundRow(index: i)
+                pitchRow(index: i)
+            } header: {
+                Text("Beat \(i + 1)\(i == 0 ? " (Downbeat)" : "")")
+                    .foregroundStyle(i == 0 ? DS.DSColor.accentTempo : DS.DSColor.textMuted)
             }
-        } header: {
-            Text("Per-Beat Accent (\(timeSignature.numerator)/\(timeSignature.denominator.rawValue))")
-                .foregroundStyle(DS.DSColor.textMuted)
-        } footer: {
-            Text("Per-beat sound and pitch overrides coming soon.")
-                .foregroundStyle(DS.DSColor.textMuted)
         }
     }
 
-    private func beatRow(index i: Int) -> some View {
+    private func accentRow(index i: Int) -> some View {
         HStack {
-            // Beat label — bold on the downbeat to anchor the row visually.
-            Text("Beat \(i + 1)")
-                .font(i == 0 ? DS.Font.headline : DS.Font.body)
-                .foregroundStyle(DS.DSColor.textPrimary)
+            Text("Accent").foregroundStyle(DS.DSColor.textPrimary)
             Spacer()
-            Picker("Accent", selection: $beats[i]) {
+            Picker("Accent", selection: accentBinding(at: i)) {
                 ForEach(AccentLevel.allCases, id: \.self) { level in
                     Text(AccentLevelLabel.short(level)).tag(level)
                 }
             }
             .pickerStyle(.menu)
-            .tint(beats[i] == .accent ? DS.DSColor.accentTempo : DS.DSColor.textPrimary)
+            .tint(beats[i].accent == .accent ? DS.DSColor.accentTempo : DS.DSColor.textPrimary)
         }
         .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func soundRow(index i: Int) -> some View {
+        HStack {
+            Text("Sound").foregroundStyle(DS.DSColor.textPrimary)
+            Spacer()
+            Picker("Sound", selection: soundBinding(at: i)) {
+                Text("Default").tag(String?.none)
+                ForEach(ClickSound.allCases, id: \.self) { sound in
+                    Text(sound.displayName).tag(String?.some(sound.rawValue))
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(beats[i].soundOverride == nil ? DS.DSColor.textPrimary : DS.DSColor.accentTempo)
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func pitchRow(index i: Int) -> some View {
+        HStack {
+            Text("Pitch").foregroundStyle(DS.DSColor.textPrimary)
+            Spacer()
+            Picker("Pitch", selection: pitchBinding(at: i)) {
+                Text("−1 oct").tag(PitchShift.octaveDown)
+                Text("Unison").tag(PitchShift.unison)
+                Text("+1 oct").tag(PitchShift.octaveUp)
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 200)
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    // MARK: - Bindings
+
+    /// Bindings replace one field of BeatConfig at a time. BeatConfig's
+    /// stored properties are `let`, so we build a fresh instance on every
+    /// edit (struct value-copy semantics — cheap).
+    private func accentBinding(at i: Int) -> Binding<AccentLevel> {
+        Binding(
+            get: { beats[i].accent },
+            set: { newAccent in
+                beats[i] = BeatConfig(
+                    accent: newAccent,
+                    soundOverride: beats[i].soundOverride,
+                    pitchShift: beats[i].pitchShift
+                )
+            }
+        )
+    }
+
+    private func soundBinding(at i: Int) -> Binding<String?> {
+        Binding(
+            get: { beats[i].soundOverride },
+            set: { newSound in
+                beats[i] = BeatConfig(
+                    accent: beats[i].accent,
+                    soundOverride: newSound,
+                    pitchShift: beats[i].pitchShift
+                )
+            }
+        )
+    }
+
+    private func pitchBinding(at i: Int) -> Binding<PitchShift> {
+        Binding(
+            get: { beats[i].pitchShift },
+            set: { newPitch in
+                beats[i] = BeatConfig(
+                    accent: beats[i].accent,
+                    soundOverride: beats[i].soundOverride,
+                    pitchShift: newPitch
+                )
+            }
+        )
     }
 
     private var actionsSection: some View {
@@ -143,11 +221,10 @@ struct AccentPatternEditView: View {
 
     private func commit() {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let configs = beats.map { BeatConfig(accent: $0) }
         if let pattern = AccentPattern(
             name: trimmed,
             timeSignature: timeSignature,
-            beats: configs
+            beats: beats
         ) {
             onSave(pattern)
             dismiss()

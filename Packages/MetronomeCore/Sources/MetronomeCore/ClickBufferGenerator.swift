@@ -13,12 +13,13 @@ import AVFoundation
 /// All buffers are mono content written to every channel of the requested
 /// format. Frame count is computed from the sound's per-timbre duration.
 public enum ClickBufferGenerator {
-    /// Build a click buffer matching the given accent level and sound.
-    /// Returns `nil` if the AV layer can't allocate (rare).
+    /// Build a click buffer matching the given accent level, sound, and
+    /// per-beat pitch shift. Returns `nil` if the AV layer can't allocate.
     public static func makeBuffer(
         format: AVAudioFormat,
         accent: AccentLevel,
-        sound: ClickSound
+        sound: ClickSound,
+        pitch: PitchShift = .unison
     ) -> AVAudioPCMBuffer? {
         // Mute clicks: zero-amplitude buffer of the sound's natural length.
         // Keeping the slot in the schedule keeps lastScheduledTime tracking
@@ -26,12 +27,19 @@ public enum ClickBufferGenerator {
         if accent == .mute {
             return silentBuffer(format: format, duration: 0.040)
         }
+        let pitchMul = pitchShiftMultiplier(pitch)
         switch sound {
-        case .digitalBeep: return makeDigitalBeep(format: format, accent: accent)
-        case .woodBlock:   return makeWoodBlock(format: format, accent: accent)
-        case .cowbell:     return makeCowbell(format: format, accent: accent)
-        case .hiHat:       return makeHiHat(format: format, accent: accent)
+        case .digitalBeep: return makeDigitalBeep(format: format, accent: accent, pitchMul: pitchMul)
+        case .woodBlock:   return makeWoodBlock(format: format, accent: accent, pitchMul: pitchMul)
+        case .cowbell:     return makeCowbell(format: format, accent: accent, pitchMul: pitchMul)
+        case .hiHat:       return makeHiHat(format: format, accent: accent, pitchMul: pitchMul)
         }
+    }
+
+    /// Frequency multiplier for the per-beat pitch shift. Standard
+    /// 2^(semitones/12) — octave down × 0.5, unison × 1.0, octave up × 2.0.
+    private static func pitchShiftMultiplier(_ shift: PitchShift) -> Double {
+        pow(2.0, Double(shift.semitones) / 12.0)
     }
 
     // MARK: - Amplitude / pitch tables
@@ -66,11 +74,12 @@ public enum ClickBufferGenerator {
     /// depending on accent. The Phase 0/A baseline timbre — clean, electronic.
     private static func makeDigitalBeep(
         format: AVAudioFormat,
-        accent: AccentLevel
+        accent: AccentLevel,
+        pitchMul: Double
     ) -> AVAudioPCMBuffer? {
         let durationSec = 0.040
         let baseFreq = 1200.0
-        let frequency = baseFreq * pitchMultiplier(for: accent)
+        let frequency = baseFreq * pitchMultiplier(for: accent) * pitchMul
         let amp = amplitude(for: accent)
         // -40 dB over duration
         let decayRate = log(0.01) / durationSec
@@ -85,13 +94,14 @@ public enum ClickBufferGenerator {
     /// percussive.
     private static func makeWoodBlock(
         format: AVAudioFormat,
-        accent: AccentLevel
+        accent: AccentLevel,
+        pitchMul: Double
     ) -> AVAudioPCMBuffer? {
         let durationSec = 0.035
-        let pitchMul = pitchMultiplier(for: accent)
-        let f1 = 1200.0 * pitchMul
-        let f2 = 2400.0 * pitchMul
-        let f3 = 3600.0 * pitchMul
+        let accentMul = pitchMultiplier(for: accent) * pitchMul
+        let f1 = 1200.0 * accentMul
+        let f2 = 2400.0 * accentMul
+        let f3 = 3600.0 * accentMul
         let amp = amplitude(for: accent)
         // -60 dB in 25 ms — very fast "knock"
         let decayRate = log(0.001) / 0.025
@@ -110,11 +120,12 @@ public enum ClickBufferGenerator {
     /// research). Mid-range sustain with a metallic edge.
     private static func makeCowbell(
         format: AVAudioFormat,
-        accent: AccentLevel
+        accent: AccentLevel,
+        pitchMul: Double
     ) -> AVAudioPCMBuffer? {
         let durationSec = 0.150
-        let f1 = 590.0
-        let f2 = 845.0
+        let f1 = 590.0 * pitchMul
+        let f2 = 845.0 * pitchMul
         let amp = amplitude(for: accent)
         // -40 dB in 150 ms — medium sustain
         let decayRate = log(0.01) / 0.150
@@ -141,20 +152,23 @@ public enum ClickBufferGenerator {
     /// the picker option for users who want a "tss" not a "knock."
     private static func makeHiHat(
         format: AVAudioFormat,
-        accent: AccentLevel
+        accent: AccentLevel,
+        pitchMul: Double
     ) -> AVAudioPCMBuffer? {
         let durationSec = 0.060
         let amp = amplitude(for: accent)
         // -60 dB in 40 ms
         let decayRate = log(0.001) / 0.040
+        // Shift the tonal partials only; noise stays broadband (pitching
+        // white noise is meaningless).
+        let hf1Freq = 8000.0 * pitchMul
+        let hf2Freq = 12000.0 * pitchMul
         var rng = SystemRandomNumberGenerator()
         return writeBuffer(format: format, durationSec: durationSec) { t in
             let env = Float(exp(decayRate * t))
             let noise = Float.random(in: -1...1, using: &rng) * 0.6
-            // High-frequency partials add a "metallic" character on top
-            // of the noise floor.
-            let hf1 = 0.30 * Float(sin(2.0 * .pi * 8000.0 * t))
-            let hf2 = 0.20 * Float(sin(2.0 * .pi * 12000.0 * t))
+            let hf1 = 0.30 * Float(sin(2.0 * .pi * hf1Freq * t))
+            let hf2 = 0.20 * Float(sin(2.0 * .pi * hf2Freq * t))
             return amp * env * (noise + hf1 + hf2)
         }
     }
