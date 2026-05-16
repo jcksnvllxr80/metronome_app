@@ -1,11 +1,12 @@
 import Foundation
 
 /// Pure value-type that computes the click sequence for a given tempo /
-/// time signature / subdivision, anchored at `startTime`.
+/// time signature / subdivision / accent pattern, anchored at `startTime`.
 ///
 /// Separating the math from `MetronomeEngine` makes it testable without
 /// concurrency, audio, or wall-clock time. The engine owns one of these
-/// and re-creates it whenever the user changes tempo or meter.
+/// and re-creates it whenever the user changes tempo, meter, subdivision,
+/// or accent pattern.
 ///
 /// Drift behavior: every click time is computed from
 /// `startTime + index * clickPeriod`. Errors do not accumulate — the
@@ -17,17 +18,30 @@ public struct ClickSchedule: Hashable, Sendable {
     public let timeSignature: TimeSignature
     public let subdivision: Subdivision
     public let startTime: TimeInterval
+    public let accentPattern: AccentPattern?
 
+    /// Precondition: if `accentPattern` is non-nil, its `timeSignature` must
+    /// equal `timeSignature`. The caller (engine) clears mismatched patterns
+    /// when the time signature changes; constructing a `ClickSchedule` with
+    /// a mismatch is a programmer error.
     public init(
         bpm: BPM,
         timeSignature: TimeSignature,
         subdivision: Subdivision,
-        startTime: TimeInterval
+        startTime: TimeInterval,
+        accentPattern: AccentPattern? = nil
     ) {
+        if let pattern = accentPattern {
+            precondition(
+                pattern.timeSignature == timeSignature,
+                "AccentPattern's time signature must match the schedule's"
+            )
+        }
         self.bpm = bpm
         self.timeSignature = timeSignature
         self.subdivision = subdivision
         self.startTime = startTime
+        self.accentPattern = accentPattern
     }
 
     /// Seconds between consecutive clicks (including subdivision clicks).
@@ -48,13 +62,32 @@ public struct ClickSchedule: Hashable, Sendable {
         let positionInMeasure = index % clicksPerMeasure
         let beatIndex = positionInMeasure / subdivision.partsPerBeat
         let subdivisionIndex = positionInMeasure % subdivision.partsPerBeat
-        return Click(
-            beatIndex: beatIndex,
-            subdivisionIndex: subdivisionIndex,
-            measureIndex: measureIndex,
-            time: time,
-            accent: defaultAccent(beat: beatIndex, sub: subdivisionIndex)
-        )
+
+        // Subdivisions don't pick up the parent beat's overrides — they're
+        // grayscale defaults. Only main beats (sub == 0) consult the pattern.
+        if subdivisionIndex == 0 {
+            let cfg = accentPattern?.config(forBeat: beatIndex)
+                ?? defaultBeatConfig(beat: beatIndex)
+            return Click(
+                beatIndex: beatIndex,
+                subdivisionIndex: subdivisionIndex,
+                measureIndex: measureIndex,
+                time: time,
+                accent: cfg.accent,
+                soundOverride: cfg.soundOverride,
+                pitchShift: cfg.pitchShift
+            )
+        } else {
+            return Click(
+                beatIndex: beatIndex,
+                subdivisionIndex: subdivisionIndex,
+                measureIndex: measureIndex,
+                time: time,
+                accent: .soft,
+                soundOverride: nil,
+                pitchShift: .unison
+            )
+        }
     }
 
     /// Index of the first click at or after `time`. If `time` falls before
@@ -73,12 +106,10 @@ public struct ClickSchedule: Hashable, Sendable {
         return (0..<count).map { click(at: start + $0) }
     }
 
-    /// Default accent rule before user accent patterns are applied:
-    /// downbeat → `.accent`, other main beats → `.normal`, subdivisions → `.soft`.
-    /// Per-beat user overrides (spec §3) will replace this in a later pass.
-    private func defaultAccent(beat: Int, sub: Int) -> AccentLevel {
-        if beat == 0 && sub == 0 { return .accent }
-        if sub == 0 { return .normal }
-        return .soft
+    /// Fallback BeatConfig when no `AccentPattern` is active: downbeat is
+    /// `.accent`, all other main beats `.normal`. Subdivisions are handled
+    /// separately in `click(at:)`.
+    private func defaultBeatConfig(beat: Int) -> BeatConfig {
+        beat == 0 ? .downbeat : .mainBeat
     }
 }
