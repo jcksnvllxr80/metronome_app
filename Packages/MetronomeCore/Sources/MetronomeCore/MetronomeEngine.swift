@@ -31,6 +31,14 @@ public actor MetronomeEngine {
     /// works; the Stage UI's visual pulse still pulses).
     public private(set) var scheduler: AudioScheduler?
 
+    /// Sound preset string from the currently-loaded `Song`. Set by
+    /// `apply(_:)`, cleared by `stop()`. The audio scheduler resolves this
+    /// to a `ClickSound` at refill time; when it's `nil` or unrecognized,
+    /// the scheduler falls back to `settings.clickSound`. Survives BPM /
+    /// time-sig / subdivision tweaks because the sound choice is metadata
+    /// about the song, not about the tempo.
+    public private(set) var currentSoundPreset: String?
+
     public init(
         clock: any EngineClock = SystemClock(),
         bpm: BPM = BPM(120),
@@ -67,11 +75,14 @@ public actor MetronomeEngine {
     }
 
     /// Stop emitting clicks. The schedule is cleared; audio (if attached)
-    /// is torn down.
+    /// is torn down. The current sound preset is cleared so the next
+    /// engine.start() reverts to the global setting until a Song is
+    /// applied.
     public func stop() async {
         isRunning = false
         isPaused = false
         schedule = nil
+        currentSoundPreset = nil
         if let scheduler {
             await scheduler.stop()
         }
@@ -145,6 +156,14 @@ public actor MetronomeEngine {
     /// Replace the engine's settings wholesale.
     public func setSettings(_ newSettings: EngineSettings) {
         settings = newSettings
+    }
+
+    /// Set or clear the active song's sound preset. Called by
+    /// `apply(_:Song)`; the audio scheduler reads this each refill and
+    /// uses it (when it resolves to a known `ClickSound`) instead of
+    /// `settings.clickSound`. Pass `nil` to revert to the global default.
+    public func setSoundPreset(_ preset: String?) {
+        currentSoundPreset = preset
     }
 
     /// Attach an `AudioScheduler` for audio output. The app target builds

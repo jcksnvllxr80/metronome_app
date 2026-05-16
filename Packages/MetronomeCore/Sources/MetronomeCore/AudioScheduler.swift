@@ -164,7 +164,14 @@ public actor AudioScheduler {
     private func refillOnce() async {
         guard let engine = engineRef else { return }
         let settings = await engine.settings
+        let songPreset = await engine.currentSoundPreset
         let lookahead = await adaptiveLookahead(for: engine)
+
+        // Resolution order: currently-loaded song's soundPreset wins over
+        // the global setting. Unknown preset strings (e.g. a sample that
+        // doesn't map to a ClickSound case) fall through to the setting.
+        let effectiveSound: ClickSound =
+            songPreset.flatMap { ClickSound(rawValue: $0) } ?? settings.clickSound
 
         // Apply master volume each pass. AVAudioPlayerNode.volume is thread-
         // safe and the assignment is idempotent — keeping it here means
@@ -179,7 +186,7 @@ public actor AudioScheduler {
                 lastScheduledTime = click.time
                 continue
             }
-            let bufferKey = BufferKey(sound: settings.clickSound, accent: click.accent)
+            let bufferKey = BufferKey(sound: effectiveSound, accent: click.accent)
             guard let buffer = clickBuffers[bufferKey] else { continue }
             // Apply latency calibration. Negative = fire earlier
             // (compensates for Bluetooth headphone output latency).

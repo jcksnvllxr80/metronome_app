@@ -31,6 +31,7 @@ struct SongDetailView: View {
                 titleSection
                 tempoSection
                 matchStageSection
+                soundSection
                 durationSection
                 notesSection
                 deleteSection
@@ -142,6 +143,38 @@ struct SongDetailView: View {
         song.setTimeSignature(viewModel.timeSignature)
         song.subdivision = viewModel.subdivision
         // onChange(of: song) will fire and trigger onSave.
+    }
+
+    // MARK: - Sound
+
+    /// Bindings into `song.soundPreset` (a `String?`). The picker
+    /// surfaces "Default" (nil) plus every `ClickSound` case; selecting
+    /// "Default" clears the override and the engine falls back to the
+    /// global setting at refill time.
+    private var soundSection: some View {
+        Section {
+            Picker("Click Sound", selection: songSoundBinding) {
+                Text("Default (Settings)").tag(String?.none)
+                ForEach(ClickSound.allCases, id: \.self) { sound in
+                    Text(sound.displayName).tag(String?.some(sound.rawValue))
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(DS.DSColor.accentTempo)
+            .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Sound").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Override the global click sound just for this song. Audible the next time this song is loaded.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var songSoundBinding: Binding<String?> {
+        Binding(
+            get: { song.soundPreset },
+            set: { song.soundPreset = $0 }
+        )
     }
 
     // MARK: - Duration

@@ -70,7 +70,7 @@ struct SettingsView: View {
             Text("Sound")
                 .foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Built-in synthesized timbres. Per-song sound overrides coming soon.")
+            Text("Default click sound. Individual songs can override this in their detail view.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

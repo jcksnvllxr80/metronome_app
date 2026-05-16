@@ -129,9 +129,10 @@ extension Song {
 
 extension MetronomeEngine {
     /// Load `song`'s settings into the engine (BPM, time signature, subdivision,
-    /// accent pattern). Re-anchors the click sequence if running. Does NOT
-    /// auto-start — call `start()` separately. `song.duration` is the caller's
-    /// concern (the auto-stop scheduler isn't on the engine yet).
+    /// accent pattern, sound preset). Re-anchors the click sequence if
+    /// running. Does NOT auto-start — call `start()` separately.
+    /// `song.duration` is the caller's concern (the auto-stop scheduler
+    /// isn't on the engine yet).
     public func apply(_ song: Song) {
         // The song's invariant guarantees pattern matches its own time sig,
         // so we can set TS first then pattern without an intermediate clear.
@@ -139,5 +140,6 @@ extension MetronomeEngine {
         setBPM(song.bpm)
         setSubdivision(song.subdivision)
         _ = setAccentPattern(song.accentPattern)
+        setSoundPreset(song.soundPreset)
     }
 }
