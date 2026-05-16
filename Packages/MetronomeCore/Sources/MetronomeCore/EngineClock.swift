@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import AVFoundation
 
 /// Monotonic time source for the metronome engine. Production code uses
 /// `SystemClock`; tests inject `FakeClock` to verify scheduled-event accuracy
@@ -18,7 +19,7 @@ public protocol EngineClock: Sendable {
 /// scheduling — using `ContinuousClock` or `Date` here would introduce drift
 /// against the audio output's host time.
 public struct SystemClock: EngineClock {
-    private static let timebase: mach_timebase_info_data_t = {
+    fileprivate static let timebase: mach_timebase_info_data_t = {
         var info = mach_timebase_info_data_t()
         mach_timebase_info(&info)
         return info
@@ -30,6 +31,20 @@ public struct SystemClock: EngineClock {
         let raw = mach_absolute_time()
         let nanos = raw &* UInt64(Self.timebase.numer) / UInt64(Self.timebase.denom)
         return TimeInterval(nanos) / 1_000_000_000
+    }
+
+    /// Returns an `AVAudioTime` whose `hostTime` corresponds to the given
+    /// `EngineClock` time. Used by the audio scheduler when calling
+    /// `AVAudioPlayerNode.scheduleBuffer(at:)` — `hostTime` is a
+    /// `mach_absolute_time` tick value in the same time base as `now`,
+    /// so passing through this bridge means audio output and `EngineClock`
+    /// readings share a single reference and don't drift relative to each
+    /// other. Inverse of the `now` getter's seconds-from-ticks conversion.
+    public func audioTime(forEngineTime engineTime: TimeInterval) -> AVAudioTime {
+        let nanos = engineTime * 1_000_000_000
+        let timebase = Self.timebase
+        let ticks = UInt64(nanos) &* UInt64(timebase.denom) / UInt64(timebase.numer)
+        return AVAudioTime(hostTime: ticks)
     }
 }
 

@@ -22,6 +22,11 @@ public actor MetronomeEngine {
     public private(set) var isRunning: Bool = false
     public private(set) var schedule: ClickSchedule?
 
+    /// Audio output sink. `nil` until the app target constructs an
+    /// `AudioScheduler` and calls `attach(scheduler:)`. Sub-commit A wires
+    /// the property + setter; the audible signal path lands in Sub-commit B.
+    public private(set) var scheduler: AudioScheduler?
+
     public init(
         clock: any EngineClock = SystemClock(),
         bpm: BPM = BPM(120),
@@ -104,6 +109,14 @@ public actor MetronomeEngine {
     /// at the next buffer schedule, and `countIn` only matters at `start()`.
     public func setSettings(_ newSettings: EngineSettings) {
         settings = newSettings
+    }
+
+    /// Attach an `AudioScheduler` for audio output. The app target builds
+    /// the scheduler (which owns `AVAudioEngine`) and hands it in — keeping
+    /// construction off the engine actor's `init` means the package stays
+    /// testable without an audio device. Pass `nil` to detach.
+    public func attach(scheduler: AudioScheduler?) {
+        self.scheduler = scheduler
     }
 
     /// Next `count` clicks starting at or after `clock.now`. Returns `[]`
