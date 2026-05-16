@@ -31,6 +31,8 @@ final class PersistedEngineSettings {
     /// `ClickSound.rawValue`. Stored as String for SwiftData compatibility
     /// and to make values stable across enum case reorderings.
     var clickSoundRaw: String
+    /// Whether MIDI Clock output is enabled (spec §12.2).
+    var midiClockEnabled: Bool
 
     init(
         masterVolume: Double = 1.0,
@@ -39,7 +41,8 @@ final class PersistedEngineSettings {
         countInRaw: Int = CountIn.off.rawValue,
         bpmPrecisionMode: Bool = false,
         autoResumeAfterInterruption: Bool = false,
-        clickSoundRaw: String = ClickSound.digitalBeep.rawValue
+        clickSoundRaw: String = ClickSound.digitalBeep.rawValue,
+        midiClockEnabled: Bool = false
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -48,6 +51,7 @@ final class PersistedEngineSettings {
         self.bpmPrecisionMode = bpmPrecisionMode
         self.autoResumeAfterInterruption = autoResumeAfterInterruption
         self.clickSoundRaw = clickSoundRaw
+        self.midiClockEnabled = midiClockEnabled
     }
 
     convenience init(from settings: EngineSettings) {
@@ -58,7 +62,8 @@ final class PersistedEngineSettings {
             countInRaw: settings.countIn.rawValue,
             bpmPrecisionMode: settings.bpmPrecisionMode,
             autoResumeAfterInterruption: settings.autoResumeAfterInterruption,
-            clickSoundRaw: settings.clickSound.rawValue
+            clickSoundRaw: settings.clickSound.rawValue,
+            midiClockEnabled: settings.midiClockEnabled
         )
     }
 
@@ -70,7 +75,8 @@ final class PersistedEngineSettings {
             countIn: CountIn(rawValue: countInRaw) ?? .off,
             bpmPrecisionMode: bpmPrecisionMode,
             autoResumeAfterInterruption: autoResumeAfterInterruption,
-            clickSound: ClickSound(rawValue: clickSoundRaw) ?? .digitalBeep
+            clickSound: ClickSound(rawValue: clickSoundRaw) ?? .digitalBeep,
+            midiClockEnabled: midiClockEnabled
         )
     }
 
@@ -82,6 +88,7 @@ final class PersistedEngineSettings {
         bpmPrecisionMode = settings.bpmPrecisionMode
         autoResumeAfterInterruption = settings.autoResumeAfterInterruption
         clickSoundRaw = settings.clickSound.rawValue
+        midiClockEnabled = settings.midiClockEnabled
     }
 }
 

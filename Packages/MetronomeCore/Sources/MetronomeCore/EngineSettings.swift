@@ -33,8 +33,14 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// Which built-in click timbre to play. The audio scheduler reads this
     /// every refill pass (~50 ms) so changes in the Settings sheet are
     /// audible almost immediately. Per-song `soundPreset` overrides this
-    /// when set (future commit).
+    /// when set.
     public var clickSound: ClickSound
+    /// When `true`, the engine sends MIDI Clock (0xF8 at 24 PPQ) plus
+    /// Start (0xFA) / Stop (0xFC) messages on its virtual MIDI source so
+    /// DAWs and other devices can sync tempo. Spec §12.2. Default off —
+    /// most users don't need MIDI sync, and an enabled virtual source is
+    /// visible to other apps even when nothing's playing.
+    public var midiClockEnabled: Bool
 
     public init(
         masterVolume: Double = 1.0,
@@ -43,7 +49,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         countIn: CountIn = .off,
         bpmPrecisionMode: Bool = false,
         autoResumeAfterInterruption: Bool = false,
-        clickSound: ClickSound = .digitalBeep
+        clickSound: ClickSound = .digitalBeep,
+        midiClockEnabled: Bool = false
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -55,5 +62,6 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.bpmPrecisionMode = bpmPrecisionMode
         self.autoResumeAfterInterruption = autoResumeAfterInterruption
         self.clickSound = clickSound
+        self.midiClockEnabled = midiClockEnabled
     }
 }

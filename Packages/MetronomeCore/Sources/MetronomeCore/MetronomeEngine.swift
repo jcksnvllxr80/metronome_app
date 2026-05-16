@@ -31,6 +31,11 @@ public actor MetronomeEngine {
     /// works; the Stage UI's visual pulse still pulses).
     public private(set) var scheduler: AudioScheduler?
 
+    /// MIDI Clock output sink. `nil` when not attached (no CoreMIDI
+    /// available, or app target didn't construct one). Optional like
+    /// the audio scheduler — engine works without it.
+    public private(set) var midiScheduler: MIDIScheduler?
+
     /// Sound preset string from the currently-loaded `Song`. Set by
     /// `apply(_:)`, cleared by `stop()`. The audio scheduler resolves this
     /// to a `ClickSound` at refill time; when it's `nil` or unrecognized,
@@ -72,6 +77,10 @@ public actor MetronomeEngine {
         if let scheduler {
             await scheduler.start(engine: self)
         }
+        if let midiScheduler {
+            await midiScheduler.setEnabled(settings.midiClockEnabled)
+            await midiScheduler.start(engine: self)
+        }
     }
 
     /// Stop emitting clicks. The schedule is cleared; audio (if attached)
@@ -85,6 +94,9 @@ public actor MetronomeEngine {
         currentSoundPreset = nil
         if let scheduler {
             await scheduler.stop()
+        }
+        if let midiScheduler {
+            await midiScheduler.stop()
         }
     }
 
@@ -101,6 +113,13 @@ public actor MetronomeEngine {
         if let scheduler {
             await scheduler.pause()
         }
+        // For MIDI we send Stop on pause; resume sends Start again.
+        // Continuing across a phone-call interruption with a half-second
+        // gap of Clock pulses confuses many DAWs more than a clean
+        // Stop/Start cycle does.
+        if let midiScheduler {
+            await midiScheduler.stop()
+        }
     }
 
     /// Resume after a `pause()`. Re-anchors the click sequence at `clock.now`
@@ -116,6 +135,10 @@ public actor MetronomeEngine {
         isPaused = false
         if let scheduler {
             await scheduler.resume(engine: self)
+        }
+        if let midiScheduler {
+            await midiScheduler.setEnabled(settings.midiClockEnabled)
+            await midiScheduler.start(engine: self)
         }
     }
 
@@ -155,7 +178,22 @@ public actor MetronomeEngine {
 
     /// Replace the engine's settings wholesale.
     public func setSettings(_ newSettings: EngineSettings) {
+        let oldMidi = settings.midiClockEnabled
         settings = newSettings
+        // Hot-apply midiClockEnabled so the user toggling it in the
+        // Settings sheet takes effect immediately (no need to stop and
+        // restart the engine).
+        if let midiScheduler, oldMidi != newSettings.midiClockEnabled {
+            Task { [midiScheduler, newSettings, isRunning, isPaused] in
+                await midiScheduler.setEnabled(newSettings.midiClockEnabled)
+                if newSettings.midiClockEnabled && isRunning {
+                    await midiScheduler.start(engine: self)
+                } else if !newSettings.midiClockEnabled {
+                    await midiScheduler.stop()
+                }
+                _ = isPaused // silence unused-capture warning
+            }
+        }
     }
 
     /// Set or clear the active song's sound preset. Called by
@@ -171,6 +209,13 @@ public actor MetronomeEngine {
     /// `nil` to detach (silent mode).
     public func attach(scheduler: AudioScheduler?) {
         self.scheduler = scheduler
+    }
+
+    /// Attach a `MIDIScheduler` for MIDI Clock output. The app target
+    /// constructs it (may fail to allocate CoreMIDI resources, returning
+    /// nil). Pass `nil` to detach.
+    public func attach(midi: MIDIScheduler?) {
+        self.midiScheduler = midi
     }
 
     /// Next `count` clicks starting at or after `clock.now`. Returns `[]`
@@ -217,6 +262,13 @@ public actor MetronomeEngine {
         if let scheduler {
             Task { [scheduler] in
                 await scheduler.scheduleReset()
+            }
+        }
+        // MIDI parallel: drop the tick counter so the refill loop
+        // re-anchors against the new schedule.startTime + new BPM.
+        if let midiScheduler {
+            Task { [midiScheduler] in
+                await midiScheduler.scheduleReset()
             }
         }
     }

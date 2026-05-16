@@ -34,6 +34,7 @@ struct SettingsView: View {
                 masterVolumeSection
                 latencySection
                 autoResumeSection
+                midiSection
             }
             .scrollContentBackground(.hidden)
             .background(DS.DSColor.bgBase)
@@ -149,6 +150,19 @@ struct SettingsView: View {
                 .listRowBackground(DS.DSColor.bgElevated)
         } footer: {
             Text("When enabled, the metronome resumes automatically after a phone call or Siri interruption ends. Off by default — most musicians prefer to restart manually.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var midiSection: some View {
+        Section {
+            Toggle("Send MIDI Clock", isOn: $settings.midiClockEnabled)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("MIDI Sync").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("When enabled, meter-gnome publishes a virtual MIDI source named \"meter-gnome\" that sends MIDI Clock (24 PPQ) plus Start/Stop messages. Other apps and DAWs on the same device can subscribe to it to slave their tempo.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

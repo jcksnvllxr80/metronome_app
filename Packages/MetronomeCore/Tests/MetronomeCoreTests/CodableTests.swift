@@ -151,9 +151,14 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
         countIn: .twoMeasures,
         bpmPrecisionMode: true,
         autoResumeAfterInterruption: true,
-        clickSound: .cowbell
+        clickSound: .cowbell,
+        midiClockEnabled: true
     )
     #expect(try roundTrip(s) == s)
+}
+
+@Test func engineSettingsDefaultsMidiOff() {
+    #expect(EngineSettings().midiClockEnabled == false)
 }
 
 @Test func clickSoundRoundTrip() throws {

@@ -44,6 +44,16 @@ struct meter_gnomeApp: App {
         }
         AudioSessionCoordinator.shared.attach(engine: engine)
 
+        // MIDI — optional. May fail to construct on simulator or without
+        // CoreMIDI privileges; engine works fine without it.
+        let midi = MIDIScheduler()
+        if let midi {
+            Task {
+                await engine.attach(midi: midi)
+                await midi.setEnabled(settingsStore.current.midiClockEnabled)
+            }
+        }
+
         // Setlist playback coordinator — watches engine clock + drives
         // song transitions per the active setlist's advance mode.
         let setlistPlayer = SetlistPlayer(engine: engine)
