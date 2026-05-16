@@ -112,13 +112,19 @@ struct LibraryView: View {
         } else {
             List {
                 ForEach(viewModel.librarySongs) { song in
-                    Button {
-                        viewModel.loadSong(song)
-                        dismiss()
+                    NavigationLink {
+                        SongDetailView(
+                            song: song,
+                            onSave: { updated in viewModel.saveSong(updated) },
+                            onDelete: { id in viewModel.deleteSong(id: id) },
+                            onLoad: { toLoad in
+                                viewModel.loadSong(toLoad)
+                                dismiss()
+                            }
+                        )
                     } label: {
                         songRow(song)
                     }
-                    .buttonStyle(.plain)
                     .listRowBackground(DS.DSColor.bgElevated)
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
@@ -182,19 +188,13 @@ struct LibraryView: View {
     // MARK: - Rows
 
     private func songRow(_ song: Song) -> some View {
-        HStack(alignment: .center, spacing: DS.Spacing.md) {
-            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
-                Text(song.title)
-                    .font(DS.Font.headline)
-                    .foregroundStyle(DS.DSColor.textPrimary)
-                Text(songMetaLine(song))
-                    .font(DS.Font.monoData)
-                    .foregroundStyle(DS.DSColor.textMuted)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(DS.DSColor.textDim)
+        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            Text(song.title)
+                .font(DS.Font.headline)
+                .foregroundStyle(DS.DSColor.textPrimary)
+            Text(songMetaLine(song))
+                .font(DS.Font.monoData)
+                .foregroundStyle(DS.DSColor.textMuted)
         }
         .padding(.vertical, DS.Spacing.xs)
     }
@@ -237,6 +237,11 @@ struct LibraryView: View {
         parts.append("\(song.timeSignature.numerator)/\(song.timeSignature.denominator.rawValue)")
         if song.subdivision != .none {
             parts.append(song.subdivision.rawValue)
+        }
+        switch song.duration {
+        case .measures(let n): parts.append("\(n)m")
+        case .seconds(let s): parts.append("\(Int(s.rounded()))s")
+        case .none: break
         }
         return parts.joined(separator: " · ")
     }

@@ -198,6 +198,13 @@ final class MetronomeViewModel {
         return true
     }
 
+    /// Insert or update a song by ID. Used by SongDetailView to persist
+    /// edits to existing songs.
+    func saveSong(_ song: Song) {
+        libraryStore?.save(song)
+        refreshLibrary()
+    }
+
     /// Load a song's settings into the engine. Doesn't auto-start —
     /// keeps the user in control of when audio begins.
     func loadSong(_ song: Song) {
