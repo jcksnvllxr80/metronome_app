@@ -148,6 +148,17 @@ final class MetronomeViewModel {
         }
     }
 
+    /// Commit a new subdivision. The engine re-anchors its schedule
+    /// at clock.now (and the audio scheduler picks up the new click
+    /// period on its next refill pass).
+    func setSubdivision(_ newSub: Subdivision) {
+        subdivision = newSub // optimistic
+        Task {
+            await engine.setSubdivision(newSub)
+            await refresh()
+        }
+    }
+
     /// Commit new engine settings. The audio scheduler picks up
     /// masterVolume / latencyOffsetSeconds at the next refill pass (~50 ms);
     /// countIn and autoResume apply at the next start / interruption.

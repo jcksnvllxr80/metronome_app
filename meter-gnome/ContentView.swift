@@ -16,6 +16,7 @@ import MetronomeCore
 struct ContentView: View {
     let viewModel: MetronomeViewModel
     @State private var showTimeSigPicker = false
+    @State private var showSubdivisionPicker = false
     @State private var showSettings = false
     @State private var showLibrary = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
@@ -58,6 +59,12 @@ struct ContentView: View {
         .sheet(isPresented: $showTimeSigPicker) {
             TimeSignaturePickerView(current: viewModel.timeSignature) { selected in
                 viewModel.setTimeSignature(selected)
+            }
+            .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showSubdivisionPicker) {
+            SubdivisionPickerView(current: viewModel.subdivision) { selected in
+                viewModel.setSubdivision(selected)
             }
             .presentationDetents([.medium, .large])
         }
@@ -117,7 +124,7 @@ struct ContentView: View {
                     .padding(.top, DS.Spacing.md)
             }
 
-            timeSignatureButton
+            meterRow
                 .padding(.top, viewModel.playingSetlistName == nil ? DS.Spacing.lg : DS.Spacing.xs)
 
             Spacer()
@@ -177,7 +184,33 @@ struct ContentView: View {
         return "\(name) · \(n) of \(total)"
     }
 
-    // MARK: - Time signature (top, tap to open picker)
+    // MARK: - Meter row (time signature + subdivision, top)
+
+    private var meterRow: some View {
+        HStack(spacing: DS.Spacing.md) {
+            timeSignatureButton
+            subdivisionButton
+        }
+    }
+
+    private var subdivisionButton: some View {
+        // Always visible — even when .none — so the affordance is
+        // discoverable. Muted color when off, accent when active.
+        let isActive = viewModel.subdivision != .none
+        return Button {
+            showSubdivisionPicker = true
+        } label: {
+            Text(SubdivisionLabel.compact(viewModel.subdivision))
+                .font(DS.Font.monoData)
+                .monospacedDigit()
+                .foregroundStyle(isActive ? DS.DSColor.accentTempo : DS.DSColor.textDim)
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, DS.Spacing.xs)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Subdivision, \(SubdivisionLabel.descriptive(viewModel.subdivision)). Tap to change.")
+    }
 
     private var timeSignatureButton: some View {
         Button {
