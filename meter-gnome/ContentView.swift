@@ -107,7 +107,7 @@ struct ContentView: View {
 
         return VStack(spacing: DS.Spacing.sm) {
             Text("\(viewModel.bpm.displayInt)")
-                .font(.system(size: bpmFontSize, weight: .bold, design: .monospaced))
+                .font(.custom("JetBrainsMono-Bold", size: bpmFontSize))
                 .monospacedDigit()
                 .tracking(-bpmFontSize * 0.022)  // ~ -2% per DESIGN.md
                 .foregroundStyle(digitColor)

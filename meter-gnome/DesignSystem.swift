@@ -39,16 +39,16 @@ enum DS {
         static let lg: CGFloat = 12
     }
 
-    /// Typography. JetBrains Mono `.ttf` is not yet bundled — the `design: .monospaced`
-    /// system fallback (SF Mono) holds until then. The point sizes and weights
-    /// already match DESIGN.md's scale.
+    /// Typography. Numeric / mono surfaces use JetBrains Mono (bundled .ttf,
+    /// registered via Info.plist UIAppFonts). Body + UI fall back to SF Pro
+    /// per DESIGN.md.
     enum Font {
-        static let bpmHero    = SwiftUI.Font.system(size: 180, weight: .bold,   design: .monospaced)
-        static let bpmNormal  = SwiftUI.Font.system(size: 96,  weight: .bold,   design: .monospaced)
-        static let display    = SwiftUI.Font.system(size: 32,  weight: .medium, design: .monospaced)
+        static let bpmHero    = SwiftUI.Font.custom("JetBrainsMono-Bold",    size: 180)
+        static let bpmNormal  = SwiftUI.Font.custom("JetBrainsMono-Bold",    size: 96)
+        static let display    = SwiftUI.Font.custom("JetBrainsMono-Medium",  size: 32)
         static let headline   = SwiftUI.Font.system(size: 22,  weight: .semibold)
         static let body       = SwiftUI.Font.system(size: 17,  weight: .regular)
         static let label      = SwiftUI.Font.system(size: 13,  weight: .medium)
-        static let monoData   = SwiftUI.Font.system(size: 13,  weight: .regular, design: .monospaced)
+        static let monoData   = SwiftUI.Font.custom("JetBrainsMono-Regular", size: 13)
     }
 }
