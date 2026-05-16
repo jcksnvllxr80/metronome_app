@@ -31,6 +31,7 @@ struct SongDetailView: View {
                 titleSection
                 tempoSection
                 matchStageSection
+                accentPatternSection
                 soundSection
                 durationSection
                 notesSection
@@ -143,6 +144,47 @@ struct SongDetailView: View {
         song.setTimeSignature(viewModel.timeSignature)
         song.subdivision = viewModel.subdivision
         // onChange(of: song) will fire and trigger onSave.
+    }
+
+    // MARK: - Accent Pattern
+
+    private var accentPatternSection: some View {
+        Section {
+            NavigationLink {
+                AccentPatternEditView(
+                    timeSignature: song.timeSignature,
+                    current: song.accentPattern
+                ) { newPattern in
+                    // setAccentPattern enforces TS scoping (returns false
+                    // on mismatch). The editor's pattern is built from
+                    // song.timeSignature, so it always matches.
+                    _ = song.setAccentPattern(newPattern)
+                }
+            } label: {
+                HStack {
+                    Text("Pattern")
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                    Spacer()
+                    Text(accentPatternSummary)
+                        .font(DS.Font.body)
+                        .foregroundStyle(accentPatternColor)
+                }
+            }
+            .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Accent Pattern").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Customize which beats in the measure are accented, muted, or softer.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var accentPatternSummary: String {
+        song.accentPattern?.name ?? "Default (downbeat only)"
+    }
+
+    private var accentPatternColor: Color {
+        song.accentPattern == nil ? DS.DSColor.textMuted : DS.DSColor.accentTempo
     }
 
     // MARK: - Sound
