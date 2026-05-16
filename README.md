@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="meter-gnome/Assets.xcassets/AppIcon.appiconset/AppIcon.png" alt="meter-gnome icon" width="180" />
+</p>
+
 # meter-gnome
 
 A stage-confident iOS metronome — an *instrument's read-head*, not a phone app. Built for working musicians who need glanceable timing under stage lighting.
