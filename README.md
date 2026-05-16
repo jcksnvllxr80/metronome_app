@@ -46,3 +46,7 @@ meter-gnome.xcodeproj/                Xcode project
 - **[DESIGN.md](DESIGN.md)** — design system; read before any visual or UI change.
 - **[AUDIO_INTEGRATION_PLAN.md](AUDIO_INTEGRATION_PLAN.md)** — draft plan for wiring AVAudioEngine; awaiting plan review before audio code lands.
 - **[FUNCTIONAL_SPEC.md](FUNCTIONAL_SPEC.md)** — original functional spec; deep reference for features not yet captured elsewhere (sound library, voice count, MIDI, etc.).
+
+## License
+
+[MIT](LICENSE) © 2026 Aaron Watkins.
