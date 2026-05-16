@@ -3,9 +3,9 @@ import Foundation
 /// Central engine class per spec §17 / CLAUDE.md Architecture.
 ///
 /// Owns the mutable state (BPM, time signature, subdivision, accent pattern,
-/// running flag) and — in a later commit — the `AVAudioEngine`. Runs on its
-/// own actor isolation. Explicitly NOT `@MainActor` so the audio scheduler
-/// doesn't contend with UI work.
+/// settings, running flag) and — in a later commit — the `AVAudioEngine`.
+/// Runs on its own actor isolation. Explicitly NOT `@MainActor` so the audio
+/// scheduler doesn't contend with UI work.
 ///
 /// This file contains the skeleton only — no audio, no AVFoundation. The
 /// scheduling math lives in `ClickSchedule`, which is pure and testable
@@ -18,6 +18,7 @@ public actor MetronomeEngine {
     public private(set) var timeSignature: TimeSignature
     public private(set) var subdivision: Subdivision
     public private(set) var accentPattern: AccentPattern?
+    public private(set) var settings: EngineSettings
     public private(set) var isRunning: Bool = false
     public private(set) var schedule: ClickSchedule?
 
@@ -26,12 +27,14 @@ public actor MetronomeEngine {
         bpm: BPM = BPM(120),
         timeSignature: TimeSignature = .fourFour,
         subdivision: Subdivision = .none,
-        accentPattern: AccentPattern? = nil
+        accentPattern: AccentPattern? = nil,
+        settings: EngineSettings = EngineSettings()
     ) {
         self.clock = clock
         self.bpm = bpm
         self.timeSignature = timeSignature
         self.subdivision = subdivision
+        self.settings = settings
         // Ignore a pattern whose time signature doesn't match (avoid leaking
         // an invalid state out of init; user can call setAccentPattern later).
         if let pattern = accentPattern, pattern.timeSignature == timeSignature {
@@ -42,8 +45,13 @@ public actor MetronomeEngine {
     }
 
     /// Anchor a new click sequence at `clock.now` and mark running.
-    public func start() {
-        rebuildSchedule()
+    ///
+    /// `countIn` overrides `settings.countIn` for this start (e.g. setlist
+    /// auto-advance with `.immediate` mode passes `.off`). When `nil`, the
+    /// engine uses its persisted setting.
+    public func start(countIn: CountIn? = nil) {
+        let effective = countIn ?? settings.countIn
+        rebuildSchedule(countIn: effective)
         isRunning = true
     }
 
@@ -54,6 +62,8 @@ public actor MetronomeEngine {
     }
 
     /// Change tempo. Re-anchors the click sequence at `clock.now` when running.
+    /// Re-anchor always uses count-in `.off` — the user is changing tempo
+    /// mid-song, not re-starting.
     public func setBPM(_ newBPM: BPM) {
         bpm = newBPM
         reanchorIfRunning()
@@ -89,6 +99,13 @@ public actor MetronomeEngine {
         return true
     }
 
+    /// Replace the engine's settings wholesale. Does NOT re-anchor — the
+    /// audio integration will pick up `masterVolume` / `latencyOffsetSeconds`
+    /// at the next buffer schedule, and `countIn` only matters at `start()`.
+    public func setSettings(_ newSettings: EngineSettings) {
+        settings = newSettings
+    }
+
     /// Next `count` clicks starting at or after `clock.now`. Returns `[]`
     /// when the engine is stopped. Callers (the audio scheduler) keep
     /// 4–8 beats queued per spec §1.2.
@@ -99,18 +116,20 @@ public actor MetronomeEngine {
 
     // MARK: - Private
 
-    private func rebuildSchedule() {
+    private func rebuildSchedule(countIn: CountIn = .off) {
         schedule = ClickSchedule(
             bpm: bpm,
             timeSignature: timeSignature,
             subdivision: subdivision,
             startTime: clock.now,
-            accentPattern: accentPattern
+            accentPattern: accentPattern,
+            countInMeasures: countIn.measures
         )
     }
 
     private func reanchorIfRunning() {
         guard isRunning else { return }
-        rebuildSchedule()
+        // Mid-run re-anchors never re-trigger count-in.
+        rebuildSchedule(countIn: .off)
     }
 }

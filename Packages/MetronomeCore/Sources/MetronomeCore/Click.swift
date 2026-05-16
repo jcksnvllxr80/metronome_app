@@ -27,6 +27,11 @@ public struct Click: Hashable, Sendable {
     /// Per-beat pitch shift from the active `AccentPattern`. Always `.unison`
     /// for subdivisions.
     public let pitchShift: PitchShift
+    /// True for clicks that fall within the engine's count-in window. The
+    /// accent pattern is NOT applied to these clicks; the UI may render them
+    /// differently (e.g. dimmed) and the audio layer may choose a quieter
+    /// sample.
+    public let isCountIn: Bool
 
     public init(
         beatIndex: Int,
@@ -35,7 +40,8 @@ public struct Click: Hashable, Sendable {
         time: TimeInterval,
         accent: AccentLevel,
         soundOverride: String? = nil,
-        pitchShift: PitchShift = .unison
+        pitchShift: PitchShift = .unison,
+        isCountIn: Bool = false
     ) {
         self.beatIndex = beatIndex
         self.subdivisionIndex = subdivisionIndex
@@ -44,6 +50,7 @@ public struct Click: Hashable, Sendable {
         self.accent = accent
         self.soundOverride = soundOverride
         self.pitchShift = pitchShift
+        self.isCountIn = isCountIn
     }
 
     /// First click of the first beat of a measure.
