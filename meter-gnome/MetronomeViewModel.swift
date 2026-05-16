@@ -28,6 +28,10 @@ final class MetronomeViewModel {
     var subdivision: Subdivision = .none
     var isRunning: Bool = false
     var settings: EngineSettings = EngineSettings()
+    /// Cached snapshot of the library's saved songs. Refreshed by the
+    /// view model whenever a song is added, deleted, or the library
+    /// sheet is presented. Empty when no LibraryStore is attached.
+    var librarySongs: [Song] = []
     /// A snapshot of the engine's current ClickSchedule. The view reads
     /// this every animation frame via TimelineView to drive the pulse.
     /// `nil` when the engine is stopped or before the first start().
@@ -124,6 +128,45 @@ final class MetronomeViewModel {
             await engine.setSettings(newSettings)
             await refresh()
         }
+    }
+
+    // MARK: - Library
+
+    /// Pull the latest songs from SwiftData. Cheap (single fetch by title).
+    func refreshLibrary() {
+        librarySongs = libraryStore?.allSongs() ?? []
+    }
+
+    /// Save the engine's current settings as a new Song with the given title.
+    /// Returns false if the LibraryStore isn't attached or the title is blank.
+    @discardableResult
+    func saveCurrentAsSong(title: String) -> Bool {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let store = libraryStore else { return false }
+        guard let song = Song(
+            title: trimmed,
+            bpm: bpm,
+            timeSignature: timeSignature,
+            subdivision: subdivision
+        ) else { return false }
+        store.save(song)
+        refreshLibrary()
+        return true
+    }
+
+    /// Load a song's settings into the engine. Doesn't auto-start —
+    /// keeps the user in control of when audio begins.
+    func loadSong(_ song: Song) {
+        Task {
+            await engine.apply(song)
+            await refresh()
+        }
+    }
+
+    /// Delete a song from the library.
+    func deleteSong(id: UUID) {
+        libraryStore?.deleteSong(id: id)
+        refreshLibrary()
     }
 
     /// Register a tap from the UI's tap-tempo button. Always records

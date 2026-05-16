@@ -17,6 +17,7 @@ struct ContentView: View {
     let viewModel: MetronomeViewModel
     @State private var showTimeSigPicker = false
     @State private var showSettings = false
+    @State private var showLibrary = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -30,7 +31,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .top) {
             DS.DSColor.bgBase.ignoresSafeArea()
 
             // TimelineView re-evaluates the body at the animation frame rate
@@ -43,10 +44,15 @@ struct ContentView: View {
                 content(at: now)
             }
 
-            // Settings overlay — small enough to stay out of the way during
-            // performance. DESIGN.md caps Stage at 5 elements; this is an
-            // affordance, not one of the five.
-            settingsButton
+            // Top overlay row — Library (leading) and Settings (trailing),
+            // balanced around the centered time signature in the content
+            // stack. Both icons are small + muted so they recede during
+            // performance and DESIGN.md's 5-element rule applies in spirit.
+            HStack {
+                libraryButton
+                Spacer()
+                settingsButton
+            }
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showTimeSigPicker) {
@@ -61,6 +67,25 @@ struct ContentView: View {
             }
             .presentationDetents([.large])
         }
+        .sheet(isPresented: $showLibrary) {
+            LibraryView(viewModel: viewModel)
+                .presentationDetents([.large])
+        }
+    }
+
+    private var libraryButton: some View {
+        Button {
+            viewModel.refreshLibrary()
+            showLibrary = true
+        } label: {
+            Image(systemName: "music.note.list")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(DS.DSColor.textMuted)
+                .padding(DS.Spacing.lg)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Library")
     }
 
     private var settingsButton: some View {
