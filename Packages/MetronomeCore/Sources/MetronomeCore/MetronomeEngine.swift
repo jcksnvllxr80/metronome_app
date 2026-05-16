@@ -20,6 +20,11 @@ public actor MetronomeEngine {
     public private(set) var accentPattern: AccentPattern?
     public private(set) var settings: EngineSettings
     public private(set) var isRunning: Bool = false
+    /// `true` when the engine was paused by an audio-session interruption
+    /// or route change and is waiting on `resume()`. Mutually exclusive with
+    /// `isRunning`. Set back to `false` by `stop()` (full reset) or by
+    /// `resume()` (returns to running).
+    public private(set) var isPaused: Bool = false
     public private(set) var schedule: ClickSchedule?
 
     /// Audio output sink. `nil` when running silently (engine math still
@@ -55,6 +60,7 @@ public actor MetronomeEngine {
         let effective = countIn ?? settings.countIn
         rebuildSchedule(countIn: effective)
         isRunning = true
+        isPaused = false
         if let scheduler {
             await scheduler.start(engine: self)
         }
@@ -64,9 +70,41 @@ public actor MetronomeEngine {
     /// is torn down.
     public func stop() async {
         isRunning = false
+        isPaused = false
         schedule = nil
         if let scheduler {
             await scheduler.stop()
+        }
+    }
+
+    /// Pause playback without tearing down the audio engine. Used for
+    /// audio-session interruptions (phone calls, Siri) and route changes
+    /// (headphone unplug). The schedule is preserved so `resume()` can
+    /// re-anchor at `clock.now` without losing user intent. No-op when
+    /// not running.
+    public func pause() async {
+        guard isRunning else { return }
+        isRunning = false
+        isPaused = true
+        // Schedule stays — resume() will re-anchor it.
+        if let scheduler {
+            await scheduler.pause()
+        }
+    }
+
+    /// Resume after a `pause()`. Re-anchors the click sequence at `clock.now`
+    /// (no count-in — this is a continuation, not a new start). No-op when
+    /// not paused. Called by the audio session coordinator when an
+    /// interruption ends with `.shouldResume` AND
+    /// `settings.autoResumeAfterInterruption` is true, OR manually by the
+    /// user pressing Play.
+    public func resume() async {
+        guard isPaused else { return }
+        rebuildSchedule(countIn: .off)
+        isRunning = true
+        isPaused = false
+        if let scheduler {
+            await scheduler.resume(engine: self)
         }
     }
 

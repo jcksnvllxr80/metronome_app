@@ -20,11 +20,14 @@ public actor AudioScheduler {
     /// the lookahead queue never drains.
     private static let refillIntervalMs: UInt64 = 50
 
-    /// Number of clicks kept in the player node's pre-scheduled queue.
-    /// 4 is the spec §1.2 floor; sub-commit C can make this BPM-adaptive
-    /// (seconds-or-beats whichever-greater) per AUDIO_INTEGRATION_PLAN.md
-    /// open question #2.
-    private static let lookahead: Int = 4
+    /// Minimum number of clicks in the player node's pre-scheduled queue
+    /// (spec §1.2 floor of 4). Adaptive policy: lookahead = max(4,
+    /// ceil(minLookaheadSeconds / clickPeriod)) so at 400 BPM (period
+    /// 150 ms) we queue ~4 clicks worth of audio (~600 ms), and at slow
+    /// tempos we never queue MORE than necessary — keeps tempo-change
+    /// latency bounded.
+    private static let minLookaheadClicks: Int = 4
+    private static let minLookaheadSeconds: TimeInterval = 0.5
 
     public let avEngine: AVAudioEngine
     public let playerNode: AVAudioPlayerNode
@@ -96,6 +99,36 @@ public actor AudioScheduler {
         engineRef = nil
     }
 
+    /// Light teardown for interruption / route-change pauses. Cancels the
+    /// refill task and stops the player node, but keeps `AVAudioEngine`
+    /// running and the session active so `resume(engine:)` can pick up
+    /// quickly. The engine reference is held — `resume` re-uses it.
+    public func pause() async {
+        refillTask?.cancel()
+        refillTask = nil
+        playerNode.stop()
+        playerNode.reset()
+        lastScheduledTime = -.infinity
+    }
+
+    /// Pair to `pause()`. Re-attaches the engine reference and restarts
+    /// the player node + refill loop. Faster than full `start(engine:)`
+    /// because `AVAudioEngine` and the audio session stay live across
+    /// the pause.
+    public func resume(engine: MetronomeEngine) async {
+        self.engineRef = engine
+        lastScheduledTime = -.infinity
+        if !avEngine.isRunning {
+            do { try avEngine.start() }
+            catch { print("AudioScheduler: avEngine.start failed on resume: \(error)") }
+        }
+        playerNode.play()
+        refillTask?.cancel()
+        refillTask = Task { [weak self] in
+            await self?.refillLoop()
+        }
+    }
+
     /// Engine calls this when it rebuilds its schedule (BPM change, time
     /// signature change, etc.). Drops everything queued in the player node
     /// and lets the refill loop re-populate from the new schedule.
@@ -117,7 +150,8 @@ public actor AudioScheduler {
 
     private func refillOnce() async {
         guard let engine = engineRef else { return }
-        let upcoming = await engine.clicks(after: lastScheduledTime, count: Self.lookahead)
+        let lookahead = await adaptiveLookahead(for: engine)
+        let upcoming = await engine.clicks(after: lastScheduledTime, count: lookahead)
         for click in upcoming {
             // Mute click: still advance `lastScheduledTime` so we don't
             // re-pull it next pass, but don't schedule anything audible.
@@ -134,6 +168,21 @@ public actor AudioScheduler {
             playerNode.scheduleBuffer(buffer, at: audioTime, options: [], completionHandler: nil)
             lastScheduledTime = click.time
         }
+    }
+
+    /// `max(4, ceil(0.5s / clickPeriod))` clicks. At 400 BPM (period
+    /// 150 ms) → 4 clicks (~600 ms of audio queued); at 120 BPM (500 ms)
+    /// → 4 clicks (~2 s); at 60 BPM (1000 ms) → 4 clicks (~4 s).
+    /// At very slow tempos the floor of 4 keeps things stable; at fast
+    /// tempos the seconds-floor would expand the queue, but realistically
+    /// 4 clicks is already > 0.5 s for the whole audible tempo range with
+    /// no subdivision. Subdivisions shrink clickPeriod and push lookahead up.
+    private func adaptiveLookahead(for engine: MetronomeEngine) async -> Int {
+        guard let schedule = await engine.schedule else {
+            return Self.minLookaheadClicks
+        }
+        let bySeconds = Int(ceil(Self.minLookaheadSeconds / schedule.clickPeriod))
+        return max(Self.minLookaheadClicks, bySeconds)
     }
 
     // MARK: - Session activation (iOS only)

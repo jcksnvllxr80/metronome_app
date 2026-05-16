@@ -25,6 +25,11 @@ struct meter_gnomeApp: App {
         Task {
             await engine.attach(scheduler: scheduler)
         }
+        // Wire the session coordinator to the engine so audio interruptions
+        // (phone calls, Siri) and route changes (headphones unplugged)
+        // drive engine.pause() / engine.resume().
+        AudioSessionCoordinator.shared.attach(engine: engine)
+
         _viewModel = State(wrappedValue: MetronomeViewModel(engine: engine))
     }
 

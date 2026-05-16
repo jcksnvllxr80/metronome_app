@@ -24,13 +24,20 @@ public struct EngineSettings: Hashable, Sendable {
     /// Engine doesn't read this — it's a display setting kept here because
     /// it lives next to BPM-related preferences and persists the same way.
     public var bpmPrecisionMode: Bool
+    /// When `true`, the engine resumes automatically after an audio session
+    /// interruption ends (the system also has to set `.shouldResume` in
+    /// the interruption-ended notification). Default `false` per Apple HIG:
+    /// users expect a phone call → metronome stays paused → they press
+    /// Play again. Spec §16 calls this out as an explicit user setting.
+    public var autoResumeAfterInterruption: Bool
 
     public init(
         masterVolume: Double = 1.0,
         latencyOffsetSeconds: TimeInterval = 0.0,
         mixWithOthers: Bool = true,
         countIn: CountIn = .off,
-        bpmPrecisionMode: Bool = false
+        bpmPrecisionMode: Bool = false,
+        autoResumeAfterInterruption: Bool = false
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -40,5 +47,6 @@ public struct EngineSettings: Hashable, Sendable {
         self.mixWithOthers = mixWithOthers
         self.countIn = countIn
         self.bpmPrecisionMode = bpmPrecisionMode
+        self.autoResumeAfterInterruption = autoResumeAfterInterruption
     }
 }
