@@ -4,20 +4,33 @@
 //
 
 import SwiftUI
+import MetronomeCore
 
 @main
 struct meter_gnomeApp: App {
+    @State private var viewModel: MetronomeViewModel
+
     init() {
-        // Configure AVAudioSession category at launch. Doesn't activate
-        // the session yet — that happens when audio actually plays
-        // (Sub-commit B). Failure is logged but non-fatal: the app still
-        // runs silently and the visual pulse keeps working.
+        // Configure AVAudioSession category at launch (category set but
+        // session NOT yet activated — activation happens at engine.start()).
         AudioSessionCoordinator.shared.configure()
+
+        // Construct the engine + audio scheduler and wire them together.
+        // The scheduler holds AVAudioEngine; attach() is async, but we
+        // can fire-and-forget the attach Task because nothing tries to
+        // play audio until the user taps Play — which is far in the
+        // future relative to one actor hop.
+        let engine = MetronomeEngine()
+        let scheduler = AudioScheduler()
+        Task {
+            await engine.attach(scheduler: scheduler)
+        }
+        _viewModel = State(wrappedValue: MetronomeViewModel(engine: engine))
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(viewModel: viewModel)
         }
     }
 }

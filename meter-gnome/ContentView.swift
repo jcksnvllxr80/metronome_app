@@ -14,7 +14,7 @@ import SwiftUI
 import MetronomeCore
 
 struct ContentView: View {
-    @State private var viewModel = MetronomeViewModel()
+    let viewModel: MetronomeViewModel
     @State private var showTimeSigPicker = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -213,5 +213,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    ContentView(viewModel: MetronomeViewModel())
 }
