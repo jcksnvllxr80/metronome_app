@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		AA00000000000000000000C1 /* MetronomeCore in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000B1 /* MetronomeCore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		112682712FB8ED1A00D37AB2 /* meter-gnome.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "meter-gnome.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +27,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA00000000000000000000C1 /* MetronomeCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +70,7 @@
 			);
 			name = "meter-gnome";
 			packageProductDependencies = (
+				AA00000000000000000000B1 /* MetronomeCore */,
 			);
 			productName = "meter-gnome";
 			productReference = 112682712FB8ED1A00D37AB2 /* meter-gnome.app */;
@@ -94,6 +100,9 @@
 			);
 			mainGroup = 112682682FB8ED1A00D37AB2;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AA00000000000000000000A1 /* XCLocalSwiftPackageReference "Packages/MetronomeCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 112682722FB8ED1A00D37AB2 /* Products */;
 			projectDirPath = "";
@@ -332,6 +341,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AA00000000000000000000A1 /* XCLocalSwiftPackageReference "Packages/MetronomeCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/MetronomeCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA00000000000000000000B1 /* MetronomeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA00000000000000000000A1 /* XCLocalSwiftPackageReference "Packages/MetronomeCore" */;
+			productName = MetronomeCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 112682692FB8ED1A00D37AB2 /* Project object */;
 }
