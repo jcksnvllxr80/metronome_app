@@ -115,6 +115,7 @@ struct LibraryView: View {
                     NavigationLink {
                         SongDetailView(
                             song: song,
+                            viewModel: viewModel,
                             onSave: { updated in viewModel.saveSong(updated) },
                             onDelete: { id in viewModel.deleteSong(id: id) },
                             onLoad: { toLoad in

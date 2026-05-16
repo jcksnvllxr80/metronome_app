@@ -17,6 +17,7 @@ import MetronomeCore
 
 struct SongDetailView: View {
     @State var song: Song
+    let viewModel: MetronomeViewModel
     let onSave: (Song) -> Void
     let onDelete: (UUID) -> Void
     let onLoad: (Song) -> Void
@@ -29,6 +30,7 @@ struct SongDetailView: View {
             Form {
                 titleSection
                 tempoSection
+                matchStageSection
                 durationSection
                 notesSection
                 deleteSection
@@ -94,6 +96,52 @@ struct SongDetailView: View {
                 .foregroundStyle(DS.DSColor.textMuted)
         }
         .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    // MARK: - Match Stage
+
+    /// Section that surfaces what's currently set on Stage and lets the
+    /// user write those values back to this song. Disabled when the song
+    /// already matches Stage (nothing to apply).
+    private var matchStageSection: some View {
+        Section {
+            metaRow(label: "Stage tempo", value: "\(viewModel.bpm.displayInt) BPM")
+            metaRow(label: "Stage time signature",
+                    value: "\(viewModel.timeSignature.numerator)/\(viewModel.timeSignature.denominator.rawValue)")
+            metaRow(label: "Stage subdivision",
+                    value: SubdivisionLabel.descriptive(viewModel.subdivision))
+            Button {
+                applyStageState()
+            } label: {
+                Text(songMatchesStage ? "Already Matches Stage" : "Apply Stage State")
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(songMatchesStage ? DS.DSColor.textMuted : DS.DSColor.accentTempo)
+            }
+            .disabled(songMatchesStage)
+            .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Match Stage").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Replace this song's tempo, time signature, and subdivision with the values currently on Stage. Notes, title, and duration are unchanged.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var songMatchesStage: Bool {
+        song.bpm == viewModel.bpm
+            && song.timeSignature == viewModel.timeSignature
+            && song.subdivision == viewModel.subdivision
+    }
+
+    private func applyStageState() {
+        song.bpm = viewModel.bpm
+        // setTimeSignature is the safe mutator — it clears any accent
+        // pattern scoped to the old meter, preserving the spec §3.2
+        // invariant. Direct assignment to `timeSignature` won't compile
+        // (private(set)) and wouldn't run that check anyway.
+        song.setTimeSignature(viewModel.timeSignature)
+        song.subdivision = viewModel.subdivision
+        // onChange(of: song) will fire and trigger onSave.
     }
 
     // MARK: - Duration
@@ -242,6 +290,7 @@ struct SongDetailView: View {
     NavigationStack {
         SongDetailView(
             song: Song(title: "Wonderwall", bpm: BPM(87), duration: .measures(64))!,
+            viewModel: MetronomeViewModel(),
             onSave: { _ in },
             onDelete: { _ in },
             onLoad: { _ in }
