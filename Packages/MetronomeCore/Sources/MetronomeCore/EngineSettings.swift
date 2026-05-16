@@ -5,7 +5,7 @@ import Foundation
 /// Scoped to the *engine* side (audio + playback rules). UI-only settings —
 /// theme, large display mode, keep-screen-awake, lock-screen behavior —
 /// don't belong here and will land alongside the UI layer.
-public struct EngineSettings: Hashable, Sendable {
+public struct EngineSettings: Hashable, Sendable, Codable {
     /// Latency calibration range per spec §10.1: ±50 ms.
     public static let latencyOffsetRange: ClosedRange<TimeInterval> = -0.050...0.050
 

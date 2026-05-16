@@ -8,7 +8,7 @@ import Foundation
 /// type encodes that by storing the `timeSignature` and validating the `beats`
 /// array length at construction. `MetronomeEngine` clears a pattern when the
 /// engine's time signature changes to one that doesn't match.
-public struct AccentPattern: Hashable, Sendable {
+public struct AccentPattern: Hashable, Sendable, Codable {
     public let name: String
     public let timeSignature: TimeSignature
     public let beats: [BeatConfig]
@@ -36,5 +36,34 @@ public struct AccentPattern: Hashable, Sendable {
         var beats = Array(repeating: BeatConfig.mainBeat, count: timeSignature.numerator)
         beats[0] = .downbeat
         return AccentPattern(name: name, timeSignature: timeSignature, beats: beats)!
+    }
+
+    // Codable — routes through init? so a persisted pattern whose
+    // beats.count drifts from its timeSignature.numerator fails decoding
+    // loudly. Preserves the spec §3.2 invariant on read.
+    private enum CodingKeys: String, CodingKey {
+        case name, timeSignature, beats
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try container.decode(String.self, forKey: .name)
+        let ts = try container.decode(TimeSignature.self, forKey: .timeSignature)
+        let beats = try container.decode([BeatConfig].self, forKey: .beats)
+        guard let pattern = AccentPattern(name: name, timeSignature: ts, beats: beats) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .beats,
+                in: container,
+                debugDescription: "Beats count \(beats.count) doesn't match time signature \(ts.numerator)"
+            )
+        }
+        self = pattern
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encode(timeSignature, forKey: .timeSignature)
+        try container.encode(beats, forKey: .beats)
     }
 }

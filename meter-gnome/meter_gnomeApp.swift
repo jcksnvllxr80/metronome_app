@@ -4,38 +4,57 @@
 //
 
 import SwiftUI
+import SwiftData
 import MetronomeCore
 
 @main
 struct meter_gnomeApp: App {
     @State private var viewModel: MetronomeViewModel
+    private let modelContainer: ModelContainer
 
     init() {
-        // Configure AVAudioSession category at launch (category set but
-        // session NOT yet activated — activation happens at engine.start()).
-        AudioSessionCoordinator.shared.configure()
+        // SwiftData container — holds the user's settings + library data.
+        // Fatal on failure: without persistence, the app's value proposition
+        // (settings + songs surviving relaunch) is broken; better to crash
+        // loudly than silently lose state.
+        let container: ModelContainer
+        do {
+            container = try ModelContainer(
+                for: PersistedEngineSettings.self,
+                    PersistedSong.self,
+                    PersistedSetlist.self
+            )
+        } catch {
+            fatalError("Failed to initialize SwiftData ModelContainer: \(error)")
+        }
+        self.modelContainer = container
 
-        // Construct the engine + audio scheduler and wire them together.
-        // The scheduler holds AVAudioEngine; attach() is async, but we
-        // can fire-and-forget the attach Task because nothing tries to
-        // play audio until the user taps Play — which is far in the
-        // future relative to one actor hop.
-        let engine = MetronomeEngine()
+        // Load persisted settings up front so the engine is constructed with
+        // them — avoids a brief flash of default values on launch.
+        let context = ModelContext(container)
+        let settingsStore = SettingsStore(context: context)
+        let libraryStore = LibraryStore(context: context)
+
+        // Audio
+        AudioSessionCoordinator.shared.configure()
+        let engine = MetronomeEngine(settings: settingsStore.current)
         let scheduler = AudioScheduler()
         Task {
             await engine.attach(scheduler: scheduler)
         }
-        // Wire the session coordinator to the engine so audio interruptions
-        // (phone calls, Siri) and route changes (headphones unplugged)
-        // drive engine.pause() / engine.resume().
         AudioSessionCoordinator.shared.attach(engine: engine)
 
-        _viewModel = State(wrappedValue: MetronomeViewModel(engine: engine))
+        _viewModel = State(wrappedValue: MetronomeViewModel(
+            engine: engine,
+            settingsStore: settingsStore,
+            libraryStore: libraryStore
+        ))
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView(viewModel: viewModel)
         }
+        .modelContainer(modelContainer)
     }
 }

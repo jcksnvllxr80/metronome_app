@@ -16,6 +16,11 @@ import MetronomeCore
 final class MetronomeViewModel {
     let engine: MetronomeEngine
 
+    /// Persistence handles. Optional so previews + tests can construct the
+    /// view model with the engine alone (no SwiftData container needed).
+    @ObservationIgnored let settingsStore: SettingsStore?
+    @ObservationIgnored let libraryStore: LibraryStore?
+
     // Mirrored engine state. Optimistically updated on user action; the
     // authoritative read happens in refresh() right after.
     var bpm: BPM = BPM(120)
@@ -42,8 +47,19 @@ final class MetronomeViewModel {
     @ObservationIgnored
     private var tapEstimator = TapTempoEstimator()
 
-    init(engine: MetronomeEngine = MetronomeEngine()) {
+    init(
+        engine: MetronomeEngine = MetronomeEngine(),
+        settingsStore: SettingsStore? = nil,
+        libraryStore: LibraryStore? = nil
+    ) {
         self.engine = engine
+        self.settingsStore = settingsStore
+        self.libraryStore = libraryStore
+        // Seed `settings` synchronously from the store if available so
+        // the SettingsView opens with the persisted values, not defaults.
+        if let initial = settingsStore?.current {
+            self.settings = initial
+        }
         Task { await self.refresh() }
     }
 
@@ -99,8 +115,11 @@ final class MetronomeViewModel {
     /// Commit new engine settings. The audio scheduler picks up
     /// masterVolume / latencyOffsetSeconds at the next refill pass (~50 ms);
     /// countIn and autoResume apply at the next start / interruption.
+    /// Persists to disk synchronously via SettingsStore so the change
+    /// survives the next launch.
     func setSettings(_ newSettings: EngineSettings) {
         settings = newSettings // optimistic
+        settingsStore?.update(newSettings)
         Task {
             await engine.setSettings(newSettings)
             await refresh()

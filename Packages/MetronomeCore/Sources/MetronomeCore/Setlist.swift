@@ -10,12 +10,44 @@ public enum SetlistAdvanceMode: Hashable, Sendable {
     case immediate
 }
 
+extension SetlistAdvanceMode: Codable {
+    private enum Kind: String, Codable {
+        case pause, countdown, immediate
+    }
+    private enum CodingKeys: String, CodingKey {
+        case kind, measures
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .pause:
+            try container.encode(Kind.pause, forKey: .kind)
+        case .countdown(let m):
+            try container.encode(Kind.countdown, forKey: .kind)
+            try container.encode(m, forKey: .measures)
+        case .immediate:
+            try container.encode(Kind.immediate, forKey: .kind)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        switch try container.decode(Kind.self, forKey: .kind) {
+        case .pause: self = .pause
+        case .immediate: self = .immediate
+        case .countdown:
+            self = .countdown(measures: try container.decode(Int.self, forKey: .measures))
+        }
+    }
+}
+
 /// Ordered, mutable collection of `Song`s, per spec §7.2.
 ///
 /// Songs are stored by value (not by reference / by id). When SwiftData
 /// lands, this becomes a relationship — until then the value model keeps
 /// the type pure and free of persistence concerns.
-public struct Setlist: Hashable, Sendable, Identifiable {
+public struct Setlist: Hashable, Sendable, Identifiable, Codable {
     public let id: UUID
     public var name: String
     public var songs: [Song]

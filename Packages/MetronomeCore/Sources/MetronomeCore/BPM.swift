@@ -3,7 +3,7 @@ import Foundation
 /// Beats per minute. Range 20.0–400.0 in 0.1 increments per spec §1.1.
 /// Stored as `Double` (not `Int`) so the "precision mode" setting can expose
 /// the tenths without lossy conversion.
-public struct BPM: Hashable, Sendable, Comparable {
+public struct BPM: Hashable, Sendable, Comparable, Codable {
     public static let minimum: Double = 20.0
     public static let maximum: Double = 400.0
     public static let precision: Double = 0.1
@@ -28,5 +28,19 @@ public struct BPM: Hashable, Sendable, Comparable {
 
     public static func < (lhs: BPM, rhs: BPM) -> Bool {
         lhs.value < rhs.value
+    }
+
+    // Codable — route through the clamping/snapping init so persisted
+    // values that are out-of-spec (corrupted or written by an old build)
+    // get normalized on read.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(Double.self)
+        self = BPM(raw)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(value)
     }
 }

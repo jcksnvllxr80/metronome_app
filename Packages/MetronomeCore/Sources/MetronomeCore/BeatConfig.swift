@@ -7,7 +7,7 @@ import Foundation
 /// doesn't depend on the sound library yet — the resolver lives at audio
 /// scheduling time. `nil` means "use the engine's default sound for this beat's
 /// accent level."
-public struct BeatConfig: Hashable, Sendable {
+public struct BeatConfig: Hashable, Sendable, Codable {
     public let accent: AccentLevel
     public let soundOverride: String?
     public let pitchShift: PitchShift

@@ -4,16 +4,20 @@ import Foundation
 /// `.none` is quarter notes only (1 part per beat). Custom 8/9 are modeled
 /// explicitly rather than as `case custom(Int)` so the type stays `Hashable`
 /// without manual conformance and the UI can render a fixed picker.
-public enum Subdivision: Hashable, Sendable, CaseIterable {
-    case none
-    case eighth
-    case triplet
-    case sixteenth
-    case quintuplet
-    case sextuplet
-    case septuplet
-    case octuplet
-    case nonuplet
+///
+/// `String` rawValue gives us free `Codable` for persistence (the raw key
+/// is the source of truth, not the case ordinal — adding a case later
+/// won't shift existing values).
+public enum Subdivision: String, Hashable, Sendable, Codable, CaseIterable {
+    case none = "none"
+    case eighth = "eighth"
+    case triplet = "triplet"
+    case sixteenth = "sixteenth"
+    case quintuplet = "quintuplet"
+    case sextuplet = "sextuplet"
+    case septuplet = "septuplet"
+    case octuplet = "octuplet"
+    case nonuplet = "nonuplet"
 
     /// Number of clicks per main beat at this subdivision level.
     public var partsPerBeat: Int {
