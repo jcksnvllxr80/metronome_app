@@ -156,6 +156,10 @@ struct LibraryView: View {
                             onSelectSong: { song in
                                 viewModel.loadSong(song)
                                 dismiss()
+                            },
+                            onPlay: { setlistToPlay in
+                                viewModel.playSetlist(setlistToPlay)
+                                dismiss()
                             }
                         )
                     } label: {

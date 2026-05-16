@@ -23,6 +23,7 @@ struct SetlistDetailView: View {
     let availableSongs: [Song]
     let onSave: (Setlist) -> Void
     let onSelectSong: (Song) -> Void
+    let onPlay: (Setlist) -> Void
 
     @State private var showSongPicker = false
 
@@ -47,6 +48,16 @@ struct SetlistDetailView: View {
                 }
                 .foregroundStyle(DS.DSColor.accentTempo)
                 .accessibilityLabel("Add songs to setlist")
+            }
+            ToolbarItem(placement: .bottomBar) {
+                Button {
+                    onPlay(setlist)
+                } label: {
+                    Label("Play Setlist", systemImage: "play.fill")
+                        .font(DS.Font.headline)
+                }
+                .disabled(setlist.songs.isEmpty)
+                .foregroundStyle(setlist.songs.isEmpty ? DS.DSColor.textDim : DS.DSColor.accentTempo)
             }
         }
         .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
@@ -176,7 +187,8 @@ struct SetlistDetailView: View {
             setlist: Setlist(name: "Tonight"),
             availableSongs: [],
             onSave: { _ in },
-            onSelectSong: { _ in }
+            onSelectSong: { _ in },
+            onPlay: { _ in }
         )
     }
 }

@@ -20,6 +20,9 @@ final class MetronomeViewModel {
     /// view model with the engine alone (no SwiftData container needed).
     @ObservationIgnored let settingsStore: SettingsStore?
     @ObservationIgnored let libraryStore: LibraryStore?
+    /// Setlist playback coordinator. Optional so previews work without
+    /// the full app stack.
+    @ObservationIgnored let setlistPlayer: SetlistPlayer?
 
     // Mirrored engine state. Optimistically updated on user action; the
     // authoritative read happens in refresh() right after.
@@ -35,6 +38,20 @@ final class MetronomeViewModel {
     /// Cached snapshot of saved setlists. Same refresh pattern as
     /// `librarySongs`.
     var librarySetlists: [Setlist] = []
+
+    // MARK: - Setlist playback state (mirrored from SetlistPlayer)
+
+    /// Name of the currently-playing setlist, or `nil` when none.
+    var playingSetlistName: String? = nil
+    /// 0-based index of the active song in the playing setlist.
+    var playingSongIndex: Int = -1
+    /// Total songs in the playing setlist.
+    var playingSetlistCount: Int = 0
+    /// Title of the song the engine is currently playing (from the setlist).
+    var playingSongTitle: String? = nil
+    /// Whether the player is awaiting a user Play tap after a `.pause`
+    /// mode advance. UI surfaces this with a subtle hint.
+    var isWaitingForResume: Bool = false
     /// A snapshot of the engine's current ClickSchedule. The view reads
     /// this every animation frame via TimelineView to drive the pulse.
     /// `nil` when the engine is stopped or before the first start().
@@ -57,17 +74,29 @@ final class MetronomeViewModel {
     init(
         engine: MetronomeEngine = MetronomeEngine(),
         settingsStore: SettingsStore? = nil,
-        libraryStore: LibraryStore? = nil
+        libraryStore: LibraryStore? = nil,
+        setlistPlayer: SetlistPlayer? = nil
     ) {
         self.engine = engine
         self.settingsStore = settingsStore
         self.libraryStore = libraryStore
+        self.setlistPlayer = setlistPlayer
         // Seed `settings` synchronously from the store if available so
         // the SettingsView opens with the persisted values, not defaults.
         if let initial = settingsStore?.current {
             self.settings = initial
         }
         Task { await self.refresh() }
+        // 100 ms tick so the setlist indicator reflects internal advances
+        // driven by the player's own poll task. Cheap (one actor hop).
+        if setlistPlayer != nil {
+            Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    await self?.refreshSetlistPlaybackState()
+                }
+            }
+        }
     }
 
     /// Pull the authoritative state off the engine actor. Cheap (one actor
@@ -199,6 +228,68 @@ final class MetronomeViewModel {
     func deleteSetlist(id: UUID) {
         libraryStore?.deleteSetlist(id: id)
         refreshLibrary()
+    }
+
+    // MARK: - Setlist playback
+
+    /// Start sequential playback of a setlist. The player loads the first
+    /// song into the engine and starts audio; auto-advance happens via
+    /// the player's polling tick.
+    func playSetlist(_ setlist: Setlist) {
+        guard let player = setlistPlayer else { return }
+        Task {
+            await player.play(setlist)
+            await refresh()
+            await refreshSetlistPlaybackState()
+        }
+    }
+
+    /// Stop setlist playback entirely. Engine stops; player state clears.
+    func stopSetlist() {
+        guard let player = setlistPlayer else { return }
+        Task {
+            await player.stop()
+            await refresh()
+            await refreshSetlistPlaybackState()
+        }
+    }
+
+    /// Manual jump to next song in the active setlist. End of setlist
+    /// stops playback.
+    func nextSong() {
+        guard let player = setlistPlayer else { return }
+        Task {
+            await player.next()
+            await refresh()
+            await refreshSetlistPlaybackState()
+        }
+    }
+
+    /// Manual jump to previous song. No-op at start.
+    func previousSong() {
+        guard let player = setlistPlayer else { return }
+        Task {
+            await player.previous()
+            await refresh()
+            await refreshSetlistPlaybackState()
+        }
+    }
+
+    /// Pull setlist-player state into the @Observable mirrors so the UI
+    /// (Stage indicator) updates. Called after every playback action and
+    /// on the polling refresh loop.
+    func refreshSetlistPlaybackState() async {
+        guard let player = setlistPlayer else { return }
+        let isActive = await player.isActive
+        let setlist = await player.setlist
+        let idx = await player.currentIndex
+        let song = await player.currentSong
+        let waiting = await player.isWaitingForResume
+        self.playingSetlistName = isActive ? setlist?.name : nil
+        self.playingSongIndex = idx
+        self.playingSetlistCount = setlist?.count ?? 0
+        self.playingSongTitle = song?.title
+        self.isWaitingForResume = waiting
     }
 
     /// Register a tap from the UI's tap-tempo button. Always records

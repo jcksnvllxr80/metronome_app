@@ -1,0 +1,205 @@
+import Foundation
+
+/// Coordinates sequential playback through a `Setlist`. Owns the
+/// "currently playing song" pointer, watches the engine's clock for
+/// end-of-song based on each song's `duration`, and transitions to the
+/// next song honoring the setlist's `advanceMode`.
+///
+/// Playback model:
+/// - Songs with `duration == nil` never auto-advance — only `next()`,
+///   `previous()`, or `stop()` ends them.
+/// - With `.pause`: engine stops after the current song; the next song's
+///   settings are loaded but not started. The user presses Play on Stage
+///   to start it. Duration tracking resumes when the engine becomes
+///   `isRunning` again.
+/// - With `.countdown(measures:)`: engine plays N measures of count-in at
+///   the next song's tempo, then the next song.
+/// - With `.immediate`: engine continues into the next song with no gap.
+///
+/// End of setlist: engine stops, player state clears.
+public actor SetlistPlayer {
+    public private(set) weak var engine: MetronomeEngine?
+    private let clock: any EngineClock
+
+    public private(set) var setlist: Setlist?
+    public private(set) var currentIndex: Int = -1
+    public private(set) var isActive: Bool = false
+    /// True after a `.pause`-mode advance while waiting for the user to
+    /// press Play. Duration tracking is suspended in this state.
+    public private(set) var isWaitingForResume: Bool = false
+
+    /// Engine-clock time when the current song's duration timer started.
+    /// Set after any count-in completes so users get "N measures of song"
+    /// not "N measures of song-plus-count-in".
+    private var songStartTime: TimeInterval = 0
+    private var pollTask: Task<Void, Never>?
+    private var lastEngineRunning: Bool = false
+    /// Guards against overlapping advance calls when polling fires faster
+    /// than the engine can settle.
+    private var isAdvancing: Bool = false
+
+    /// Tight enough for measure-boundary advance to fire within roughly
+    /// one beat of the actual transition at any tempo. 50ms ≈ 1/3 of a
+    /// beat at 400 BPM, 1/24 of a beat at 60 BPM.
+    private static let pollIntervalMs: UInt64 = 50
+
+    public init(engine: MetronomeEngine, clock: any EngineClock = SystemClock()) {
+        self.engine = engine
+        self.clock = clock
+    }
+
+    public var currentSong: Song? {
+        guard let setlist, currentIndex >= 0, currentIndex < setlist.count else {
+            return nil
+        }
+        return setlist[currentIndex]
+    }
+
+    /// Load a setlist and start playback from the given song index.
+    /// No-op when the setlist is empty.
+    public func play(_ setlist: Setlist, startingAt index: Int = 0) async {
+        guard !setlist.isEmpty else { return }
+        let safeIndex = max(0, min(index, setlist.count - 1))
+        self.setlist = setlist
+        self.currentIndex = safeIndex
+        self.isActive = true
+        self.isWaitingForResume = false
+        await startCurrentSong(countInMeasures: 0)
+        startPolling()
+    }
+
+    /// Stop playback and clear setlist state.
+    public func stop() async {
+        isActive = false
+        isWaitingForResume = false
+        pollTask?.cancel()
+        pollTask = nil
+        setlist = nil
+        currentIndex = -1
+        await engine?.stop()
+    }
+
+    /// Manual next-song. Skips count-in (manual advance is intent-driven).
+    /// Stops at end of setlist.
+    public func next() async {
+        guard let setlist, isActive else { return }
+        let nextIdx = currentIndex + 1
+        if nextIdx >= setlist.count {
+            await stop()
+            return
+        }
+        currentIndex = nextIdx
+        isWaitingForResume = false
+        await startCurrentSong(countInMeasures: 0)
+    }
+
+    /// Manual previous-song. No-op at start of setlist.
+    public func previous() async {
+        guard isActive else { return }
+        let prevIdx = currentIndex - 1
+        guard prevIdx >= 0 else { return }
+        currentIndex = prevIdx
+        isWaitingForResume = false
+        await startCurrentSong(countInMeasures: 0)
+    }
+
+    // MARK: - Internal
+
+    private func startCurrentSong(countInMeasures: Int) async {
+        guard let song = currentSong else { return }
+        await engine?.apply(song)
+        let countIn = CountIn(rawValue: countInMeasures) ?? .off
+        await engine?.start(countIn: countIn)
+        // Track song start time AFTER any count-in completes so .seconds
+        // duration measures "song time", not "song + preamble time".
+        let countInDuration = Double(countInMeasures)
+            * Double(song.timeSignature.numerator)
+            * song.bpm.beatPeriod
+        songStartTime = clock.now + countInDuration
+    }
+
+    private func startPolling() {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.tick()
+                try? await Task.sleep(nanoseconds: Self.pollIntervalMs * 1_000_000)
+            }
+        }
+    }
+
+    /// Periodic check called by the poll task. Detects end-of-song based
+    /// on the current song's `duration` and triggers `advance`. Also
+    /// observes engine `isRunning` transitions to handle the
+    /// `.pause`-mode resume case.
+    public func tick() async {
+        guard isActive, !isAdvancing else { return }
+
+        let isRunningBefore = await engine?.isRunning ?? false
+        // User pressed Play while we were waiting for resume after a
+        // `.pause`-mode advance — start the duration timer now.
+        if isWaitingForResume && isRunningBefore && !lastEngineRunning {
+            isWaitingForResume = false
+            songStartTime = clock.now
+        }
+        lastEngineRunning = isRunningBefore
+
+        if isWaitingForResume { return }
+        guard let setlist, let song = currentSong, let duration = song.duration
+        else { return }
+
+        let shouldAdvance: Bool
+        switch duration {
+        case .seconds(let s):
+            shouldAdvance = (clock.now - songStartTime) >= s
+        case .measures(let m):
+            // Detect the boundary just BEFORE the downbeat of measure `m`
+            // would fire — so the now-stale song doesn't play one extra
+            // beat. Only consult song clicks; count-in clicks have their
+            // own measure indexing.
+            guard let engine else { return }
+            let upcoming = await engine.upcomingClicks(count: 1)
+            guard let next = upcoming.first else { return }
+            shouldAdvance = !next.isCountIn
+                && next.measureIndex >= m
+                && next.beatIndex == 0
+                && next.subdivisionIndex == 0
+        }
+
+        if shouldAdvance {
+            isAdvancing = true
+            await advance(mode: setlist.advanceMode)
+            isAdvancing = false
+            // After advance, the engine state may have flipped (.pause
+            // stopped it). Refresh `lastEngineRunning` so next tick's
+            // resume-transition check sees a true false→true edge when
+            // the user presses Play.
+            lastEngineRunning = await engine?.isRunning ?? false
+        }
+    }
+
+    private func advance(mode: SetlistAdvanceMode) async {
+        guard let setlist else { return }
+        let nextIdx = currentIndex + 1
+        if nextIdx >= setlist.count {
+            await stop()
+            return
+        }
+        currentIndex = nextIdx
+
+        switch mode {
+        case .pause:
+            // Stop the engine, load next song settings, wait for user.
+            await engine?.stop()
+            if let song = currentSong {
+                await engine?.apply(song)
+            }
+            isWaitingForResume = true
+            songStartTime = 0
+        case .countdown(let measures):
+            await startCurrentSong(countInMeasures: measures)
+        case .immediate:
+            await startCurrentSong(countInMeasures: 0)
+        }
+    }
+}

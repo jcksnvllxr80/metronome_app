@@ -109,8 +109,16 @@ struct ContentView: View {
         let tapFlash = viewModel.tapFlashIntensity(at: now)
 
         VStack(spacing: 0) {
+            // "Now playing setlist" strip, shown only when a setlist is active.
+            // Above the time signature, mono small caps so it reads as
+            // metadata rather than competing with the BPM hero.
+            if viewModel.playingSetlistName != nil {
+                setlistIndicator
+                    .padding(.top, DS.Spacing.md)
+            }
+
             timeSignatureButton
-                .padding(.top, DS.Spacing.lg)
+                .padding(.top, viewModel.playingSetlistName == nil ? DS.Spacing.lg : DS.Spacing.xs)
 
             Spacer()
 
@@ -125,6 +133,48 @@ struct ContentView: View {
             }
             .padding(.bottom, DS.Spacing.xxl)
         }
+    }
+
+    // MARK: - Setlist indicator
+
+    private var setlistIndicator: some View {
+        Button {
+            viewModel.stopSetlist()
+        } label: {
+            VStack(spacing: DS.Spacing.xxs) {
+                Text(setlistTopLine)
+                    .font(DS.Font.label)
+                    .foregroundStyle(DS.DSColor.textMuted)
+                    .textCase(.uppercase)
+                    .tracking(2)
+                if let title = viewModel.playingSongTitle {
+                    Text(title)
+                        .font(DS.Font.headline)
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                }
+                if viewModel.isWaitingForResume {
+                    Text("Tap Play to continue")
+                        .font(DS.Font.monoData)
+                        .foregroundStyle(DS.DSColor.accentTempo)
+                }
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.vertical, DS.Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .fill(DS.DSColor.bgElevated)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Setlist: \(viewModel.playingSetlistName ?? ""), song \(viewModel.playingSongIndex + 1) of \(viewModel.playingSetlistCount). Tap to exit setlist.")
+    }
+
+    private var setlistTopLine: String {
+        let name = viewModel.playingSetlistName ?? ""
+        let n = viewModel.playingSongIndex + 1
+        let total = viewModel.playingSetlistCount
+        return "\(name) · \(n) of \(total)"
     }
 
     // MARK: - Time signature (top, tap to open picker)

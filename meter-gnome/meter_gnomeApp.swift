@@ -44,10 +44,15 @@ struct meter_gnomeApp: App {
         }
         AudioSessionCoordinator.shared.attach(engine: engine)
 
+        // Setlist playback coordinator — watches engine clock + drives
+        // song transitions per the active setlist's advance mode.
+        let setlistPlayer = SetlistPlayer(engine: engine)
+
         _viewModel = State(wrappedValue: MetronomeViewModel(
             engine: engine,
             settingsStore: settingsStore,
-            libraryStore: libraryStore
+            libraryStore: libraryStore,
+            setlistPlayer: setlistPlayer
         ))
     }
 
