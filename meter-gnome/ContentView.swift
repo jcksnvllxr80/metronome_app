@@ -16,6 +16,7 @@ import MetronomeCore
 struct ContentView: View {
     let viewModel: MetronomeViewModel
     @State private var showTimeSigPicker = false
+    @State private var showSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -29,7 +30,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .topTrailing) {
             DS.DSColor.bgBase.ignoresSafeArea()
 
             // TimelineView re-evaluates the body at the animation frame rate
@@ -41,6 +42,11 @@ struct ContentView: View {
                 let now = SystemClock().now
                 content(at: now)
             }
+
+            // Settings overlay — small enough to stay out of the way during
+            // performance. DESIGN.md caps Stage at 5 elements; this is an
+            // affordance, not one of the five.
+            settingsButton
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showTimeSigPicker) {
@@ -49,6 +55,26 @@ struct ContentView: View {
             }
             .presentationDetents([.medium, .large])
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(initial: viewModel.settings) { updated in
+                viewModel.setSettings(updated)
+            }
+            .presentationDetents([.large])
+        }
+    }
+
+    private var settingsButton: some View {
+        Button {
+            showSettings = true
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(DS.DSColor.textMuted)
+                .padding(DS.Spacing.lg)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Settings")
     }
 
     @ViewBuilder

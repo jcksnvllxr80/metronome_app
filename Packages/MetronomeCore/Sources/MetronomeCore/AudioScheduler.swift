@@ -150,7 +150,14 @@ public actor AudioScheduler {
 
     private func refillOnce() async {
         guard let engine = engineRef else { return }
+        let settings = await engine.settings
         let lookahead = await adaptiveLookahead(for: engine)
+
+        // Apply master volume each pass. AVAudioPlayerNode.volume is thread-
+        // safe and the assignment is idempotent — keeping it here means
+        // the slider's effect shows up within one refill interval (~50ms).
+        playerNode.volume = Float(settings.masterVolume)
+
         let upcoming = await engine.clicks(after: lastScheduledTime, count: lookahead)
         for click in upcoming {
             // Mute click: still advance `lastScheduledTime` so we don't
@@ -160,7 +167,11 @@ public actor AudioScheduler {
                 continue
             }
             guard let buffer = clickBuffers[click.accent] else { continue }
-            let audioTime = clock.audioTime(forEngineTime: click.time)
+            // Apply latency calibration. Negative = fire earlier
+            // (compensates for Bluetooth headphone output latency).
+            // Already clamped to ±50ms by EngineSettings.init.
+            let adjustedTime = click.time + settings.latencyOffsetSeconds
+            let audioTime = clock.audioTime(forEngineTime: adjustedTime)
             // Explicit `completionHandler: nil` selects the legacy sync
             // overload — the 2-arg form binds to an async variant in
             // recent SDKs that we don't want (awaiting it would block

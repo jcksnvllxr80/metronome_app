@@ -22,6 +22,7 @@ final class MetronomeViewModel {
     var timeSignature: TimeSignature = .fourFour
     var subdivision: Subdivision = .none
     var isRunning: Bool = false
+    var settings: EngineSettings = EngineSettings()
     /// A snapshot of the engine's current ClickSchedule. The view reads
     /// this every animation frame via TimelineView to drive the pulse.
     /// `nil` when the engine is stopped or before the first start().
@@ -54,11 +55,13 @@ final class MetronomeViewModel {
         let sub = await engine.subdivision
         let running = await engine.isRunning
         let sched = await engine.schedule
+        let settings = await engine.settings
         self.bpm = bpm
         self.timeSignature = ts
         self.subdivision = sub
         self.isRunning = running
         self.schedule = sched
+        self.settings = settings
     }
 
     // MARK: - User actions
@@ -89,6 +92,17 @@ final class MetronomeViewModel {
         timeSignature = newTS // optimistic
         Task {
             await engine.setTimeSignature(newTS)
+            await refresh()
+        }
+    }
+
+    /// Commit new engine settings. The audio scheduler picks up
+    /// masterVolume / latencyOffsetSeconds at the next refill pass (~50 ms);
+    /// countIn and autoResume apply at the next start / interruption.
+    func setSettings(_ newSettings: EngineSettings) {
+        settings = newSettings // optimistic
+        Task {
+            await engine.setSettings(newSettings)
             await refresh()
         }
     }
