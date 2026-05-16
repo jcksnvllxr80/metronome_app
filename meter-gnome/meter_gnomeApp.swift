@@ -53,6 +53,16 @@ struct meter_gnomeApp: App {
                 await midi.setEnabled(settingsStore.current.midiClockEnabled)
             }
         }
+        // MIDI receive (slave mode) — independent of send. The receiver
+        // pushes incoming Clock/Start/Stop into the engine.
+        let midiRx = MIDIReceiver()
+        if let midiRx {
+            Task {
+                await midiRx.bind(to: engine)
+                await midiRx.setEnabled(settingsStore.current.midiClockReceiveEnabled)
+                await engine.attach(midiReceiver: midiRx)
+            }
+        }
 
         // Setlist playback coordinator — watches engine clock + drives
         // song transitions per the active setlist's advance mode.

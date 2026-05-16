@@ -41,6 +41,13 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// most users don't need MIDI sync, and an enabled virtual source is
     /// visible to other apps even when nothing's playing.
     public var midiClockEnabled: Bool
+    /// When `true`, the engine listens for incoming MIDI Clock and
+    /// follows external tempo — slave mode (spec §12.2). MIDI Start/Stop
+    /// drives engine.start/stop; MIDI Clock drives engine.setBPM.
+    /// Mutually compatible with `midiClockEnabled` (send + receive can
+    /// both be on, though feedback is avoided by name-filtering our own
+    /// source).
+    public var midiClockReceiveEnabled: Bool
 
     public init(
         masterVolume: Double = 1.0,
@@ -50,7 +57,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         bpmPrecisionMode: Bool = false,
         autoResumeAfterInterruption: Bool = false,
         clickSound: ClickSound = .digitalBeep,
-        midiClockEnabled: Bool = false
+        midiClockEnabled: Bool = false,
+        midiClockReceiveEnabled: Bool = false
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -63,5 +71,6 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.autoResumeAfterInterruption = autoResumeAfterInterruption
         self.clickSound = clickSound
         self.midiClockEnabled = midiClockEnabled
+        self.midiClockReceiveEnabled = midiClockReceiveEnabled
     }
 }

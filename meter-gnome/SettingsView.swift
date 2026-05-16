@@ -159,10 +159,13 @@ struct SettingsView: View {
             Toggle("Send MIDI Clock", isOn: $settings.midiClockEnabled)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
+            Toggle("Listen for MIDI Clock", isOn: $settings.midiClockReceiveEnabled)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
         } header: {
             Text("MIDI Sync").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("When enabled, meter-gnome publishes a virtual MIDI source named \"meter-gnome\" that sends MIDI Clock (24 PPQ) plus Start/Stop messages. Other apps and DAWs on the same device can subscribe to it to slave their tempo.")
+            Text("Send: publish a virtual MIDI source named \"meter-gnome\" that emits MIDI Clock (24 PPQ) + Start/Stop. Listen: follow incoming MIDI Clock from connected sources — DAW transport drives play/stop, DAW tempo drives BPM.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

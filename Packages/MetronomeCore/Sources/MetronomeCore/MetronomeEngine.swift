@@ -36,6 +36,13 @@ public actor MetronomeEngine {
     /// the audio scheduler — engine works without it.
     public private(set) var midiScheduler: MIDIScheduler?
 
+    /// MIDI Clock input source (slave mode). When attached AND enabled
+    /// in settings, incoming Clock/Start/Stop drives engine state. The
+    /// engine doesn't need to actively call into it — the receiver
+    /// pushes events; we keep a reference so the lifecycle is owned
+    /// somewhere and the hot-toggle in setSettings can find it.
+    public private(set) var midiReceiver: MIDIReceiver?
+
     /// Sound preset string from the currently-loaded `Song`. Set by
     /// `apply(_:)`, cleared by `stop()`. The audio scheduler resolves this
     /// to a `ClickSound` at refill time; when it's `nil` or unrecognized,
@@ -179,6 +186,7 @@ public actor MetronomeEngine {
     /// Replace the engine's settings wholesale.
     public func setSettings(_ newSettings: EngineSettings) {
         let oldMidi = settings.midiClockEnabled
+        let oldMidiRx = settings.midiClockReceiveEnabled
         settings = newSettings
         // Hot-apply midiClockEnabled so the user toggling it in the
         // Settings sheet takes effect immediately (no need to stop and
@@ -192,6 +200,14 @@ public actor MetronomeEngine {
                     await midiScheduler.stop()
                 }
                 _ = isPaused // silence unused-capture warning
+            }
+        }
+        // Hot-apply receive toggle. When enabled, the receiver starts
+        // connecting to external sources; when disabled, it disconnects
+        // and drops in-flight tick state.
+        if let midiReceiver, oldMidiRx != newSettings.midiClockReceiveEnabled {
+            Task { [midiReceiver, newSettings] in
+                await midiReceiver.setEnabled(newSettings.midiClockReceiveEnabled)
             }
         }
     }
@@ -216,6 +232,12 @@ public actor MetronomeEngine {
     /// nil). Pass `nil` to detach.
     public func attach(midi: MIDIScheduler?) {
         self.midiScheduler = midi
+    }
+
+    /// Attach a `MIDIReceiver` for slave-mode tempo following. The
+    /// receiver pushes events into the engine; the engine doesn't pull.
+    public func attach(midiReceiver: MIDIReceiver?) {
+        self.midiReceiver = midiReceiver
     }
 
     /// Next `count` clicks starting at or after `clock.now`. Returns `[]`

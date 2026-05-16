@@ -33,6 +33,8 @@ final class PersistedEngineSettings {
     var clickSoundRaw: String
     /// Whether MIDI Clock output is enabled (spec §12.2).
     var midiClockEnabled: Bool
+    /// Whether MIDI Clock slave mode is enabled (spec §12.2).
+    var midiClockReceiveEnabled: Bool
 
     init(
         masterVolume: Double = 1.0,
@@ -42,7 +44,8 @@ final class PersistedEngineSettings {
         bpmPrecisionMode: Bool = false,
         autoResumeAfterInterruption: Bool = false,
         clickSoundRaw: String = ClickSound.digitalBeep.rawValue,
-        midiClockEnabled: Bool = false
+        midiClockEnabled: Bool = false,
+        midiClockReceiveEnabled: Bool = false
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -52,6 +55,7 @@ final class PersistedEngineSettings {
         self.autoResumeAfterInterruption = autoResumeAfterInterruption
         self.clickSoundRaw = clickSoundRaw
         self.midiClockEnabled = midiClockEnabled
+        self.midiClockReceiveEnabled = midiClockReceiveEnabled
     }
 
     convenience init(from settings: EngineSettings) {
@@ -63,7 +67,8 @@ final class PersistedEngineSettings {
             bpmPrecisionMode: settings.bpmPrecisionMode,
             autoResumeAfterInterruption: settings.autoResumeAfterInterruption,
             clickSoundRaw: settings.clickSound.rawValue,
-            midiClockEnabled: settings.midiClockEnabled
+            midiClockEnabled: settings.midiClockEnabled,
+            midiClockReceiveEnabled: settings.midiClockReceiveEnabled
         )
     }
 
@@ -76,7 +81,8 @@ final class PersistedEngineSettings {
             bpmPrecisionMode: bpmPrecisionMode,
             autoResumeAfterInterruption: autoResumeAfterInterruption,
             clickSound: ClickSound(rawValue: clickSoundRaw) ?? .digitalBeep,
-            midiClockEnabled: midiClockEnabled
+            midiClockEnabled: midiClockEnabled,
+            midiClockReceiveEnabled: midiClockReceiveEnabled
         )
     }
 
@@ -89,6 +95,7 @@ final class PersistedEngineSettings {
         autoResumeAfterInterruption = settings.autoResumeAfterInterruption
         clickSoundRaw = settings.clickSound.rawValue
         midiClockEnabled = settings.midiClockEnabled
+        midiClockReceiveEnabled = settings.midiClockReceiveEnabled
     }
 }
 
