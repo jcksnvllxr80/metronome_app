@@ -5,8 +5,8 @@
 //  Bridges the off-main `MetronomeEngine` actor to SwiftUI's @MainActor
 //  Observation world. Holds a snapshot of engine state for synchronous
 //  view reads (BPM, time sig, current schedule), exposes pulse-intensity
-//  + current-beat helpers for the visual pulse, and forwards user actions
-//  into the engine via Task awaits.
+//  + current-beat + tap-flash helpers for the live UI, and forwards user
+//  actions into the engine via Task awaits.
 //
 
 import SwiftUI
@@ -27,10 +27,17 @@ final class MetronomeViewModel {
     /// `nil` when the engine is stopped or before the first start().
     var schedule: ClickSchedule? = nil
 
+    /// Clock time of the most recent tap on the tap-tempo button. Drives
+    /// the visual flash via `tapFlashIntensity(at:)`. `-.infinity` means
+    /// "never tapped" — by definition `time - (-.infinity) > 0.150`, so
+    /// flash intensity reads 0.
+    var lastTapTime: TimeInterval = -.infinity
+
     /// `@ObservationIgnored` because tap tempo state churns on every tap
     /// and re-rendering the whole view tree on each one is wasted work —
     /// the only output that should trigger a re-render is the resulting BPM,
-    /// which already goes through the `bpm` field.
+    /// which already goes through the `bpm` field, plus the lastTapTime
+    /// which is observed explicitly.
     @ObservationIgnored
     private var tapEstimator = TapTempoEstimator()
 
@@ -76,11 +83,22 @@ final class MetronomeViewModel {
         }
     }
 
-    /// Register a tap from the UI's tap-tempo button. The estimator times
-    /// the gap to the previous tap and (after the second tap) pushes a fresh
-    /// BPM estimate into the engine.
+    /// Commit a new time signature. The engine clears any accent pattern
+    /// scoped to the old meter (per spec §3.2); refresh() picks that up.
+    func setTimeSignature(_ newTS: TimeSignature) {
+        timeSignature = newTS // optimistic
+        Task {
+            await engine.setTimeSignature(newTS)
+            await refresh()
+        }
+    }
+
+    /// Register a tap from the UI's tap-tempo button. Always records
+    /// `lastTapTime` so the flash fires even on a single tap (which by
+    /// itself doesn't yet produce a BPM estimate).
     func tap() {
         let now = SystemClock().now
+        lastTapTime = now
         guard let estimate = tapEstimator.tap(at: now) else { return }
         bpm = estimate
         Task {
@@ -123,5 +141,14 @@ final class MetronomeViewModel {
             return (1 - progress) * (1 - progress)
         }
         return 0
+    }
+
+    /// Flash intensity [0, 1] for the tap-tempo button after a tap.
+    /// 150 ms linear falloff — matches the "registered" feedback expected
+    /// per spec §6.1.
+    func tapFlashIntensity(at time: TimeInterval) -> Double {
+        let elapsed = time - lastTapTime
+        if elapsed < 0 || elapsed > 0.150 { return 0 }
+        return max(0, 1 - elapsed / 0.150)
     }
 }

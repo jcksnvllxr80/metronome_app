@@ -15,29 +15,50 @@ import MetronomeCore
 
 struct ContentView: View {
     @State private var viewModel = MetronomeViewModel()
+    @State private var showTimeSigPicker = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// 280 on iPad / large landscape; 180 on iPhone portrait. A first-pass
+    /// alternative to true viewport-relative scaling — DESIGN.md asks for
+    /// Stage BPM to fill ~55% of viewport height, which this approximates
+    /// at common form factors. Full GeometryReader-driven scaling lands
+    /// when the spec §10.3 "Large display mode" setting comes online.
+    private var bpmFontSize: CGFloat {
+        horizontalSizeClass == .regular ? 280 : 180
+    }
 
     var body: some View {
         ZStack {
             DS.DSColor.bgBase.ignoresSafeArea()
 
             // TimelineView re-evaluates the body at the animation frame rate
-            // so the pulse + active beat dot track the engine clock smoothly.
+            // so the pulse + active beat dot + tap flash track the engine
+            // clock smoothly. When isRunning is false, pulseIntensity short-
+            // circuits to 0 — body still re-runs every frame but most paths
+            // are no-ops.
             TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
                 let now = SystemClock().now
                 content(at: now)
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showTimeSigPicker) {
+            TimeSignaturePickerView(current: viewModel.timeSignature) { selected in
+                viewModel.setTimeSignature(selected)
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
 
     @ViewBuilder
     private func content(at now: TimeInterval) -> some View {
         let pulse = viewModel.pulseIntensity(at: now, reduceMotion: reduceMotion)
         let activeBeat = viewModel.currentClick(at: now)?.beatIndex
+        let tapFlash = viewModel.tapFlashIntensity(at: now)
 
         VStack(spacing: 0) {
-            timeSignatureView
+            timeSignatureButton
                 .padding(.top, DS.Spacing.lg)
 
             Spacer()
@@ -49,46 +70,56 @@ struct ContentView: View {
             VStack(spacing: DS.Spacing.lg) {
                 beatDotsView(activeBeat: activeBeat)
                 controlsView
-                tapButtonView
+                tapButtonView(flash: tapFlash)
             }
             .padding(.bottom, DS.Spacing.xxl)
         }
     }
 
-    // MARK: - Time signature
+    // MARK: - Time signature (top, tap to open picker)
 
-    private var timeSignatureView: some View {
-        HStack(spacing: DS.Spacing.xs) {
-            Text("\(viewModel.timeSignature.numerator)")
-            Text("/").foregroundStyle(DS.DSColor.textDim)
-            Text("\(viewModel.timeSignature.denominator.rawValue)")
+    private var timeSignatureButton: some View {
+        Button {
+            showTimeSigPicker = true
+        } label: {
+            HStack(spacing: DS.Spacing.xs) {
+                Text("\(viewModel.timeSignature.numerator)")
+                Text("/").foregroundStyle(DS.DSColor.textDim)
+                Text("\(viewModel.timeSignature.denominator.rawValue)")
+            }
+            .font(DS.Font.display)
+            .monospacedDigit()
+            .foregroundStyle(DS.DSColor.textPrimary)
+            .padding(.horizontal, DS.Spacing.md)
+            .padding(.vertical, DS.Spacing.sm)
+            .contentShape(Rectangle())
         }
-        .font(DS.Font.display)
-        .monospacedDigit()
-        .foregroundStyle(DS.DSColor.textPrimary)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Time signature, \(viewModel.timeSignature.numerator) over \(viewModel.timeSignature.denominator.rawValue). Tap to change.")
     }
 
     // MARK: - BPM hero
 
     private func bpmView(pulse: Double) -> some View {
-        // Mix base ↔ accent by pulse intensity. iOS 18+ has Color.mix(with:by:).
         let digitColor = viewModel.isRunning
             ? DS.DSColor.textPrimary.mix(with: DS.DSColor.accentTempo, by: pulse)
             : DS.DSColor.textPrimary
 
         return VStack(spacing: DS.Spacing.sm) {
             Text("\(viewModel.bpm.displayInt)")
-                .font(DS.Font.bpmHero)
+                .font(.system(size: bpmFontSize, weight: .bold, design: .monospaced))
                 .monospacedDigit()
-                .tracking(-4)
+                .tracking(-bpmFontSize * 0.022)  // ~ -2% per DESIGN.md
                 .foregroundStyle(digitColor)
                 .contentTransition(.numericText(value: Double(viewModel.bpm.displayInt)))
                 .animation(.snappy(duration: 0.15), value: viewModel.bpm.displayInt)
+                .accessibilityLabel("Tempo, \(viewModel.bpm.displayInt) BPM")
             Text("BPM")
                 .font(DS.Font.label)
                 .foregroundStyle(DS.DSColor.textMuted)
                 .textCase(.uppercase)
                 .tracking(2)
+                .accessibilityHidden(true)
         }
     }
 
@@ -158,17 +189,22 @@ struct ContentView: View {
 
     // MARK: - Tap tempo
 
-    private var tapButtonView: some View {
-        Button {
+    private func tapButtonView(flash: Double) -> some View {
+        // 150 ms vermillion flash on each tap, fading linearly. Provides the
+        // "visual feedback per tap" the spec §6.1 requires.
+        let bgColor = DS.DSColor.bgElevated.mix(with: DS.DSColor.accentTempo, by: flash * 0.6)
+        let textColor = DS.DSColor.textMuted.mix(with: DS.DSColor.textPrimary, by: flash)
+
+        return Button {
             viewModel.tap()
         } label: {
             Text("TAP")
                 .font(DS.Font.label)
                 .tracking(2)
-                .foregroundStyle(DS.DSColor.textMuted)
+                .foregroundStyle(textColor)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DS.Spacing.md)
-                .background(DS.DSColor.bgElevated, in: RoundedRectangle(cornerRadius: DS.Radius.md))
+                .background(bgColor, in: RoundedRectangle(cornerRadius: DS.Radius.md))
         }
         .buttonStyle(.plain)
         .padding(.horizontal, DS.Spacing.xxl)
