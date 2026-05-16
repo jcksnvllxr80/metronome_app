@@ -35,6 +35,8 @@ final class PersistedEngineSettings {
     var midiClockEnabled: Bool
     /// Whether MIDI Clock slave mode is enabled (spec §12.2).
     var midiClockReceiveEnabled: Bool
+    /// `VoiceCountMode.rawValue`. Spec §5.
+    var voiceCountModeRaw: String
 
     init(
         masterVolume: Double = 1.0,
@@ -45,7 +47,8 @@ final class PersistedEngineSettings {
         autoResumeAfterInterruption: Bool = false,
         clickSoundRaw: String = ClickSound.digitalBeep.rawValue,
         midiClockEnabled: Bool = false,
-        midiClockReceiveEnabled: Bool = false
+        midiClockReceiveEnabled: Bool = false,
+        voiceCountModeRaw: String = VoiceCountMode.off.rawValue
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -56,6 +59,7 @@ final class PersistedEngineSettings {
         self.clickSoundRaw = clickSoundRaw
         self.midiClockEnabled = midiClockEnabled
         self.midiClockReceiveEnabled = midiClockReceiveEnabled
+        self.voiceCountModeRaw = voiceCountModeRaw
     }
 
     convenience init(from settings: EngineSettings) {
@@ -68,7 +72,8 @@ final class PersistedEngineSettings {
             autoResumeAfterInterruption: settings.autoResumeAfterInterruption,
             clickSoundRaw: settings.clickSound.rawValue,
             midiClockEnabled: settings.midiClockEnabled,
-            midiClockReceiveEnabled: settings.midiClockReceiveEnabled
+            midiClockReceiveEnabled: settings.midiClockReceiveEnabled,
+            voiceCountModeRaw: settings.voiceCountMode.rawValue
         )
     }
 
@@ -82,7 +87,8 @@ final class PersistedEngineSettings {
             autoResumeAfterInterruption: autoResumeAfterInterruption,
             clickSound: ClickSound(rawValue: clickSoundRaw) ?? .digitalBeep,
             midiClockEnabled: midiClockEnabled,
-            midiClockReceiveEnabled: midiClockReceiveEnabled
+            midiClockReceiveEnabled: midiClockReceiveEnabled,
+            voiceCountMode: VoiceCountMode(rawValue: voiceCountModeRaw) ?? .off
         )
     }
 
@@ -96,6 +102,7 @@ final class PersistedEngineSettings {
         clickSoundRaw = settings.clickSound.rawValue
         midiClockEnabled = settings.midiClockEnabled
         midiClockReceiveEnabled = settings.midiClockReceiveEnabled
+        voiceCountModeRaw = settings.voiceCountMode.rawValue
     }
 }
 

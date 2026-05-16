@@ -30,6 +30,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 soundSection
+                voiceCountSection
                 countInSection
                 masterVolumeSection
                 latencySection
@@ -150,6 +151,31 @@ struct SettingsView: View {
                 .listRowBackground(DS.DSColor.bgElevated)
         } footer: {
             Text("When enabled, the metronome resumes automatically after a phone call or Siri interruption ends. Off by default — most musicians prefer to restart manually.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var voiceCountSection: some View {
+        Section {
+            Picker("Voice Count", selection: $settings.voiceCountMode) {
+                ForEach(VoiceCountMode.allCases, id: \.self) { mode in
+                    if mode.isImplemented {
+                        Text(mode.displayName).tag(mode)
+                    } else {
+                        // Unimplemented modes still listed so users see
+                        // what's coming; disabled state would need a custom
+                        // picker — for now they just no-op as ".off".
+                        Text("\(mode.displayName) (coming soon)").tag(mode)
+                    }
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(DS.DSColor.accentTempo)
+            .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Voice Count").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Plays per-beat pitched tones instead of the click on main beats. Real spoken samples (\"one, two, three\") in 5 languages are planned — Phase 1 uses synthesized tones as a placeholder.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

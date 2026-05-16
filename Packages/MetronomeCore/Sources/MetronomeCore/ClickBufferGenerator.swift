@@ -42,6 +42,68 @@ public enum ClickBufferGenerator {
         pow(2.0, Double(shift.semitones) / 12.0)
     }
 
+    /// Placeholder for the spec §5 voice-count "count beats" mode. Real
+    /// implementation needs pre-recorded "one, two, three..." samples
+    /// (the spec forbids AVSpeechSynthesizer for timing reasons). Until
+    /// those samples are bundled, this synthesizes a per-beat pitched
+    /// tone with a vocal-style attack/sustain/release envelope —
+    /// distinct per beat number so users hear "which beat is now"
+    /// without the words.
+    ///
+    /// `beatIndex` is 0-based; clamped to the size of `voicePitches`
+    /// when callers pass higher numerators.
+    public static func makeVoiceTone(
+        format: AVAudioFormat,
+        beatIndex: Int,
+        accent: AccentLevel
+    ) -> AVAudioPCMBuffer? {
+        if accent == .mute {
+            return silentBuffer(format: format, duration: voiceToneDuration)
+        }
+        let pitch = voicePitches[min(max(beatIndex, 0), voicePitches.count - 1)]
+        let amp = amplitude(for: accent)
+        return writeBuffer(format: format, durationSec: voiceToneDuration) { t in
+            let env = vocalEnvelope(t: t, duration: voiceToneDuration)
+            // Fundamental + first harmonic for a slightly richer tone.
+            let s = sin(2.0 * .pi * pitch * t)
+                  + 0.30 * sin(2.0 * .pi * 2.0 * pitch * t)
+            return amp * env * Float(s) * 0.55
+        }
+    }
+
+    /// 80 ms — long enough to register as a syllable, short enough that
+    /// successive beats at fast tempos don't overlap unpleasantly.
+    private static let voiceToneDuration: Double = 0.080
+
+    /// Descending pitches per beat number, evoking the natural prosody
+    /// of spoken counting. Indices beyond this table clamp to the last
+    /// entry. 9 entries covers all common meters (12/8 is the longest
+    /// preset; this table is also long enough for spec's 1–32 range
+    /// since meaning saturates beyond 8 anyway).
+    private static let voicePitches: [Double] = [
+        523.25, // C5 — "one"
+        440.00, // A4 — "two"
+        392.00, // G4 — "three"
+        349.23, // F4 — "four"
+        329.63, // E4 — "five"
+        293.66, // D4 — "six"
+        261.63, // C4 — "seven"
+        246.94, // B3 — "eight"
+        220.00, // A3 — "nine+"
+    ]
+
+    /// AHR (attack/hold/release) envelope shaped to suggest a syllable
+    /// rather than a percussive transient: 10 ms attack ramp, hold at 1,
+    /// 20 ms release ramp.
+    private static func vocalEnvelope(t: Double, duration: Double) -> Float {
+        let attack: Double = 0.010
+        let release: Double = 0.020
+        if t < 0 || t > duration { return 0 }
+        if t < attack { return Float(t / attack) }
+        if t > duration - release { return Float((duration - t) / release) }
+        return 1.0
+    }
+
     // MARK: - Amplitude / pitch tables
 
     /// 0...1 amplitude per accent level. Shared across all sounds so

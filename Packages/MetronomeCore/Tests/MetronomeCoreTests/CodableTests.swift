@@ -153,7 +153,8 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
         autoResumeAfterInterruption: true,
         clickSound: .cowbell,
         midiClockEnabled: true,
-        midiClockReceiveEnabled: true
+        midiClockReceiveEnabled: true,
+        voiceCountMode: .beats
     )
     #expect(try roundTrip(s) == s)
 }
@@ -161,6 +162,24 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
 @Test func engineSettingsDefaultsMidiOff() {
     #expect(EngineSettings().midiClockEnabled == false)
     #expect(EngineSettings().midiClockReceiveEnabled == false)
+}
+
+@Test func engineSettingsDefaultsVoiceCountOff() {
+    #expect(EngineSettings().voiceCountMode == .off)
+}
+
+@Test func voiceCountModeRoundTrip() throws {
+    for mode in VoiceCountMode.allCases {
+        #expect(try roundTrip(mode) == mode)
+    }
+}
+
+@Test func voiceCountModeImplementedFlag() {
+    #expect(VoiceCountMode.off.isImplemented)
+    #expect(VoiceCountMode.beats.isImplemented)
+    #expect(VoiceCountMode.subdivisions.isImplemented == false)
+    #expect(VoiceCountMode.measures.isImplemented == false)
+    #expect(VoiceCountMode.silentCount.isImplemented == false)
 }
 
 @Test func clickSoundRoundTrip() throws {

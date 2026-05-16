@@ -48,6 +48,10 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// both be on, though feedback is avoided by name-filtering our own
     /// source).
     public var midiClockReceiveEnabled: Bool
+    /// Voice-count mode (spec §5). Phase 1 supports `.off` and `.beats`;
+    /// other cases are reserved enum values that currently behave like
+    /// `.off`. See `VoiceCountMode.isImplemented`.
+    public var voiceCountMode: VoiceCountMode
 
     public init(
         masterVolume: Double = 1.0,
@@ -58,7 +62,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         autoResumeAfterInterruption: Bool = false,
         clickSound: ClickSound = .digitalBeep,
         midiClockEnabled: Bool = false,
-        midiClockReceiveEnabled: Bool = false
+        midiClockReceiveEnabled: Bool = false,
+        voiceCountMode: VoiceCountMode = .off
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -72,5 +77,6 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.clickSound = clickSound
         self.midiClockEnabled = midiClockEnabled
         self.midiClockReceiveEnabled = midiClockReceiveEnabled
+        self.voiceCountMode = voiceCountMode
     }
 }

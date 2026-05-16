@@ -45,6 +45,17 @@ public actor AudioScheduler {
         let pitch: PitchShift
     }
     private var clickBuffers: [BufferKey: AVAudioPCMBuffer] = [:]
+
+    /// Voice-count buffers keyed by (beatIndex 0–8 × accent). Higher beat
+    /// indices clamp to 8 (the synthesized pitch table saturates beyond
+    /// that — distinguishing beat 12 vs beat 13 vocally is past human
+    /// comprehension anyway).
+    private struct VoiceBufferKey: Hashable {
+        let beatIndex: Int
+        let accent: AccentLevel
+    }
+    private var voiceBuffers: [VoiceBufferKey: AVAudioPCMBuffer] = [:]
+    private static let voicePitchBuckets: Int = 9
     private weak var engineRef: MetronomeEngine?
     private var refillTask: Task<Void, Never>?
     /// The `EngineClock` time of the most recently scheduled click. Used
@@ -71,6 +82,16 @@ public actor AudioScheduler {
                     ) {
                         clickBuffers[BufferKey(sound: sound, accent: level, pitch: pitch)] = buf
                     }
+                }
+            }
+        }
+        // Pre-render voice-count buffers — one per (beatIndex, accent).
+        for beatIdx in 0..<Self.voicePitchBuckets {
+            for level in AccentLevel.allCases {
+                if let buf = ClickBufferGenerator.makeVoiceTone(
+                    format: fmt, beatIndex: beatIdx, accent: level
+                ) {
+                    voiceBuffers[VoiceBufferKey(beatIndex: beatIdx, accent: level)] = buf
                 }
             }
         }
@@ -183,26 +204,39 @@ public actor AudioScheduler {
                 lastScheduledTime = click.time
                 continue
             }
-            // Sound resolution order, narrowest to broadest:
-            //   1. click.soundOverride — set per-beat in an AccentPattern
-            //   2. engine.currentSoundPreset — set per-song
-            //   3. settings.clickSound — global default
-            // Unknown rawValues fall through; final fallback always lands.
-            let effectiveSound: ClickSound = {
-                if let s = click.soundOverride, let cs = ClickSound(rawValue: s) {
-                    return cs
+            // Voice count override: when in .beats mode and this is a
+            // main beat (not a subdivision), play a per-beat-number
+            // pitched tone instead of the regular click. Subdivisions
+            // fall through to the normal click path so users still
+            // get rhythmic feedback between voiced beats.
+            let buffer: AVAudioPCMBuffer? = {
+                if settings.voiceCountMode == .beats,
+                   click.subdivisionIndex == 0 {
+                    let bucket = min(click.beatIndex, Self.voicePitchBuckets - 1)
+                    return voiceBuffers[VoiceBufferKey(beatIndex: bucket, accent: click.accent)]
                 }
-                if let s = songPreset, let cs = ClickSound(rawValue: s) {
-                    return cs
-                }
-                return settings.clickSound
+                // Sound resolution order, narrowest to broadest:
+                //   1. click.soundOverride — set per-beat in an AccentPattern
+                //   2. engine.currentSoundPreset — set per-song
+                //   3. settings.clickSound — global default
+                // Unknown rawValues fall through; final fallback always lands.
+                let effectiveSound: ClickSound = {
+                    if let s = click.soundOverride, let cs = ClickSound(rawValue: s) {
+                        return cs
+                    }
+                    if let s = songPreset, let cs = ClickSound(rawValue: s) {
+                        return cs
+                    }
+                    return settings.clickSound
+                }()
+                let bufferKey = BufferKey(
+                    sound: effectiveSound,
+                    accent: click.accent,
+                    pitch: click.pitchShift
+                )
+                return clickBuffers[bufferKey]
             }()
-            let bufferKey = BufferKey(
-                sound: effectiveSound,
-                accent: click.accent,
-                pitch: click.pitchShift
-            )
-            guard let buffer = clickBuffers[bufferKey] else { continue }
+            guard let buffer else { continue }
             // Apply latency calibration. Negative = fire earlier
             // (compensates for Bluetooth headphone output latency).
             // Already clamped to ±50ms by EngineSettings.init.
