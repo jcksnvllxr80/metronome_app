@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-This repo currently contains **only a functional specification** (`README.md`) — no Swift sources, no Xcode project, no build system, no git history. The first implementation task will be to scaffold the iOS project. Read `README.md` end-to-end before scaffolding; it is the source of truth for what the app must do. CLAUDE.md highlights the parts of the spec that are easy to get wrong by default.
+This repo contains the `meter-gnome` iOS app (SwiftUI, `meter-gnome.xcodeproj`) and the `MetronomeCore` Swift package at `Packages/MetronomeCore` (engine math + data types — no audio yet). Engine math and Stage UI are complete; audio integration is planned but not wired. See `README.md` for current build status and `AUDIO_INTEGRATION_PLAN.md` for the audio approach. The original functional specification lives at `FUNCTIONAL_SPEC.md` for deep reference (sound library list, voice count modes, MIDI sync details, etc.). CLAUDE.md is the source of truth for non-obvious architectural constraints — read it before changing engine code, audio code, or anything that affects timing.
 
 ## Target platform
 
