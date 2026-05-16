@@ -29,6 +29,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                soundSection
                 countInSection
                 masterVolumeSection
                 latencySection
@@ -54,6 +55,25 @@ struct SettingsView: View {
     }
 
     // MARK: - Sections
+
+    private var soundSection: some View {
+        Section {
+            Picker("Click Sound", selection: $settings.clickSound) {
+                ForEach(ClickSound.allCases, id: \.self) { sound in
+                    Text(sound.displayName).tag(sound)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(DS.DSColor.accentTempo)
+            .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Sound")
+                .foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Built-in synthesized timbres. Per-song sound overrides coming soon.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
 
     private var countInSection: some View {
         Section {

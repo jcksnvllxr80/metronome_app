@@ -28,6 +28,9 @@ final class PersistedEngineSettings {
     var countInRaw: Int
     var bpmPrecisionMode: Bool
     var autoResumeAfterInterruption: Bool
+    /// `ClickSound.rawValue`. Stored as String for SwiftData compatibility
+    /// and to make values stable across enum case reorderings.
+    var clickSoundRaw: String
 
     init(
         masterVolume: Double = 1.0,
@@ -35,7 +38,8 @@ final class PersistedEngineSettings {
         mixWithOthers: Bool = true,
         countInRaw: Int = CountIn.off.rawValue,
         bpmPrecisionMode: Bool = false,
-        autoResumeAfterInterruption: Bool = false
+        autoResumeAfterInterruption: Bool = false,
+        clickSoundRaw: String = ClickSound.digitalBeep.rawValue
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -43,6 +47,7 @@ final class PersistedEngineSettings {
         self.countInRaw = countInRaw
         self.bpmPrecisionMode = bpmPrecisionMode
         self.autoResumeAfterInterruption = autoResumeAfterInterruption
+        self.clickSoundRaw = clickSoundRaw
     }
 
     convenience init(from settings: EngineSettings) {
@@ -52,7 +57,8 @@ final class PersistedEngineSettings {
             mixWithOthers: settings.mixWithOthers,
             countInRaw: settings.countIn.rawValue,
             bpmPrecisionMode: settings.bpmPrecisionMode,
-            autoResumeAfterInterruption: settings.autoResumeAfterInterruption
+            autoResumeAfterInterruption: settings.autoResumeAfterInterruption,
+            clickSoundRaw: settings.clickSound.rawValue
         )
     }
 
@@ -63,7 +69,8 @@ final class PersistedEngineSettings {
             mixWithOthers: mixWithOthers,
             countIn: CountIn(rawValue: countInRaw) ?? .off,
             bpmPrecisionMode: bpmPrecisionMode,
-            autoResumeAfterInterruption: autoResumeAfterInterruption
+            autoResumeAfterInterruption: autoResumeAfterInterruption,
+            clickSound: ClickSound(rawValue: clickSoundRaw) ?? .digitalBeep
         )
     }
 
@@ -74,6 +81,7 @@ final class PersistedEngineSettings {
         countInRaw = settings.countIn.rawValue
         bpmPrecisionMode = settings.bpmPrecisionMode
         autoResumeAfterInterruption = settings.autoResumeAfterInterruption
+        clickSoundRaw = settings.clickSound.rawValue
     }
 }
 

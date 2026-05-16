@@ -30,6 +30,11 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// users expect a phone call → metronome stays paused → they press
     /// Play again. Spec §16 calls this out as an explicit user setting.
     public var autoResumeAfterInterruption: Bool
+    /// Which built-in click timbre to play. The audio scheduler reads this
+    /// every refill pass (~50 ms) so changes in the Settings sheet are
+    /// audible almost immediately. Per-song `soundPreset` overrides this
+    /// when set (future commit).
+    public var clickSound: ClickSound
 
     public init(
         masterVolume: Double = 1.0,
@@ -37,7 +42,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         mixWithOthers: Bool = true,
         countIn: CountIn = .off,
         bpmPrecisionMode: Bool = false,
-        autoResumeAfterInterruption: Bool = false
+        autoResumeAfterInterruption: Bool = false,
+        clickSound: ClickSound = .digitalBeep
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -48,5 +54,6 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.countIn = countIn
         self.bpmPrecisionMode = bpmPrecisionMode
         self.autoResumeAfterInterruption = autoResumeAfterInterruption
+        self.clickSound = clickSound
     }
 }

@@ -34,7 +34,16 @@ public actor AudioScheduler {
     public let format: AVAudioFormat
 
     private let clock = SystemClock()
-    private var clickBuffers: [AccentLevel: AVAudioPCMBuffer] = [:]
+    /// Pre-rendered buffers keyed by (sound × accent). All 4 sounds × 5
+    /// accents = 20 buffers (~150 KB total at 48 kHz, 40–150 ms duration).
+    /// Pre-computing at init means switching ClickSound in Settings shows
+    /// up audibly within one refill pass (~50 ms) — no extra work on the
+    /// audio thread.
+    private struct BufferKey: Hashable {
+        let sound: ClickSound
+        let accent: AccentLevel
+    }
+    private var clickBuffers: [BufferKey: AVAudioPCMBuffer] = [:]
     private weak var engineRef: MetronomeEngine?
     private var refillTask: Task<Void, Never>?
     /// The `EngineClock` time of the most recently scheduled click. Used
@@ -52,10 +61,14 @@ public actor AudioScheduler {
         self.playerNode = node
         self.format = fmt
 
-        // Pre-render one buffer per accent level.
-        for level in AccentLevel.allCases {
-            if let buf = ClickBufferGenerator.makeBuffer(format: fmt, accent: level) {
-                clickBuffers[level] = buf
+        // Pre-render one buffer per (sound, accent) pair.
+        for sound in ClickSound.allCases {
+            for level in AccentLevel.allCases {
+                if let buf = ClickBufferGenerator.makeBuffer(
+                    format: fmt, accent: level, sound: sound
+                ) {
+                    clickBuffers[BufferKey(sound: sound, accent: level)] = buf
+                }
             }
         }
     }
@@ -166,7 +179,8 @@ public actor AudioScheduler {
                 lastScheduledTime = click.time
                 continue
             }
-            guard let buffer = clickBuffers[click.accent] else { continue }
+            let bufferKey = BufferKey(sound: settings.clickSound, accent: click.accent)
+            guard let buffer = clickBuffers[bufferKey] else { continue }
             // Apply latency calibration. Negative = fire earlier
             // (compensates for Bluetooth headphone output latency).
             // Already clamped to ±50ms by EngineSettings.init.

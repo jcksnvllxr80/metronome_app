@@ -150,7 +150,25 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
         mixWithOthers: false,
         countIn: .twoMeasures,
         bpmPrecisionMode: true,
-        autoResumeAfterInterruption: true
+        autoResumeAfterInterruption: true,
+        clickSound: .cowbell
     )
     #expect(try roundTrip(s) == s)
+}
+
+@Test func clickSoundRoundTrip() throws {
+    for sound in ClickSound.allCases {
+        #expect(try roundTrip(sound) == sound)
+    }
+}
+
+@Test func clickSoundUsesStringRawValue() throws {
+    let data = try JSONEncoder().encode(ClickSound.woodBlock)
+    let str = String(data: data, encoding: .utf8)
+    #expect(str == "\"woodBlock\"")
+}
+
+@Test func engineSettingsDefaultsToDigitalBeep() {
+    let s = EngineSettings()
+    #expect(s.clickSound == .digitalBeep)
 }
