@@ -2,57 +2,74 @@
 //  LibraryView.swift
 //  meter-gnome
 //
-//  Songs-only library sheet. Setlists are deferred — building a setlist
-//  needs a song-picker UI that's its own surface. Phase 1 ships the
-//  single-song-load path; setlists land alongside song-picking + ordering.
-//
-//  Flows:
-//  - Tap "+" → alert with TextField → save current engine state as Song
-//  - Tap a row → engine.apply(song), sheet dismisses
-//  - Swipe row left → Delete
-//  - Empty state shown when no songs are saved
+//  Two-tab library: Songs and Setlists. Songs tab supports saving the
+//  engine's current state and loading any saved song. Setlists tab
+//  supports CRUD on setlists; tap one to push into SetlistDetailView
+//  for managing its songs and advance mode. Setlist playback (auto-
+//  advance walkthrough) is a separate body of work — this view only
+//  manages the data.
 //
 
 import SwiftUI
 import MetronomeCore
 
+private enum LibraryTab: String, Hashable {
+    case songs, setlists
+}
+
 struct LibraryView: View {
     @Bindable var viewModel: MetronomeViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var showSaveAlert = false
+
+    @State private var tab: LibraryTab = .songs
+    @State private var showSaveSongAlert = false
+    @State private var showNewSetlistAlert = false
     @State private var newSongTitle = ""
+    @State private var newSetlistName = ""
 
     var body: some View {
         NavigationStack {
             ZStack {
                 DS.DSColor.bgBase.ignoresSafeArea()
-                if viewModel.librarySongs.isEmpty {
-                    emptyState
-                } else {
-                    songList
+                switch tab {
+                case .songs:    songsTab
+                case .setlists: setlistsTab
                 }
             }
-            .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(DS.DSColor.accentTempo)
                 }
+                ToolbarItem(placement: .principal) {
+                    Picker("", selection: $tab) {
+                        Text("Songs").tag(LibraryTab.songs)
+                        Text("Setlists").tag(LibraryTab.setlists)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 200)
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button {
-                        newSongTitle = defaultSongTitle()
-                        showSaveAlert = true
+                        switch tab {
+                        case .songs:
+                            newSongTitle = defaultSongTitle()
+                            showSaveSongAlert = true
+                        case .setlists:
+                            newSetlistName = defaultSetlistName()
+                            showNewSetlistAlert = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
                     .foregroundStyle(DS.DSColor.accentTempo)
-                    .accessibilityLabel("Save current as song")
+                    .accessibilityLabel(tab == .songs ? "Save current as song" : "New setlist")
                 }
             }
             .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .alert("Save as Song", isPresented: $showSaveAlert) {
+            .alert("Save as Song", isPresented: $showSaveSongAlert) {
                 TextField("Song name", text: $newSongTitle)
                     .textInputAutocapitalization(.words)
                 Button("Save") {
@@ -60,11 +77,20 @@ struct LibraryView: View {
                         newSongTitle = ""
                     }
                 }
-                Button("Cancel", role: .cancel) {
-                    newSongTitle = ""
-                }
+                Button("Cancel", role: .cancel) { newSongTitle = "" }
             } message: {
                 Text("Saves the current BPM, time signature, and subdivision.")
+            }
+            .alert("New Setlist", isPresented: $showNewSetlistAlert) {
+                TextField("Setlist name", text: $newSetlistName)
+                    .textInputAutocapitalization(.words)
+                Button("Create") {
+                    _ = viewModel.createSetlist(name: newSetlistName)
+                    newSetlistName = ""
+                }
+                Button("Cancel", role: .cancel) { newSetlistName = "" }
+            } message: {
+                Text("Setlists are ordered collections of saved songs.")
             }
         }
         .preferredColorScheme(.dark)
@@ -73,49 +99,83 @@ struct LibraryView: View {
         }
     }
 
-    // MARK: - Empty state
+    // MARK: - Songs tab
 
-    private var emptyState: some View {
-        VStack(spacing: DS.Spacing.md) {
-            Image(systemName: "music.note.list")
-                .font(.system(size: 48, weight: .light))
-                .foregroundStyle(DS.DSColor.textDim)
-            Text("No saved songs yet")
-                .font(DS.Font.headline)
-                .foregroundStyle(DS.DSColor.textPrimary)
-            Text("Tap + to save the current tempo as a song.")
-                .font(DS.Font.body)
-                .foregroundStyle(DS.DSColor.textMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, DS.Spacing.xxl)
-        }
-    }
-
-    // MARK: - Song list
-
-    private var songList: some View {
-        List {
-            ForEach(viewModel.librarySongs) { song in
-                Button {
-                    viewModel.loadSong(song)
-                    dismiss()
-                } label: {
-                    songRow(song)
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(DS.DSColor.bgElevated)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        viewModel.deleteSong(id: song.id)
+    @ViewBuilder
+    private var songsTab: some View {
+        if viewModel.librarySongs.isEmpty {
+            emptyState(
+                icon: "music.note.list",
+                title: "No saved songs yet",
+                hint: "Tap + to save the current tempo as a song."
+            )
+        } else {
+            List {
+                ForEach(viewModel.librarySongs) { song in
+                    Button {
+                        viewModel.loadSong(song)
+                        dismiss()
                     } label: {
-                        Label("Delete", systemImage: "trash")
+                        songRow(song)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(DS.DSColor.bgElevated)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            viewModel.deleteSong(id: song.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
         }
-        .scrollContentBackground(.hidden)
-        .background(DS.DSColor.bgBase)
     }
+
+    // MARK: - Setlists tab
+
+    @ViewBuilder
+    private var setlistsTab: some View {
+        if viewModel.librarySetlists.isEmpty {
+            emptyState(
+                icon: "list.bullet.rectangle",
+                title: "No setlists yet",
+                hint: "Tap + to create one. Setlists hold an ordered collection of your saved songs."
+            )
+        } else {
+            List {
+                ForEach(viewModel.librarySetlists) { setlist in
+                    NavigationLink {
+                        SetlistDetailView(
+                            setlist: setlist,
+                            availableSongs: viewModel.librarySongs,
+                            onSave: { updated in
+                                viewModel.saveSetlist(updated)
+                            },
+                            onSelectSong: { song in
+                                viewModel.loadSong(song)
+                                dismiss()
+                            }
+                        )
+                    } label: {
+                        setlistRow(setlist)
+                    }
+                    .listRowBackground(DS.DSColor.bgElevated)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) {
+                            viewModel.deleteSetlist(id: setlist.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+        }
+    }
+
+    // MARK: - Rows
 
     private func songRow(_ song: Song) -> some View {
         HStack(alignment: .center, spacing: DS.Spacing.md) {
@@ -123,7 +183,7 @@ struct LibraryView: View {
                 Text(song.title)
                     .font(DS.Font.headline)
                     .foregroundStyle(DS.DSColor.textPrimary)
-                Text(metaLine(for: song))
+                Text(songMetaLine(song))
                     .font(DS.Font.monoData)
                     .foregroundStyle(DS.DSColor.textMuted)
             }
@@ -135,7 +195,39 @@ struct LibraryView: View {
         .padding(.vertical, DS.Spacing.xs)
     }
 
-    private func metaLine(for song: Song) -> String {
+    private func setlistRow(_ setlist: Setlist) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+            Text(setlist.name)
+                .font(DS.Font.headline)
+                .foregroundStyle(DS.DSColor.textPrimary)
+            Text("\(setlist.count) \(setlist.count == 1 ? "song" : "songs")")
+                .font(DS.Font.monoData)
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+        .padding(.vertical, DS.Spacing.xs)
+    }
+
+    // MARK: - Empty state
+
+    private func emptyState(icon: String, title: String, hint: String) -> some View {
+        VStack(spacing: DS.Spacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 48, weight: .light))
+                .foregroundStyle(DS.DSColor.textDim)
+            Text(title)
+                .font(DS.Font.headline)
+                .foregroundStyle(DS.DSColor.textPrimary)
+            Text(hint)
+                .font(DS.Font.body)
+                .foregroundStyle(DS.DSColor.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, DS.Spacing.xxl)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func songMetaLine(_ song: Song) -> String {
         var parts: [String] = []
         parts.append("\(song.bpm.displayInt) BPM")
         parts.append("\(song.timeSignature.numerator)/\(song.timeSignature.denominator.rawValue)")
@@ -146,10 +238,16 @@ struct LibraryView: View {
     }
 
     private func defaultSongTitle() -> String {
-        // Suggest "120 BPM, 4/4" so the user doesn't always face a blank field.
         let bpm = viewModel.bpm.displayInt
         let ts = viewModel.timeSignature
         return "\(bpm) BPM, \(ts.numerator)/\(ts.denominator.rawValue)"
+    }
+
+    private func defaultSetlistName() -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: Date())
     }
 }
 

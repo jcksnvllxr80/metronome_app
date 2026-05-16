@@ -32,6 +32,9 @@ final class MetronomeViewModel {
     /// view model whenever a song is added, deleted, or the library
     /// sheet is presented. Empty when no LibraryStore is attached.
     var librarySongs: [Song] = []
+    /// Cached snapshot of saved setlists. Same refresh pattern as
+    /// `librarySongs`.
+    var librarySetlists: [Setlist] = []
     /// A snapshot of the engine's current ClickSchedule. The view reads
     /// this every animation frame via TimelineView to drive the pulse.
     /// `nil` when the engine is stopped or before the first start().
@@ -132,9 +135,10 @@ final class MetronomeViewModel {
 
     // MARK: - Library
 
-    /// Pull the latest songs from SwiftData. Cheap (single fetch by title).
+    /// Pull the latest songs + setlists from SwiftData. Cheap (two sorted fetches).
     func refreshLibrary() {
         librarySongs = libraryStore?.allSongs() ?? []
+        librarySetlists = libraryStore?.allSetlists() ?? []
     }
 
     /// Save the engine's current settings as a new Song with the given title.
@@ -166,6 +170,34 @@ final class MetronomeViewModel {
     /// Delete a song from the library.
     func deleteSong(id: UUID) {
         libraryStore?.deleteSong(id: id)
+        refreshLibrary()
+    }
+
+    /// Create an empty setlist with the given name. Returns the new
+    /// setlist on success, or `nil` if the name was blank or no
+    /// LibraryStore is attached. The caller can use the returned setlist
+    /// to immediately push into a detail view for editing.
+    @discardableResult
+    func createSetlist(name: String) -> Setlist? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let store = libraryStore else { return nil }
+        let setlist = Setlist(name: trimmed)
+        store.save(setlist)
+        refreshLibrary()
+        return setlist
+    }
+
+    /// Save (insert or update) a setlist by ID. Used by the detail view
+    /// every time a song is added, reordered, or removed.
+    func saveSetlist(_ setlist: Setlist) {
+        libraryStore?.save(setlist)
+        refreshLibrary()
+    }
+
+    /// Delete a setlist (does NOT delete the songs inside, which are
+    /// independent library entries).
+    func deleteSetlist(id: UUID) {
+        libraryStore?.deleteSetlist(id: id)
         refreshLibrary()
     }
 
