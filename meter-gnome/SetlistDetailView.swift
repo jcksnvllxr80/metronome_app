@@ -26,6 +26,10 @@ struct SetlistDetailView: View {
     let onPlay: (Setlist) -> Void
 
     @State private var showSongPicker = false
+    /// Remembers the user's last-chosen countdown measure count so toggling
+    /// the advance mode kind (pause → countdown again) preserves it instead
+    /// of resetting to 1. Initialized from setlist.advanceMode on appear.
+    @State private var lastCountdownMeasures: Int = 1
 
     var body: some View {
         ZStack {
@@ -68,6 +72,13 @@ struct SetlistDetailView: View {
                 onSave(setlist)
             }
         }
+        .onAppear {
+            // Seed the remembered measure count from the saved setlist
+            // so re-entering this view doesn't reset to 1.
+            if case .countdown(let m) = setlist.advanceMode {
+                lastCountdownMeasures = m
+            }
+        }
     }
 
     // MARK: - Advance mode
@@ -81,6 +92,26 @@ struct SetlistDetailView: View {
             }
             .pickerStyle(.segmented)
             .listRowBackground(DS.DSColor.bgElevated)
+
+            // Sub-picker for countdown measures — only when countdown is
+            // the active kind. Constrained to 1/2/4 because SetlistPlayer
+            // converts to CountIn (.oneMeasure / .twoMeasures /
+            // .fourMeasures); anything else falls through to .off.
+            if case .countdown = setlist.advanceMode {
+                HStack {
+                    Text("Measures")
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                    Spacer()
+                    Picker("Measures", selection: countdownMeasuresBinding) {
+                        Text("1").tag(1)
+                        Text("2").tag(2)
+                        Text("4").tag(4)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 180)
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            }
         } header: {
             Text("Auto-advance")
                 .foregroundStyle(DS.DSColor.textMuted)
@@ -88,6 +119,20 @@ struct SetlistDetailView: View {
             Text(advanceModeFooter)
                 .foregroundStyle(DS.DSColor.textMuted)
         }
+    }
+
+    private var countdownMeasuresBinding: Binding<Int> {
+        Binding(
+            get: {
+                if case .countdown(let m) = setlist.advanceMode { return m }
+                return lastCountdownMeasures
+            },
+            set: { newM in
+                lastCountdownMeasures = newM
+                setlist.advanceMode = .countdown(measures: newM)
+                onSave(setlist)
+            }
+        )
     }
 
     /// Translates between the rich `SetlistAdvanceMode` (with associated
@@ -111,7 +156,11 @@ struct SetlistDetailView: View {
             set: { newKind in
                 switch newKind {
                 case .pause: setlist.advanceMode = .pause
-                case .countdown: setlist.advanceMode = .countdown(measures: 1)
+                case .countdown:
+                    // Restore the last-known countdown count instead of
+                    // resetting to 1 — so toggling pause → countdown keeps
+                    // the user's previously-set 2 or 4.
+                    setlist.advanceMode = .countdown(measures: lastCountdownMeasures)
                 case .immediate: setlist.advanceMode = .immediate
                 }
                 onSave(setlist)
