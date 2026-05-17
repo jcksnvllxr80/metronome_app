@@ -100,9 +100,8 @@ Settings → MIDI now shows a "Source" picker when "Listen for MIDI Clock" is on
 ### Now Playing — remaining (spec §16)
 `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` wired (play/pause/toggle, next/prev in setlists, song title + BPM artist line, app-icon artwork). Real-device verification of AirPods double-tap + Control Center transport still pending.
 
-### Accent pattern library — remaining (spec §3.2)
-Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/8, 7/8 2+2+3, 5/4 3+2). AccentPatternEditView has a "Save as preset" button + a list of existing presets matching the current time signature (swipe to delete) + "Add starter presets" button when the library is empty. Each song still owns its own per-beat pattern; loading a preset copies its beats into the draft. Still backlog:
-- Dedicated patterns-library view (browse / rename / edit standalone without going through a song)
+### ~~Accent pattern library — dedicated patterns-library view~~ — shipped in v0.21.0
+Library now has a fourth "Patterns" tab alongside Songs / Setlists / Stats. Presets group by time signature (sorted by numerator/denominator), with rows showing the accent-dot preview at a glance. Tap to edit (reuses AccentPatternEditView via sheet; preset UUID preserved so rename + beat changes update in place). Swipe to delete. Toolbar + opens a time-sig confirmationDialog (4/4, 3/4, 6/8, 5/4, 7/8) → new preset draft. New `viewModel.updateAccentPatternPreset(_:)` wraps the upsert-by-ID path so renames don't fork the UUID.
 
 ## Open bugs (real-device testing 2026-05)
 

@@ -14,7 +14,7 @@ import SwiftUI
 import MetronomeCore
 
 private enum LibraryTab: String, Hashable {
-    case songs, setlists, stats
+    case songs, setlists, patterns, stats
 }
 
 struct LibraryView: View {
@@ -34,6 +34,7 @@ struct LibraryView: View {
                 switch tab {
                 case .songs:    songsTab
                 case .setlists: setlistsTab
+                case .patterns: AccentPatternLibraryView(viewModel: viewModel)
                 case .stats:    StatsView(viewModel: viewModel)
                 }
             }
@@ -47,12 +48,13 @@ struct LibraryView: View {
                     Picker("", selection: $tab) {
                         Text("Songs").tag(LibraryTab.songs)
                         Text("Setlists").tag(LibraryTab.setlists)
+                        Text("Patterns").tag(LibraryTab.patterns)
                         Text("Stats").tag(LibraryTab.stats)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 260)
+                    .frame(width: 320)
                 }
-                if tab != .stats {
+                if tab == .songs || tab == .setlists {
                     ToolbarItem(placement: .primaryAction) {
                         Button {
                             switch tab {
@@ -62,7 +64,10 @@ struct LibraryView: View {
                             case .setlists:
                                 newSetlistName = defaultSetlistName()
                                 showNewSetlistAlert = true
-                            case .stats:
+                            case .patterns, .stats:
+                                // Patterns has its own toolbar +
+                                // button supplied by the inner view;
+                                // Stats has no add action.
                                 break
                             }
                         } label: {

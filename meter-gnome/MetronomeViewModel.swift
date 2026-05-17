@@ -492,6 +492,22 @@ final class MetronomeViewModel {
         refreshAccentPatternPresets()
     }
 
+    /// Upsert an existing preset (preserving its UUID — used by the
+    /// pattern library view's edit + rename flows). The underlying
+    /// store's `save` already does insert-or-update by ID, so this is
+    /// a thin wrapper that trims the display name + refreshes the
+    /// cached snapshot. Empty names are rejected (returns false).
+    @discardableResult
+    func updateAccentPatternPreset(_ preset: AccentPatternPreset) -> Bool {
+        let trimmed = preset.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let store = accentPatternPresetStore else { return false }
+        var copy = preset
+        copy.name = trimmed
+        guard store.save(copy) else { return false }
+        refreshAccentPatternPresets()
+        return true
+    }
+
     /// Seed the preset library with the curated starter set. Idempotent
     /// in spirit (each call generates new UUIDs so the user can re-run
     /// to top up if they've deleted some), but the UI should call this

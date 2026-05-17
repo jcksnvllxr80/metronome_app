@@ -18,7 +18,7 @@ Latest tag: **v0.16.2**.
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
 | Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
 | Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
-| Library: songs, setlists, song detail, accent-pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides, swipe-to-duplicate songs, accent-pattern preset library with starter set |
+| Library: songs, setlists, patterns, song detail, accent-pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides, swipe-to-duplicate songs, accent-pattern preset library (dedicated Patterns tab — browse / rename / edit / delete standalone) with starter set |
 | Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate — all three modes work for both flat and multi-section songs |
 | Multi-section songs (§7.3) | ✓ Per-section name + BPM + meter + subdivision + measures + accent pattern + sound + repeat count + end-action + Fine marker. Auto-advance with D.C. al Fine; drag-to-reorder + duplicate. Sections auto-advance inside a setlist across all advance modes. |
 | MIDI Clock send + receive (slave mode) | ✓ Virtual source "meter-gnome"; follows external Clock + Start/Stop. Settings → MIDI source picker isolates one master when multiple are connected. Song Position Pointer (0xF2) honored — DAW "play from bar 3" lands meter-gnome's indexing at the same position. |
