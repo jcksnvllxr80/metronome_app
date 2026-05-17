@@ -33,6 +33,11 @@ public actor HapticScheduler {
     /// purpose as `AudioScheduler.lastScheduledTime` — keeps the
     /// refill loop from re-scheduling clicks already queued.
     private var lastScheduledTime: TimeInterval = -.infinity
+    /// Our own clock — same backing source as the engine's
+    /// SystemClock (mach_absolute_time). Used to compute the
+    /// "play this haptic N seconds from now" offset passed to
+    /// CHHapticPatternPlayer.start(atTime:).
+    private let clock = SystemClock()
 
     public init() {}
 
@@ -122,10 +127,14 @@ public actor HapticScheduler {
         return max(Self.minLookaheadClicks, secondsBased)
     }
 
-    /// Build a one-event pattern + schedule it on an advanced player so
-    /// we can set `playAt:` for precise timing. Transient events are
-    /// the right primitive for a metronome tap (sharp, percussive,
-    /// minimal latency).
+    /// Build a one-event transient haptic and schedule it for the
+    /// click's actual time. `player.start(atTime:)` takes a relative
+    /// offset in seconds from "now" — we compute the offset against
+    /// our SystemClock so haptics fire when the audio click does, not
+    /// at the refill loop's tick rate. Earlier versions used
+    /// `CHHapticTimeImmediate` (0) which fired every queued haptic
+    /// instantly — producing a sustained buzz at 1/refillInterval Hz
+    /// regardless of the configured mode.
     private func scheduleEvent(forClick click: Click, intensity: HapticIntensity) async {
         guard let hapticEngine = engine else { return }
         let intensityValue = Float(intensity.value(for: click.accent))
@@ -138,15 +147,15 @@ public actor HapticScheduler {
             ],
             relativeTime: 0
         )
+        // Compute the offset from now to the click's intended time.
+        // Negative offsets (click is already in the past relative to
+        // when we got here) play immediately — better than dropping
+        // them, since the user expected SOME haptic for that beat.
+        let offset = max(0, click.time - clock.now)
         do {
             let pattern = try CHHapticPattern(events: [event], parameters: [])
             let player = try hapticEngine.makePlayer(with: pattern)
-            // `playAt: 0` plays immediately — for sub-millisecond timing
-            // we'd use makeAdvancedPlayer + schedule at a future time,
-            // but the refill loop runs ~every 50ms which gives clicks a
-            // bounded look-ahead anyway. v1: play-now is good enough on
-            // real devices.
-            try player.start(atTime: CHHapticTimeImmediate)
+            try player.start(atTime: offset)
         } catch {
             // Don't spam logs — haptic engine can throw under load. Drop.
             _ = error

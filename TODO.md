@@ -115,6 +115,9 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
+### ~~Haptic "fast double-bass-pedal buzz" regardless of mode~~ — fixed in v0.13.4
+Real-device QA found haptics vibrating continuously at ~400–500 BPM at every mode (downbeat-only, accents-only, every-beat, subdivisions-too) — only `.off` stopped it. Root cause: `HapticScheduler.scheduleEvent` was calling `player.start(atTime: CHHapticTimeImmediate)`, which means "play right now" regardless of when the click is actually scheduled. So every 50 ms the refill loop pulled the next batch of clicks, fired one haptic for each matching the mode IMMEDIATELY, and produced a sustained buzz at refill-loop rate. Fix: schedule each haptic at `max(0, click.time - clock.now)` so it plays when the audio click does.
+
 ### ~~Audio dropout on tempo change while running~~ — fixed in v0.12.6 (device-confirmed)
 `AVAudioPlayerNodeBufferOptions.interrupts` on the first new-schedule buffer is the documented way to preempt an in-flight queue without the recovery cost that `playerNode.reset()` was paying. No flush ceremony — the player node just switches to the new buffer. v0.12.3–v0.12.5 attempts (various combinations of reset + lead-in) all left an audible dropout; v0.12.6's .interrupts approach landed clean.
 
