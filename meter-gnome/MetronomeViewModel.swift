@@ -61,6 +61,18 @@ final class MetronomeViewModel {
     /// ramp indicator. `nil` when no ramp is configured (the common case).
     var automation: TempoAutomation? = nil
 
+    /// Title of the song most recently loaded via `loadSong(_:)`. Used by
+    /// the Stage "loaded song" indicator and the Now Playing card so the
+    /// user can tell which song is active without opening the Library.
+    ///
+    /// Cleared when a setlist starts (setlist playback takes over the
+    /// "now playing" metadata via `playingSongTitle`), when the user
+    /// loads a different song, or when `clearLoadedSong()` is called.
+    /// Engine state edits (BPM, time signature, subdivision tweaks) do
+    /// NOT clear it — the user is still "playing this song," just with
+    /// adjustments.
+    var loadedSongTitle: String? = nil
+
     /// Clock time of the most recent tap on the tap-tempo button. Drives
     /// the visual flash via `tapFlashIntensity(at:)`. `-.infinity` means
     /// "never tapped" — by definition `time - (-.infinity) > 0.150`, so
@@ -214,10 +226,18 @@ final class MetronomeViewModel {
     /// Load a song's settings into the engine. Doesn't auto-start —
     /// keeps the user in control of when audio begins.
     func loadSong(_ song: Song) {
+        loadedSongTitle = song.title
         Task {
             await engine.apply(song)
             await refresh()
         }
+    }
+
+    /// Forget the currently-loaded song (Stage indicator disappears).
+    /// The engine's BPM / meter / subdivision are left alone — this is
+    /// only about the displayed metadata, not playback state.
+    func clearLoadedSong() {
+        loadedSongTitle = nil
     }
 
     /// Delete a song from the library.
@@ -261,6 +281,9 @@ final class MetronomeViewModel {
     /// the player's polling tick.
     func playSetlist(_ setlist: Setlist) {
         guard let player = setlistPlayer else { return }
+        // Setlist takes over the "now playing" metadata via playingSongTitle.
+        // Clear the standalone-load title so the Stage doesn't show both.
+        loadedSongTitle = nil
         Task {
             await player.play(setlist)
             await refresh()

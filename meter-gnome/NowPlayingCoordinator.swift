@@ -104,7 +104,10 @@ final class NowPlayingCoordinator {
     private func publish() {
         guard let vm = viewModel else { return }
         let setlistActive = vm.playingSetlistName != nil
-        let title: String = vm.playingSongTitle ?? "Metronome"
+        // Title precedence: setlist > standalone-loaded > generic.
+        let title: String = vm.playingSongTitle
+            ?? vm.loadedSongTitle
+            ?? "Metronome"
         let artist: String
         if let setlistName = vm.playingSetlistName {
             let n = vm.playingSongIndex + 1

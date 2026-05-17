@@ -127,6 +127,15 @@ struct ContentView: View {
             meterRow
                 .padding(.top, viewModel.playingSetlistName == nil ? DS.Spacing.lg : DS.Spacing.xs)
 
+            // Loaded-song name (standalone library load). Hidden when a
+            // setlist is playing — the setlist indicator at the top already
+            // shows the current song title.
+            if viewModel.playingSetlistName == nil,
+               viewModel.loadedSongTitle != nil {
+                loadedSongIndicator
+                    .padding(.top, DS.Spacing.xs)
+            }
+
             if viewModel.automation != nil {
                 rampIndicator
                     .padding(.top, DS.Spacing.xs)
@@ -187,6 +196,32 @@ struct ContentView: View {
         let n = viewModel.playingSongIndex + 1
         let total = viewModel.playingSetlistCount
         return "\(name) · \(n) of \(total)"
+    }
+
+    // MARK: - Loaded song indicator (standalone library load)
+
+    @ViewBuilder
+    private var loadedSongIndicator: some View {
+        if let title = viewModel.loadedSongTitle {
+            Button {
+                viewModel.clearLoadedSong()
+            } label: {
+                HStack(spacing: DS.Spacing.xs) {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text(title)
+                }
+                .font(DS.Font.label)
+                .foregroundStyle(DS.DSColor.textMuted)
+                .textCase(.uppercase)
+                .tracking(2)
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, DS.Spacing.xxs)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Loaded song: \(title). Tap to clear.")
+        }
     }
 
     // MARK: - Ramp indicator (tempo automation, spec §6.3)
