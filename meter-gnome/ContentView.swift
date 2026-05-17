@@ -259,6 +259,9 @@ struct ContentView: View {
             let ceilingPart = s.ceiling.map { " → \($0.displayInt)" } ?? ""
             let plural = s.measuresPerStep == 1 ? "bar" : "bars"
             return "Step \(s.startBPM.displayInt)\(ceilingPart) · +\(Int(s.increment.rounded())) every \(s.measuresPerStep) \(plural)"
+        case .loop(let l):
+            let bpms = l.stages.map { "\($0.bpm.displayInt)" }.joined(separator: "→")
+            return "Loop \(bpms) · \(l.stages.count) stage\(l.stages.count == 1 ? "" : "s")"
         }
     }
 
@@ -278,6 +281,9 @@ struct ContentView: View {
         case .step(let s):
             let ceilingPart = s.ceiling.map { ", ceiling \($0.displayInt) BPM" } ?? ""
             return "Speed trainer step mode starting at \(s.startBPM.displayInt) BPM, increasing by \(Int(s.increment.rounded())) BPM every \(s.measuresPerStep) measure\(s.measuresPerStep == 1 ? "" : "s")\(ceilingPart)"
+        case .loop(let l):
+            let stages = l.stages.map { "\($0.bpm.displayInt) BPM for \($0.measures) measure\($0.measures == 1 ? "" : "s")" }.joined(separator: ", then ")
+            return "Tempo loop cycling through \(l.stages.count) stage\(l.stages.count == 1 ? "" : "s"): \(stages)"
         }
     }
 

@@ -357,6 +357,82 @@ import Foundation
     #expect(a.rampBeats(timeSignature: .fourFour) == nil)
 }
 
+// MARK: - Loop mode (spec §6.3 ramp loops)
+
+@Test func loopRejectsEmptyStages() {
+    #expect(TempoAutomation.loop(stages: []) == nil)
+}
+
+@Test func loopStartBPMIsFirstStage() {
+    let auto = TempoAutomation.loop(stages: [
+        .init(bpm: BPM(80), measures: 4),
+        .init(bpm: BPM(120), measures: 4),
+    ])!
+    #expect(auto.startBPM == BPM(80))
+}
+
+@Test func loopBeatPositionInsideFirstCycle() {
+    // Two stages: 60 BPM × 4 measures (16 beats, 16 seconds) +
+    // 120 BPM × 4 measures (16 beats, 8 seconds). Cycle = 24 seconds.
+    let auto = TempoAutomation.loop(stages: [
+        .init(bpm: BPM(60), measures: 4),
+        .init(bpm: BPM(120), measures: 4),
+    ])!
+    // At t=8s (halfway through stage 1 at 60 BPM): 8 beats.
+    #expect(abs(auto.beatPosition(forTime: 8, timeSignature: .fourFour) - 8) < 1e-9)
+    // At t=16s (boundary between stages): 16 beats.
+    #expect(abs(auto.beatPosition(forTime: 16, timeSignature: .fourFour) - 16) < 1e-9)
+    // At t=20s (4 seconds into stage 2 at 120 BPM): 16 + 4*2 = 24.
+    #expect(abs(auto.beatPosition(forTime: 20, timeSignature: .fourFour) - 24) < 1e-9)
+}
+
+@Test func loopBeatPositionWrapsAcrossCycles() {
+    // Cycle = 24 seconds, 32 beats.
+    let auto = TempoAutomation.loop(stages: [
+        .init(bpm: BPM(60), measures: 4),
+        .init(bpm: BPM(120), measures: 4),
+    ])!
+    // t = 24s exact → exactly 32 beats (one full cycle).
+    #expect(abs(auto.beatPosition(forTime: 24, timeSignature: .fourFour) - 32) < 1e-9)
+    // t = 32s = one full cycle (32 beats) + 8s into next cycle's stage 1 (60 BPM) = 8 beats.
+    // Total: 40.
+    #expect(abs(auto.beatPosition(forTime: 32, timeSignature: .fourFour) - 40) < 1e-9)
+}
+
+@Test func loopForwardInverseRoundTrip() {
+    let auto = TempoAutomation.loop(stages: [
+        .init(bpm: BPM(80), measures: 2),
+        .init(bpm: BPM(110), measures: 3),
+        .init(bpm: BPM(140), measures: 1),
+    ])!
+    // Sweep through several cycles to catch wrap math.
+    for t in stride(from: 0.0, through: 60.0, by: 0.7) {
+        let beats = auto.beatPosition(forTime: t, timeSignature: .fourFour)
+        let back = auto.time(forBeatPosition: beats, timeSignature: .fourFour)
+        #expect(abs(back - t) < 1e-6, "loop roundtrip failed at t=\(t)")
+    }
+}
+
+@Test func loopRampSecondsAndBeatsAreNil() {
+    // Loops cycle forever — no finite total.
+    let auto = TempoAutomation.loop(stages: [
+        .init(bpm: BPM(80), measures: 4)
+    ])!
+    #expect(auto.rampSeconds(timeSignature: .fourFour) == nil)
+    #expect(auto.rampBeats(timeSignature: .fourFour) == nil)
+}
+
+@Test func loopCodableRoundTrip() throws {
+    let auto = TempoAutomation.loop(stages: [
+        .init(bpm: BPM(60), measures: 4),
+        .init(bpm: BPM(90), measures: 2),
+        .init(bpm: BPM(120), measures: 6),
+    ])!
+    let data = try JSONEncoder().encode(auto)
+    let back = try JSONDecoder().decode(TempoAutomation.self, from: data)
+    #expect(back == auto)
+}
+
 // MARK: - Codable for step mode + legacy-decode
 
 @Test func stepCodableRoundTrip() throws {

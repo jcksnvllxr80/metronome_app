@@ -15,9 +15,9 @@ Practice-session log shipped end-to-end: PracticeSession value type, SwiftData s
 - Weekly / monthly goals (currently only daily)
 
 ### Tempo automation — remaining sub-features (spec §6.3)
-Gradual ramp + step BPM both shipped (per-song, picker chooses between the two in SongDetail). Stage indicator renders the active mode. Still backlog:
-- Ramp loops: cycle through multiple tempo targets (slots in as a third TempoAutomation case alongside .gradual and .step)
+All three §6.3 modes shipped: gradual, step, and ramp-loop. SongDetail's picker selects between them; loop mode edits a list of (BPM, measures) stages that cycle forever. Stage indicator renders the active mode. Still backlog:
 - Stage-quick-sheet variant (current UI is per-song only)
+- Drag-to-reorder loop stages (currently only add at the end + delete by index)
 
 ### Speed trainer — remaining sub-features (spec §6.4)
 Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tempo Automation → Step: start BPM, increment per step, measures per step, optional ceiling that holds BPM constant once reached. Still backlog:

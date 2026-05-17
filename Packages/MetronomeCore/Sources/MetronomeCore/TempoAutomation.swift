@@ -21,6 +21,8 @@ public enum TempoAutomation: Hashable, Sendable {
     case gradual(Gradual)
     /// Step changes, optionally with a BPM ceiling.
     case step(Step)
+    /// Cyclic sequence of constant-BPM stages (spec §6.3 "ramp loops").
+    case loop(Loop)
 
     public struct Gradual: Hashable, Sendable {
         public var startBPM: BPM
@@ -87,11 +89,53 @@ public enum TempoAutomation: Hashable, Sendable {
         case seconds(TimeInterval)
     }
 
+    /// Ordered list of constant-BPM stages played back in a loop. After
+    /// the last stage finishes its `measures`, playback returns to
+    /// `stages[0]` and repeats indefinitely. Empty arrays are rejected
+    /// at factory time so the schedule math always has a stage to use.
+    public struct Loop: Hashable, Sendable {
+        public struct Stage: Hashable, Sendable {
+            public var bpm: BPM
+            public var measures: Int
+
+            public init(bpm: BPM, measures: Int) {
+                self.bpm = bpm
+                self.measures = max(1, measures)
+            }
+        }
+
+        public var stages: [Stage]
+
+        public init(stages: [Stage]) {
+            // Floor to a single 1-measure stage at minimum BPM if caller
+            // somehow passes empty — factories already reject this but
+            // defending the invariant here means the schedule math can
+            // assume non-empty unconditionally.
+            self.stages = stages.isEmpty
+                ? [Stage(bpm: BPM(120), measures: 1)]
+                : stages
+        }
+
+        /// Total beats covered by one full pass through the stage list.
+        public func beatsPerCycle(timeSignature: TimeSignature) -> Double {
+            stages.reduce(0) { $0 + Double($1.measures * timeSignature.numerator) }
+        }
+
+        /// Wall-clock seconds for one full pass.
+        public func secondsPerCycle(timeSignature: TimeSignature) -> TimeInterval {
+            stages.reduce(0) { acc, stage in
+                let beats = Double(stage.measures * timeSignature.numerator)
+                return acc + beats * (60 / stage.bpm.value)
+            }
+        }
+    }
+
     /// Initial tempo (used to lock `Song.bpm` when automation is active).
     public var startBPM: BPM {
         switch self {
         case .gradual(let g): return g.startBPM
         case .step(let s): return s.startBPM
+        case .loop(let l): return l.stages[0].bpm
         }
     }
 
@@ -120,6 +164,13 @@ public enum TempoAutomation: Hashable, Sendable {
             measuresPerStep: measuresPerStep,
             ceiling: ceiling
         ))
+    }
+
+    /// Returns nil on empty `stages` — a loop has to have at least one
+    /// stage to be a valid schedule.
+    public static func loop(stages: [Loop.Stage]) -> TempoAutomation? {
+        guard !stages.isEmpty else { return nil }
+        return .loop(Loop(stages: stages))
     }
 
     /// Threshold below which `startBPM` and `endBPM` of a gradual ramp
@@ -151,6 +202,9 @@ public enum TempoAutomation: Hashable, Sendable {
                 if idx > 10_000 { return nil } // safety
             }
             return t
+        case .loop:
+            // Loops cycle forever — no finite "ramp seconds."
+            return nil
         }
     }
 
@@ -169,6 +223,8 @@ public enum TempoAutomation: Hashable, Sendable {
                 if idx > 10_000 { return nil }
             }
             return beatsPerStep * Double(idx)
+        case .loop:
+            return nil
         }
     }
 
@@ -183,6 +239,8 @@ public enum TempoAutomation: Hashable, Sendable {
             return Self.gradualBeatPosition(g, t: t, timeSignature: timeSignature)
         case .step(let s):
             return Self.stepBeatPosition(s, t: t, timeSignature: timeSignature)
+        case .loop(let l):
+            return Self.loopBeatPosition(l, t: t, timeSignature: timeSignature)
         }
     }
 
@@ -195,6 +253,8 @@ public enum TempoAutomation: Hashable, Sendable {
             return Self.gradualTime(g, beat: beat, timeSignature: timeSignature)
         case .step(let s):
             return Self.stepTime(s, beat: beat, timeSignature: timeSignature)
+        case .loop(let l):
+            return Self.loopTime(l, beat: beat, timeSignature: timeSignature)
         }
     }
 
@@ -290,13 +350,58 @@ public enum TempoAutomation: Hashable, Sendable {
         }
         return time
     }
+
+    // MARK: - Loop math (piecewise constant cycling forever)
+
+    private static func loopBeatPosition(_ l: Loop, t: TimeInterval, timeSignature: TimeSignature) -> Double {
+        let secondsPerCycle = l.secondsPerCycle(timeSignature: timeSignature)
+        let beatsPerCycle = l.beatsPerCycle(timeSignature: timeSignature)
+        guard secondsPerCycle > 0 else { return 0 }
+        // Skip whole cycles first — important so a long-running session
+        // doesn't spend O(N) per query walking thousands of cycles.
+        let wholeCycles = (t / secondsPerCycle).rounded(.down)
+        var timeLeft = t - wholeCycles * secondsPerCycle
+        var beats = wholeCycles * beatsPerCycle
+        for stage in l.stages {
+            let stageBeats = Double(stage.measures * timeSignature.numerator)
+            let secondsPerBeat = 60 / stage.bpm.value
+            let stageSeconds = stageBeats * secondsPerBeat
+            if timeLeft <= stageSeconds {
+                return beats + timeLeft / secondsPerBeat
+            }
+            beats += stageBeats
+            timeLeft -= stageSeconds
+        }
+        // Shouldn't reach here — the modular reduction above keeps
+        // `timeLeft` inside one cycle. Fall through to last position.
+        return beats
+    }
+
+    private static func loopTime(_ l: Loop, beat: Double, timeSignature: TimeSignature) -> TimeInterval {
+        let secondsPerCycle = l.secondsPerCycle(timeSignature: timeSignature)
+        let beatsPerCycle = l.beatsPerCycle(timeSignature: timeSignature)
+        guard beatsPerCycle > 0 else { return 0 }
+        let wholeCycles = (beat / beatsPerCycle).rounded(.down)
+        var beatsLeft = beat - wholeCycles * beatsPerCycle
+        var time = wholeCycles * secondsPerCycle
+        for stage in l.stages {
+            let stageBeats = Double(stage.measures * timeSignature.numerator)
+            let secondsPerBeat = 60 / stage.bpm.value
+            if beatsLeft <= stageBeats {
+                return time + beatsLeft * secondsPerBeat
+            }
+            time += stageBeats * secondsPerBeat
+            beatsLeft -= stageBeats
+        }
+        return time
+    }
 }
 
 // MARK: - Codable
 
 extension TempoAutomation: Codable {
     private enum Kind: String, Codable {
-        case gradual, step
+        case gradual, step, loop
     }
     private enum DurationKind: String, Codable {
         case measures, seconds
@@ -308,6 +413,15 @@ extension TempoAutomation: Codable {
         case endBPM, durationKind, durationValue
         // Step
         case increment, measuresPerStep, ceiling
+        // Loop
+        case stages
+    }
+    /// One row in the loop's stages array, persisted as a small Codable
+    /// to avoid having to reach inside `Loop.Stage`'s memberwise init
+    /// from the outer decoder.
+    private struct StageDTO: Codable {
+        let bpm: BPM
+        let measures: Int
     }
 
     public init(from decoder: Decoder) throws {
@@ -347,6 +461,16 @@ extension TempoAutomation: Codable {
                 )
             }
             self = auto
+        case .loop:
+            let dtos = try c.decode([StageDTO].self, forKey: .stages)
+            let stages = dtos.map { Loop.Stage(bpm: $0.bpm, measures: $0.measures) }
+            guard let auto = TempoAutomation.loop(stages: stages) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .stages, in: c,
+                    debugDescription: "Loop requires at least one stage"
+                )
+            }
+            self = auto
         }
     }
 
@@ -371,6 +495,14 @@ extension TempoAutomation: Codable {
             try c.encode(s.increment, forKey: .increment)
             try c.encode(s.measuresPerStep, forKey: .measuresPerStep)
             try c.encodeIfPresent(s.ceiling, forKey: .ceiling)
+        case .loop(let l):
+            try c.encode(Kind.loop, forKey: .kind)
+            // Encode startBPM so the schema stays uniform across cases —
+            // and so callers reading the JSON without round-tripping
+            // through the enum can still pick out the initial tempo.
+            try c.encode(l.stages[0].bpm, forKey: .startBPM)
+            let dtos = l.stages.map { StageDTO(bpm: $0.bpm, measures: $0.measures) }
+            try c.encode(dtos, forKey: .stages)
         }
     }
 }

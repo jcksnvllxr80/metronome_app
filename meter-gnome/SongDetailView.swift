@@ -191,7 +191,7 @@ struct SongDetailView: View {
 
     // MARK: - Tempo Automation (spec §6.3 gradual + §6.4 step)
 
-    private enum AutomationKind: Hashable { case gradual, step }
+    private enum AutomationKind: Hashable { case gradual, step, loop }
     private enum AutomationDurationKind: Hashable { case measures, seconds }
 
     private var automationSection: some View {
@@ -213,6 +213,8 @@ struct SongDetailView: View {
                     stepIncrementRow(s: s)
                     stepMeasuresPerStepRow(s: s)
                     stepCeilingRow(s: s)
+                case .loop(let l):
+                    loopStagesEditor(l: l)
                 }
             }
         } header: {
@@ -253,6 +255,7 @@ struct SongDetailView: View {
                     switch auto {
                     case .gradual: return .gradual
                     case .step: return .step
+                    case .loop: return .loop
                     }
                 },
                 set: { newKind in
@@ -278,12 +281,24 @@ struct SongDetailView: View {
                         ) {
                             song.setAutomation(next)
                         }
+                    case .loop:
+                        if case .loop = auto { return }
+                        // Default loop: 2 stages — current BPM held for
+                        // 4 measures, then +40 BPM held for 4 measures.
+                        let other = BPM(min(start.value + 40, BPM.maximum))
+                        if let next = TempoAutomation.loop(stages: [
+                            .init(bpm: start, measures: 4),
+                            .init(bpm: other, measures: 4),
+                        ]) {
+                            song.setAutomation(next)
+                        }
                     }
                 }
             )
         ) {
             Text("Gradual").tag(AutomationKind.gradual)
             Text("Step").tag(AutomationKind.step)
+            Text("Loop").tag(AutomationKind.loop)
         }
         .pickerStyle(.segmented)
         .listRowBackground(DS.DSColor.bgElevated)
@@ -524,6 +539,91 @@ struct SongDetailView: View {
         }
     }
 
+    // MARK: Loop stages editor
+
+    @ViewBuilder
+    private func loopStagesEditor(l: TempoAutomation.Loop) -> some View {
+        ForEach(Array(l.stages.enumerated()), id: \.offset) { idx, stage in
+            loopStageRow(l: l, index: idx, stage: stage)
+        }
+        Button {
+            // Append a new stage cloning the last stage's BPM and 4
+            // measures by default.
+            var newStages = l.stages
+            let last = newStages.last!
+            newStages.append(.init(bpm: last.bpm, measures: 4))
+            if let next = TempoAutomation.loop(stages: newStages) {
+                song.setAutomation(next)
+            }
+        } label: {
+            HStack {
+                Image(systemName: "plus.circle.fill")
+                Text("Add stage")
+            }
+            .foregroundStyle(DS.DSColor.accentTempo)
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func loopStageRow(l: TempoAutomation.Loop, index: Int, stage: TempoAutomation.Loop.Stage) -> some View {
+        let canDelete = l.stages.count > 1
+        return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack {
+                Text("Stage \(index + 1)")
+                    .font(DS.Font.label)
+                    .tracking(2)
+                    .foregroundStyle(DS.DSColor.textMuted)
+                Spacer()
+                if canDelete {
+                    Button(role: .destructive) {
+                        var stages = l.stages
+                        stages.remove(at: index)
+                        if let next = TempoAutomation.loop(stages: stages) {
+                            song.setAutomation(next)
+                        }
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(DS.DSColor.accentTempo)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Delete stage \(index + 1)")
+                }
+            }
+            Stepper(
+                value: Binding(
+                    get: { stage.bpm.value },
+                    set: { v in
+                        var stages = l.stages
+                        stages[index] = .init(bpm: BPM(v), measures: stage.measures)
+                        if let next = TempoAutomation.loop(stages: stages) {
+                            song.setAutomation(next)
+                        }
+                    }
+                ),
+                in: BPM.minimum...BPM.maximum, step: 1
+            ) {
+                bpmRow(label: "BPM", value: stage.bpm)
+            }
+            Stepper(
+                value: Binding(
+                    get: { stage.measures },
+                    set: { v in
+                        var stages = l.stages
+                        stages[index] = .init(bpm: stage.bpm, measures: v)
+                        if let next = TempoAutomation.loop(stages: stages) {
+                            song.setAutomation(next)
+                        }
+                    }
+                ),
+                in: 1...64, step: 1
+            ) {
+                intRow(label: "Measures", value: stage.measures)
+            }
+        }
+        .padding(.vertical, DS.Spacing.xs)
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
     // MARK: Row helpers
 
     private func bpmRow(label: String, value: BPM, prefix: String = "") -> some View {
@@ -548,7 +648,7 @@ struct SongDetailView: View {
 
     private var automationFooter: String {
         guard let auto = song.automation else {
-            return "Gradual ramps the tempo linearly (accelerando / ritardando). Step jumps BPM by a fixed amount every N measures — useful for speed-trainer drills. Both begin after count-in. Song tempo is locked to Start BPM while automation is enabled."
+            return "Gradual ramps tempo linearly (accelerando / ritardando). Step jumps BPM by a fixed amount every N measures — useful for speed-trainer drills. Loop cycles through a sequence of tempos forever. All begin after count-in. Song tempo is locked to Start BPM while automation is enabled."
         }
         switch auto {
         case .gradual(let g):
@@ -563,6 +663,9 @@ struct SongDetailView: View {
         case .step(let s):
             let ceilingText = s.ceiling.map { ", stopping at \($0.displayInt) BPM" } ?? " (no ceiling — runs indefinitely)"
             return "Step up \(Int(s.increment.rounded())) BPM every \(s.measuresPerStep) measure\(s.measuresPerStep == 1 ? "" : "s") starting from \(s.startBPM.displayInt) BPM\(ceilingText)."
+        case .loop(let l):
+            let stageDesc = l.stages.map { "\($0.bpm.displayInt)·\($0.measures)m" }.joined(separator: " → ")
+            return "Cycle through \(l.stages.count) stage\(l.stages.count == 1 ? "" : "s") indefinitely: \(stageDesc). Each stage holds at the given BPM for the given number of measures, then advances to the next."
         }
     }
 
