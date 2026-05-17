@@ -159,21 +159,28 @@ public actor HapticScheduler {
             ],
             relativeTime: 0
         )
-        // Compute the offset from now to the click's intended time.
-        // Negative offsets (click is already in the past relative to
-        // when we got here) play immediately — better than dropping
-        // them, since the user expected SOME haptic for that beat.
-        let offset = max(0, click.time - clock.now)
+        // Compute when this haptic should fire. CRITICALLY,
+        // CHHapticPatternPlayer.start(atTime:) takes ABSOLUTE time in
+        // the haptic engine's timebase — NOT a relative offset from
+        // "now." Passing a small number like 0.4 means "fire at engine
+        // time 0.4," which the engine treats as the past once any
+        // playback has happened — fires immediately. That was the
+        // root cause of the "fast double-bass-pedal buzz" reported on
+        // device. Earlier attempts in v0.13.4 and v0.13.5 fixed
+        // adjacent issues but missed this one.
+        //
+        // Correct: anchor at `hapticEngine.currentTime` (the engine's
+        // current absolute time) and add our relative offset to land
+        // at the right future instant.
+        let offsetFromNow = max(0, click.time - clock.now)
+        let absoluteFireTime = hapticEngine.currentTime + offsetFromNow
         do {
             let pattern = try CHHapticPattern(events: [event], parameters: [])
             let player = try hapticEngine.makePlayer(with: pattern)
-            try player.start(atTime: offset)
-            // Hold a strong reference until past the fire time. The
-            // haptic engine fires queued players IMMEDIATELY if the
-            // app releases the player reference before it plays — that
-            // was the root cause of the "fast double-bass-pedal buzz"
-            // bug. Refill-loop pruning removes the entry once the
-            // haptic has played.
+            try player.start(atTime: absoluteFireTime)
+            // Hold a strong reference until past the fire time. Even
+            // with correct atTime, releasing the player too early can
+            // cause CoreHaptics to drop or rush the playback.
             inFlightPlayers.append((playAt: click.time, player: player))
         } catch {
             // Don't spam logs — haptic engine can throw under load. Drop.
