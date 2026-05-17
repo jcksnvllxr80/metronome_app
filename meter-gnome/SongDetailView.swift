@@ -890,6 +890,10 @@ struct SongDetailView: View {
                             ? DS.DSColor.textMuted
                             : DS.DSColor.accentTempo)
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(section.repeatCount == 1
+                    ? "Repeat, once"
+                    : "Repeat, \(section.repeatCount) times")
             }
             sectionEndActionMenu(index: index, section: section)
             Toggle("Fine (D.C./D.S. al Fine target)", isOn: Binding(
