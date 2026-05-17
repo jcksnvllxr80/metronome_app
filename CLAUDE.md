@@ -71,7 +71,7 @@ The spec is unusually prescriptive about the audio path because casual choices h
 
 ## Background, lifecycle, and remote control (spec §16)
 
-- Integrate **`MPNowPlayingInfoCenter`** (show tempo + song name) and **`MPRemoteCommandCenter`** (play/pause, and next/previous in setlist mode) so lock screen / Control Center / AirPods controls work.
+- Integrate **`MPNowPlayingInfoCenter`** (show tempo + song name) and **`MPRemoteCommandCenter`** (play/pause, and next/previous in setlist mode) so lock screen / Control Center / AirPods controls work. **Real-device verified v0.32.5.** Key gotcha: the audio session must NOT use `.mixWithOthers` for Now Playing to surface — that option tells iOS to defer to whichever app holds the slot. Settings now exposes a "Coexist with other audio" toggle defaulting OFF; flipping it ON re-enables `.mixWithOthers` and the Now Playing card disappears as a result. Also needs `MPNowPlayingInfoPropertyIsLiveStream = true` + `MPMediaItemPropertyPlaybackDuration = 0` in the dictionary, and `playbackState` set BEFORE `nowPlayingInfo` per publish pass.
 - Handle audio **interruptions** (calls, Siri): pause cleanly, optionally auto-resume per user setting.
 - Handle **route changes**: headphone unplug → pause (Apple HIG default; don't blast the click out of the speaker).
 
