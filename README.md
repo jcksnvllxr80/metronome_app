@@ -14,14 +14,14 @@ Latest tag: **v0.16.2**.
 
 | Layer | State |
 |---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 324 tests passing, drift < 1 ms/min verified in math |
+| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 331 tests passing, drift < 1 ms/min verified in math |
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
 | Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
 | Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
 | Library: songs, setlists, song detail, accent-pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides, swipe-to-duplicate songs, accent-pattern preset library with starter set |
 | Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate — all three modes work for both flat and multi-section songs |
 | Multi-section songs (§7.3) | ✓ Per-section name + BPM + meter + subdivision + measures + accent pattern + sound + repeat count + end-action + Fine marker. Auto-advance with D.C. al Fine; drag-to-reorder + duplicate. Sections auto-advance inside a setlist across all advance modes. |
-| MIDI Clock send + receive (slave mode) | ✓ Virtual source "meter-gnome"; follows external Clock + Start/Stop. Settings → MIDI source picker isolates one master when multiple are connected. |
+| MIDI Clock send + receive (slave mode) | ✓ Virtual source "meter-gnome"; follows external Clock + Start/Stop. Settings → MIDI source picker isolates one master when multiple are connected. Song Position Pointer (0xF2) honored — DAW "play from bar 3" lands meter-gnome's indexing at the same position. |
 | Background mode + interruption + route-change handling | ✓ Pauses cleanly on phone calls + headphone unplug |
 | Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title + app-icon artwork; play/pause from AirPods + Control Center; setlist prev/next |
 | Tempo automation — gradual + step + loop | ✓ Per-song picker covering all 3 §6.3 modes — gradual accel/rit, step with optional ceiling (Stop / Reverse behavior), multi-stage loop cycling indefinitely |
@@ -80,7 +80,7 @@ cd Packages/MetronomeCore
 swift test
 ```
 
-324 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
+331 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, MIDI SPP parsing + position offset, Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
 
 ### Run package tests inside Xcode
 

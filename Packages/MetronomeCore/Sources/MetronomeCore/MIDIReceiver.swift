@@ -29,6 +29,28 @@ public actor MIDIReceiver {
     private var lastPushedBPM: BPM?
     private static let bpmChangeThreshold: Double = 0.5
 
+    /// Song Position Pointer parser state. SPP is a 3-byte message
+    /// (0xF2, LSB, MSB) reporting "next Start should begin at MIDI
+    /// beat N" where one MIDI beat = one sixteenth note. Real-time
+    /// status bytes (0xF8/0xFA/…) can interleave anywhere in the MIDI
+    /// stream — including between the SPP data bytes — so we collect
+    /// SPP without consuming non-data interruptions.
+    private enum SPPParser {
+        case idle
+        case awaitingLSB
+        case awaitingMSB(lsb: UInt8)
+
+        var isCollecting: Bool {
+            if case .idle = self { return false }
+            return true
+        }
+    }
+    private var sppState: SPPParser = .idle
+    /// Most recent SPP value, consumed (and cleared) by the next Start.
+    /// Reads in MIDI beats (sixteenth notes). `nil` means "no pending
+    /// position" — next Start fires from song beginning.
+    public private(set) var pendingMIDIBeats: UInt16?
+
     /// Returns nil if CoreMIDI client/port creation fails (rare on
     /// device; common on iOS simulator).
     public init?() {
@@ -93,29 +115,54 @@ public actor MIDIReceiver {
 
     // MARK: - Byte processing
 
-    private func processByte(_ byte: UInt8, at time: TimeInterval) async {
+    /// Internal so tests can drive byte-by-byte sequences without
+    /// going through CoreMIDI. Real MIDI input still arrives via the
+    /// helper's read block.
+    internal func processByte(_ byte: UInt8, at time: TimeInterval) async {
         guard isEnabled, let engine = engineRef else { return }
 
+        // Song Position Pointer collection. Per MIDI spec, real-time
+        // status bytes (0xF8..0xFF) can interleave inside ANY message
+        // without breaking it — we process them inline and leave SPP
+        // state untouched. Data bytes (top bit clear) feed the SPP
+        // state machine. Non-realtime status bytes (anything else
+        // 0x80..0xF7) abort SPP collection.
+        let isData = byte < 0x80
+        let isRealTime = byte >= 0xF8
+        if sppState.isCollecting && isData {
+            advanceSPPCollection(with: byte)
+            return
+        }
+        if sppState.isCollecting && !isRealTime {
+            sppState = .idle
+        }
+
         switch byte {
+        case 0xF2: // Song Position Pointer
+            sppState = .awaitingLSB
         case 0xF8: // MIDI Timing Clock
             recordTick(at: time)
             if let bpm = computedBPM() {
                 await pushBPMIfChanged(bpm, to: engine)
             }
         case 0xFA: // MIDI Start
-            // Reset the window so the BPM computation starts from this
-            // moment forward — incoming Clock immediately after Start is
-            // the most reliable signal.
+            // Reset the BPM window so the next computation uses the
+            // post-Start tick stream; consume any pending SPP so the
+            // engine schedules click(0) at the right song position.
             tickTimes.removeAll(keepingCapacity: true)
             lastPushedBPM = nil
-            await engine.start()
+            let offsetSeconds = await consumePendingPositionOffsetSeconds(engine: engine)
+            await engine.start(positionOffsetSeconds: offsetSeconds)
         case 0xFB: // MIDI Continue
             // Treat like Start when not paused; resume if paused.
+            // Continue intentionally ignores pending SPP — by spec,
+            // SPP+Continue is undefined; most masters use SPP+Start.
+            pendingMIDIBeats = nil
             let isPaused = await engine.isPaused
             if isPaused {
                 await engine.resume()
             } else {
-                await engine.start()
+                await engine.start(positionOffsetSeconds: 0)
             }
         case 0xFC: // MIDI Stop
             await engine.stop()
@@ -126,6 +173,32 @@ public actor MIDIReceiver {
             // SysEx — ignore.
             break
         }
+    }
+
+    private func advanceSPPCollection(with byte: UInt8) {
+        // Mask to 7-bit per MIDI spec; data bytes never have the top
+        // bit set, but defensive masking avoids surprises.
+        let data = byte & 0x7F
+        switch sppState {
+        case .awaitingLSB:
+            sppState = .awaitingMSB(lsb: data)
+        case .awaitingMSB(let lsb):
+            pendingMIDIBeats = (UInt16(data) << 7) | UInt16(lsb)
+            sppState = .idle
+        case .idle:
+            break // unreachable: guarded by caller
+        }
+    }
+
+    /// Drain `pendingMIDIBeats` into a song-time offset in seconds,
+    /// computed from the engine's current BPM. One MIDI beat = one
+    /// sixteenth note = `bpm.beatPeriod / 4`. Returns 0 when no SPP
+    /// has been received since the last Start.
+    private func consumePendingPositionOffsetSeconds(engine: MetronomeEngine) async -> TimeInterval {
+        guard let beats = pendingMIDIBeats else { return 0 }
+        pendingMIDIBeats = nil
+        let bpm = await engine.bpm
+        return Double(beats) * bpm.beatPeriod / 4.0
     }
 
     // MARK: - BPM tracking

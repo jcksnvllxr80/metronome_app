@@ -96,12 +96,29 @@ public actor MetronomeEngine {
     ///
     /// `countIn` overrides `settings.countIn` for this start. When `nil`,
     /// the engine uses its persisted setting.
-    public func start(countIn: CountIn? = nil) async {
-        let effective = countIn ?? settings.countIn
+    ///
+    /// `positionOffsetSeconds` shifts the schedule's `startTime` backward
+    /// so click(0) lands in the past and the FIRST FUTURE click maps to
+    /// the desired song-time position. Used by `MIDIReceiver` to honor
+    /// MIDI Song Position Pointer (spec §12.2): a master DAW saying
+    /// "play from bar 3 beat 2" lands meter-gnome's measure / beat /
+    /// subdivision indexing at the same position. Defaults to 0 for the
+    /// common case (Start at song beginning). Count-in and song-time
+    /// offset are mutually exclusive — a non-zero offset disables
+    /// count-in regardless of the `countIn` argument.
+    public func start(
+        countIn: CountIn? = nil,
+        positionOffsetSeconds: TimeInterval = 0
+    ) async {
+        let effective = positionOffsetSeconds > 0 ? .off : (countIn ?? settings.countIn)
         // Fresh random-mute seed per practice session so consecutive
         // playthroughs don't share the same muted-beat pattern.
         randomMuteSeed = UInt64.random(in: .min ... .max)
-        rebuildSchedule(countIn: effective, leadIn: Self.startupLeadInSeconds)
+        rebuildSchedule(
+            countIn: effective,
+            leadIn: Self.startupLeadInSeconds,
+            positionOffsetSeconds: positionOffsetSeconds
+        )
         isRunning = true
         isPaused = false
         if let scheduler {
@@ -412,12 +429,23 @@ public actor MetronomeEngine {
     /// to cover the reset/refill round-trip.
     public static let reanchorLeadInSeconds: TimeInterval = 0.060
 
-    private func rebuildSchedule(countIn: CountIn = .off, leadIn: TimeInterval = 0) {
+    private func rebuildSchedule(
+        countIn: CountIn = .off,
+        leadIn: TimeInterval = 0,
+        positionOffsetSeconds: TimeInterval = 0
+    ) {
+        // Shifting startTime backward by the offset puts click(0) in
+        // the past; iterator lookups skip those and the first future
+        // click maps to song-time position `offset`. Measure / beat /
+        // subdivision indices follow naturally because the schedule's
+        // math is index-based, and click(N).time = startTime +
+        // N * clickPeriod still yields wall-clock times the audio
+        // scheduler can respect. Used by MIDI SPP slave mode.
         schedule = ClickSchedule(
             bpm: bpm,
             timeSignature: timeSignature,
             subdivision: subdivision,
-            startTime: clock.now + leadIn,
+            startTime: clock.now + leadIn - positionOffsetSeconds,
             accentPattern: accentPattern,
             countInMeasures: countIn.measures,
             automation: automation,

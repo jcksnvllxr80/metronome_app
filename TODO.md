@@ -78,9 +78,8 @@ A small "🔊 Cowbell" row now sits under the loaded-song title (and under any s
 - At low BPM with subdivisions on, lookahead can balloon. Cap at some reasonable upper bound?
 - Real-device profiling needed before tuning
 
-### MIDI Song Position Pointer support (spec §12.2)
-- 0xF2 message — lets meter-gnome jump to a specific position when slaved
-- Current receiver ignores it
+### ~~MIDI Song Position Pointer support (spec §12.2)~~ — shipped in v0.19.0
+Receiver parses 0xF2 + LSB + MSB messages with a state machine that lets real-time status bytes interleave per MIDI spec. SPP value is stored as `pendingMIDIBeats: UInt16?` and consumed by the next 0xFA Start by passing `positionOffsetSeconds = beats * bpm.beatPeriod / 4` to `engine.start`. The schedule's `startTime` shifts backward by that offset so click(0) lands in the past and the first future click maps to the song-time position the DAW asked for — measure / beat / subdivision indexing follows naturally. Continue (0xFB) intentionally ignores pending SPP per common-master convention. Mid-song position offset + count-in are mutually exclusive (count-in is suppressed when offset > 0).
 
 ### ~~MIDI source picker (UI)~~ — shipped in v0.18.0
 Settings → MIDI now shows a "Source" picker when "Listen for MIDI Clock" is on. Default "All Sources" preserves the legacy receiver behavior (listen to every external source); selecting a specific name restricts the receiver to only that source. Live source list pulled from CoreMIDI on sheet appear; missing-but-selected sources render as "Name (offline)" so a previously-paired DAW that disconnected doesn't quietly lose the selection. New `EngineSettings.midiReceiveSourceName: String?` persisted via SwiftData; `MIDIReceiver.setSelectedSource(name:)` bounces the connection in place when the selection changes mid-session.
