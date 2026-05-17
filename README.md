@@ -8,25 +8,25 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 
 ## Status
 
-**Phase 1 + Phase 2 shipped.** Audio, MIDI, persistence, library, setlist playback, accent pattern editor, tempo automation (gradual ramp + step BPM), speed trainer (random mute + step), practice stats with CSV export, haptics, and lock-screen / AirPods control all work end-to-end.
+**Phases 1 + 2 shipped, most of Phase 3 shipped.** Audio, MIDI, persistence, library + setlists, accent-pattern editor with preset library, tempo automation (gradual + step + loop), speed trainer (random mute + step), practice stats with charts + daily goal + CSV export, haptics with per-accent intensity, lock-screen / AirPods control, and multi-section songs all work end-to-end. Two real-device-verified audio bugs (first-downbeat drop on cold launch, dropout on mid-playback tempo change) and two haptic bugs (continuous-buzz, mode-change-requires-restart) all fixed.
 
 | Layer | State |
 |---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 194/194 tests passing, drift < 1 ms/min verified in math |
-| Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice count placeholder |
-| Stage UI (BPM hero, beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, settings, library) | ✓ Live |
-| Persistence (SwiftData) | ✓ Settings + songs + setlists survive launches |
-| Library: songs, setlists, song detail, accent pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides |
+| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 283 tests passing, drift < 1 ms/min verified in math |
+| Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
+| Stage UI | ✓ BPM hero, beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + ramp + section indicators |
+| Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
+| Library: songs, setlists, song detail, accent-pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides, swipe-to-duplicate songs, accent-pattern preset library with starter set |
 | Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate |
 | MIDI Clock send + receive (slave mode) | ✓ Virtual source "meter-gnome"; follows external Clock + Start/Stop |
 | Background mode + interruption + route-change handling | ✓ Pauses cleanly on phone calls + headphone unplug |
-| Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title; play/pause from AirPods + Control Center; setlist prev/next |
+| Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title + app-icon artwork; play/pause from AirPods + Control Center; setlist prev/next |
 | Tempo automation — gradual + step + loop | ✓ Per-song picker covering all 3 §6.3 modes — gradual accel/rit, step with optional ceiling, multi-stage loop cycling indefinitely |
 | Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling |
-| Multi-section songs (§7.3) | ✓ Per-song section list with auto-advance on measure boundaries; Stage indicator shows current section + position |
-| Practice stats / session log | ✓ Library → Stats tab: today/week/month totals + per-song breakdown + CSV export. 30-sec minimum, pause-aware. |
-| Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Driven off the same clock as audio. Real device only. |
-| Real percussion samples, polyrhythm, multi-section songs, ramp-loop automation, daily goal | Backlog — see [TODO.md](TODO.md) |
+| Multi-section songs (§7.3) | ✓ Per-section name + BPM + meter + subdivision + measures + accent pattern + sound + repeat count. Auto-advance + drag-to-reorder + duplicate. |
+| Practice stats / session log | ✓ Library → Stats: today/week/month totals + per-song breakdown + 14-day chart + daily goal progress + CSV export. 30-sec minimum, pause-aware. |
+| Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Per-accent intensity sliders. Real device only. |
+| Real percussion samples, polyrhythm, DC al fine / coda jumps, setlist × multi-section integration, iPad layout | Backlog — see [TODO.md](TODO.md) |
 | Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
 
 ## Development
