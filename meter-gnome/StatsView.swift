@@ -15,6 +15,7 @@
 //
 
 import SwiftUI
+import Charts
 import MetronomeCore
 import UniformTypeIdentifiers
 
@@ -70,10 +71,50 @@ struct StatsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                 summaryCards
+                dailyChart
                 bySongSection
                 actionsSection
             }
             .padding(DS.Spacing.lg)
+        }
+    }
+
+    // MARK: - Daily totals chart (last 14 days)
+
+    private var dailyChart: some View {
+        let totals = sessions.dailyTotals(forLast: 14)
+        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            Text("LAST 14 DAYS")
+                .font(DS.Font.label)
+                .tracking(2)
+                .foregroundStyle(DS.DSColor.textMuted)
+            Chart(totals, id: \.date) { day in
+                BarMark(
+                    x: .value("Day", day.date, unit: .day),
+                    y: .value("Minutes", day.total / 60)
+                )
+                .foregroundStyle(DS.DSColor.accentTempo)
+                .cornerRadius(DS.Radius.sm)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day, count: 2)) { value in
+                    AxisValueLabel(format: .dateTime.day(.defaultDigits))
+                        .foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+            .chartYAxis {
+                AxisMarks { _ in
+                    AxisGridLine().foregroundStyle(DS.DSColor.textDim.opacity(0.3))
+                    AxisValueLabel()
+                        .foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+            .frame(height: 120)
+            .padding(DS.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .fill(DS.DSColor.bgElevated)
+            )
         }
     }
 

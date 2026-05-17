@@ -84,6 +84,32 @@ public extension Sequence where Element == PracticeSession {
         filter { $0.startedAt >= date }
     }
 
+    /// Daily total durations for the most recent `days` days, ending
+    /// at the given calendar's start-of-today. Returned in chronological
+    /// order (oldest first) with one entry per day — including zeros for
+    /// days with no practice, so the chart axis stays continuous.
+    func dailyTotals(forLast days: Int, ending today: Date = Date(), calendar: Calendar = .current) -> [(date: Date, total: TimeInterval)] {
+        precondition(days > 0, "days must be positive")
+        let endOfWindow = calendar.startOfDay(for: today)
+        let startOfWindow = calendar.date(byAdding: .day, value: -(days - 1), to: endOfWindow) ?? endOfWindow
+        // Pre-seed every day in the window to zero so the array is
+        // dense — chart code doesn't have to handle gaps.
+        var bucketsByDayStart: [Date: TimeInterval] = [:]
+        for offset in 0..<days {
+            if let day = calendar.date(byAdding: .day, value: offset, to: startOfWindow) {
+                bucketsByDayStart[day] = 0
+            }
+        }
+        for session in self where session.startedAt >= startOfWindow {
+            let dayStart = calendar.startOfDay(for: session.startedAt)
+            guard bucketsByDayStart[dayStart] != nil else { continue }
+            bucketsByDayStart[dayStart, default: 0] += session.duration
+        }
+        return bucketsByDayStart
+            .map { (date: $0.key, total: $0.value) }
+            .sorted { $0.date < $1.date }
+    }
+
     /// Group by `songID`, returning aggregated stats per song sorted
     /// by total duration descending. Sessions with no `songID`
     /// aggregate under a sentinel UUID (`.zero`) so freestyle practice

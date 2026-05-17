@@ -128,6 +128,42 @@ import Foundation
     #expect(session.bpmMax == BPM(120))
 }
 
+@Test func dailyTotalsReturnsDenseSequence() {
+    // 7-day window with no sessions → 7 entries, all zero.
+    let totals = ([] as [PracticeSession]).dailyTotals(forLast: 7)
+    #expect(totals.count == 7)
+    #expect(totals.allSatisfy { $0.total == 0 })
+}
+
+@Test func dailyTotalsBucketsSessionsToCorrectDay() {
+    // Two sessions on day 0 (today) + one on day -2 + one OUTSIDE the
+    // window (day -10) — that last one should be dropped.
+    let cal = Calendar(identifier: .gregorian)
+    let today = cal.startOfDay(for: Date())
+    let twoDaysAgo = cal.date(byAdding: .day, value: -2, to: today)!
+    let tenDaysAgo = cal.date(byAdding: .day, value: -10, to: today)!
+    let sessions = [
+        PracticeSession(startedAt: today, endedAt: today.addingTimeInterval(300),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+        PracticeSession(startedAt: today.addingTimeInterval(3600), endedAt: today.addingTimeInterval(3900),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+        PracticeSession(startedAt: twoDaysAgo, endedAt: twoDaysAgo.addingTimeInterval(600),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+        PracticeSession(startedAt: tenDaysAgo, endedAt: tenDaysAgo.addingTimeInterval(60),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+    ]
+    let totals = sessions.dailyTotals(forLast: 7, ending: today, calendar: cal)
+    #expect(totals.count == 7)
+    // Newest entry (index 6 = today) should hold 300+300 = 600 seconds.
+    #expect(totals.last?.total == 600)
+    // Index 4 (= today - 2 days) should hold 600 seconds.
+    #expect(totals[4].total == 600)
+    // The day-10 session is outside the window, so total stays at 0
+    // elsewhere.
+    let nonZeroCount = totals.filter { $0.total > 0 }.count
+    #expect(nonZeroCount == 2)
+}
+
 @Test func explicitMinMaxAreRespected() {
     let now = Date()
     let session = PracticeSession(
