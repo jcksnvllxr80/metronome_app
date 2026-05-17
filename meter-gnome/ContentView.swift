@@ -113,6 +113,12 @@ struct ContentView: View {
         }
         .onChange(of: viewModel.isRunning) { _, isRunning in
             announceRunStateIfNeeded(isRunning)
+            // Kick the Now Playing coordinator to republish immediately
+            // (spec §16). Without this we wait up to the 200ms poll
+            // tick before iOS sees the playbackState transition, and
+            // some iOS builds use that first publish as the trigger
+            // to surface the lock-screen card.
+            NowPlayingCoordinator.shared.forceRepublish()
         }
     }
 

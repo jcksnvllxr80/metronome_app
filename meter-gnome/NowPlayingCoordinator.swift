@@ -26,6 +26,12 @@ final class NowPlayingCoordinator {
     private weak var viewModel: MetronomeViewModel?
     private var pollTask: Task<Void, Never>?
     private var commandsRegistered = false
+    /// When true, the next publish forces a fresh dictionary push
+    /// even if the snapshot hasn't changed. Used by external
+    /// triggers (audio session activation, engine-state changes)
+    /// to break out of the dedupe so iOS sees a "live" entry the
+    /// moment audio starts.
+    private var forceNextPublish = false
     /// Lazily-resolved MPMediaItemArtwork wrapping the app icon. Built
     /// once and cached — Now Playing reads the same image on every
     /// publish.
@@ -55,6 +61,15 @@ final class NowPlayingCoordinator {
         self.viewModel = viewModel
         registerCommands()
         startPolling()
+    }
+
+    /// Force the next publish pass to push the dictionary again even
+    /// if the snapshot looks unchanged. ContentView calls this when
+    /// `viewModel.isRunning` flips so iOS sees the live entry at the
+    /// instant audio begins, rather than waiting up to 200ms for the
+    /// next poll tick. Bypasses the dedupe guard.
+    func forceRepublish() {
+        forceNextPublish = true
     }
 
     // MARK: - Remote Command Center
@@ -139,7 +154,8 @@ final class NowPlayingCoordinator {
             artist: artist,
             setlistActive: setlistActive
         )
-        guard snapshot != lastPublished else { return }
+        if snapshot == lastPublished, !forceNextPublish { return }
+        forceNextPublish = false
         lastPublished = snapshot
 
         var info: [String: Any] = [:]
@@ -156,14 +172,21 @@ final class NowPlayingCoordinator {
         info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
         // Some iOS builds still expect elapsed time to be present even
         // on a live stream; 0 is the canonical "no offset" value.
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = NSNumber(value: 0.0)
+        // Setting duration = 0 alongside IsLiveStream is the documented
+        // signal pattern for a live audio source per Apple's MPMediaItem
+        // guidance. Some lock-screen render paths key off the presence
+        // of this field to decide which transport UI to show.
+        info[MPMediaItemPropertyPlaybackDuration] = NSNumber(value: 0.0)
         if let artwork {
             info[MPMediaItemPropertyArtwork] = artwork
         }
-        // Setting a non-nil dict keeps our entry in the Now Playing carousel
-        // even when paused; clearing it would drop us out.
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        // Set playbackState FIRST so the nowPlayingInfo arrives at a
+        // center that already knows we're playing — some iOS builds
+        // appear to use this state when deciding whether to surface
+        // the lock-screen card on the dictionary update.
         MPNowPlayingInfoCenter.default().playbackState = snapshot.isRunning ? .playing : .paused
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
 
         let center = MPRemoteCommandCenter.shared()
         center.nextTrackCommand.isEnabled = setlistActive

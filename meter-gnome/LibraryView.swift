@@ -32,11 +32,33 @@ struct LibraryView: View {
         NavigationStack {
             ZStack {
                 DS.DSColor.bgBase.ignoresSafeArea()
-                switch tab {
-                case .songs:    songsTab
-                case .setlists: setlistsTab
-                case .patterns: AccentPatternLibraryView(viewModel: viewModel)
-                case .stats:    StatsView(viewModel: viewModel)
+                VStack(spacing: 0) {
+                    // Tab picker as a top row of the content area
+                    // rather than the navigation bar's principal slot.
+                    // The previous .principal placement at 320pt wide
+                    // collided with the leading Done button + trailing
+                    // "+" on iPhone widths — there wasn't enough room
+                    // for all three in the nav bar.
+                    Picker("Library section", selection: $tab) {
+                        Text("Songs").tag(LibraryTab.songs)
+                        Text("Setlists").tag(LibraryTab.setlists)
+                        Text("Patterns").tag(LibraryTab.patterns)
+                        Text("Stats").tag(LibraryTab.stats)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, DS.Spacing.md)
+                    .padding(.vertical, DS.Spacing.sm)
+                    .accessibilityLabel("Library section")
+
+                    Group {
+                        switch tab {
+                        case .songs:    songsTab
+                        case .setlists: setlistsTab
+                        case .patterns: AccentPatternLibraryView(viewModel: viewModel)
+                        case .stats:    StatsView(viewModel: viewModel)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -49,17 +71,6 @@ struct LibraryView: View {
                         Button("Done") { dismiss() }
                             .foregroundStyle(DS.DSColor.accentTempo)
                     }
-                }
-                ToolbarItem(placement: .principal) {
-                    Picker("Library section", selection: $tab) {
-                        Text("Songs").tag(LibraryTab.songs)
-                        Text("Setlists").tag(LibraryTab.setlists)
-                        Text("Patterns").tag(LibraryTab.patterns)
-                        Text("Stats").tag(LibraryTab.stats)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 320)
-                    .accessibilityLabel("Library section")
                 }
                 if tab == .songs || tab == .setlists {
                     ToolbarItem(placement: .primaryAction) {
