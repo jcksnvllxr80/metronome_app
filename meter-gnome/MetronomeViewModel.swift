@@ -106,6 +106,10 @@ final class MetronomeViewModel {
     /// Total repeats configured for the current section (mirror of
     /// `SongSection.repeatCount`). 1 means non-repeating.
     var currentSectionRepeatTotal: Int = 1
+    /// Mirror of `SongSectionPlayer.isAlFineMode` — true once the
+    /// player has taken a D.C. al Fine jump and is scanning for a
+    /// Fine-marked section. Stage indicator badges this with "AL FINE".
+    var isAlFineMode: Bool = false
     /// Whether a multi-section song is loaded — drives togglePlay routing.
     var loadedSongHasSections: Bool = false
 
@@ -342,13 +346,13 @@ final class MetronomeViewModel {
             let idx = await player.currentIndex
             let count = await player.totalSections
             let rep = await player.currentRepetition
+            let alFine = await player.isAlFineMode
             currentSectionName = section?.name
             currentSectionIndex = idx
             currentSectionCount = count
-            // SongSectionPlayer.currentRepetition is 0-based ("pass 0
-            // is in progress"); UI is 1-based ("1 of 3").
             currentSectionRepetition = rep + 1
             currentSectionRepeatTotal = section?.repeatCount ?? 1
+            isAlFineMode = alFine
         } else {
             if !loadedSongHasSections {
                 currentSectionName = nil
@@ -356,6 +360,7 @@ final class MetronomeViewModel {
             }
             currentSectionRepetition = 1
             currentSectionRepeatTotal = 1
+            isAlFineMode = false
         }
     }
 

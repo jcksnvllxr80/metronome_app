@@ -4,6 +4,43 @@ import Foundation
 
 // MARK: - Construction
 
+@Test func sectionDefaultsForNewFields() {
+    let s = SongSection(bpm: BPM(120), measureCount: 4)!
+    #expect(s.endAction == .continue)
+    #expect(s.isFine == false)
+    #expect(s.repeatCount == 1)
+}
+
+@Test func sectionEndActionCodableRoundTrip() throws {
+    let s = SongSection(
+        name: "Bridge",
+        bpm: BPM(100),
+        measureCount: 8,
+        endAction: .daCapoAlFine,
+        isFine: false
+    )!
+    let data = try JSONEncoder().encode(s)
+    let back = try JSONDecoder().decode(SongSection.self, from: data)
+    #expect(back.endAction == .daCapoAlFine)
+    #expect(back == s)
+}
+
+@Test func sectionLegacyJSONDecodesWithDefaults() throws {
+    // Pre-end-action JSON should decode with .continue / isFine=false.
+    let json = """
+    {
+      "id": "\(UUID().uuidString)",
+      "bpm": 120,
+      "timeSignature": {"numerator": 4, "denominator": 4},
+      "subdivision": "none",
+      "measureCount": 4
+    }
+    """.data(using: .utf8)!
+    let s = try JSONDecoder().decode(SongSection.self, from: json)
+    #expect(s.endAction == .continue)
+    #expect(s.isFine == false)
+}
+
 @Test func sectionRejectsZeroMeasureCount() {
     #expect(SongSection(bpm: BPM(120), measureCount: 0) == nil)
     #expect(SongSection(bpm: BPM(120), measureCount: -1) == nil)

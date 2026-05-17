@@ -29,6 +29,11 @@ public actor SongSectionPlayer {
     /// section instead of looping again.
     public private(set) var currentRepetition: Int = 0
     public private(set) var isActive: Bool = false
+    /// True after a section with `endAction == .daCapoAlFine` finishes —
+    /// playback has jumped back to section 0 and is now scanning for the
+    /// next section marked `isFine`, which will be the stopping point.
+    /// Spec §7.3.
+    public private(set) var isAlFineMode: Bool = false
     private var pollTask: Task<Void, Never>?
     private var isAdvancing: Bool = false
 
@@ -63,6 +68,7 @@ public actor SongSectionPlayer {
         self.song = song
         self.currentIndex = safeIndex
         self.currentRepetition = 0
+        self.isAlFineMode = false
         self.isActive = true
         let materialized = Self.materialize(section: sections[safeIndex], parentSong: song)
         await engine.apply(materialized)
@@ -75,6 +81,7 @@ public actor SongSectionPlayer {
         isActive = false
         currentIndex = -1
         currentRepetition = 0
+        isAlFineMode = false
         pollTask?.cancel()
         pollTask = nil
         if let engine = engineRef {
@@ -121,14 +128,24 @@ public actor SongSectionPlayer {
             && next.subdivisionIndex == 0
         if atBoundary {
             isAdvancing = true
-            // Decide: repeat the same section or advance to the next?
-            // Per-section repeatCount lets a song say "verse 3 times,
-            // bridge once" without duplicating the section row.
+            // Decide: repeat the same section, jump (D.C. al fine),
+            // stop, or advance to the next?
             if currentRepetition + 1 < section.repeatCount {
                 currentRepetition += 1
                 await repeatCurrentSection()
+            } else if isAlFineMode && section.isFine {
+                // Spec §7.3: in al-fine mode, the first Fine-marked
+                // section ends the song.
+                await stop()
             } else {
-                await advanceToNextSection()
+                switch section.endAction {
+                case .stop:
+                    await stop()
+                case .daCapoAlFine:
+                    await jumpToDaCapoAlFine()
+                case .continue:
+                    await advanceToNextSection()
+                }
             }
             isAdvancing = false
         }
@@ -162,6 +179,23 @@ public actor SongSectionPlayer {
         currentIndex = nextIdx
         currentRepetition = 0
         let materialized = Self.materialize(section: sections[nextIdx], parentSong: song)
+        await engine.apply(materialized)
+    }
+
+    /// D.C. al Fine jump: go back to section 0, leave in al-fine mode
+    /// so the next Fine-marked section ends the song. Repetition
+    /// counter resets so the head-section's repeatCount plays out
+    /// again on the second pass.
+    private func jumpToDaCapoAlFine() async {
+        guard let song,
+              let sections = song.sections,
+              !sections.isEmpty,
+              let engine = engineRef
+        else { return }
+        currentIndex = 0
+        currentRepetition = 0
+        isAlFineMode = true
+        let materialized = Self.materialize(section: sections[0], parentSong: song)
         await engine.apply(materialized)
     }
 

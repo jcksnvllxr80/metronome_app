@@ -25,8 +25,18 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
     /// before the player advances to the next section. Default 1
     /// (single pass). Minimum 1 — values < 1 are clamped at init.
     /// Spec §7.3 "Optional repeat markers" — the simplest form.
-    /// Full DC-al-fine / segno / coda jumps are still backlog.
     public var repeatCount: Int
+    /// What happens after the section's repeats complete. Default
+    /// `.continue` advances to the next section. `.stop` ends the
+    /// song here. `.daCapoAlFine` jumps back to section 0 and plays
+    /// in al-fine mode (see `isFine`). Spec §7.3.
+    public var endAction: SectionEndAction
+    /// When true, this section is the "Fine" point in a D.C. al Fine
+    /// structure: if the player is in al-fine mode (because some
+    /// earlier section had `endAction = .daCapoAlFine`), playback
+    /// stops after this section's repeats finish. Has no effect when
+    /// not in al-fine mode. Spec §7.3.
+    public var isFine: Bool
 
     /// Returns `nil` if `measureCount < 1` or
     /// `accentPattern.timeSignature != timeSignature`.
@@ -39,7 +49,9 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         measureCount: Int,
         accentPattern: AccentPattern? = nil,
         soundPreset: String? = nil,
-        repeatCount: Int = 1
+        repeatCount: Int = 1,
+        endAction: SectionEndAction = .continue,
+        isFine: Bool = false
     ) {
         guard measureCount >= 1 else { return nil }
         if let pattern = accentPattern, pattern.timeSignature != timeSignature {
@@ -54,6 +66,8 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         self.accentPattern = accentPattern
         self.soundPreset = soundPreset
         self.repeatCount = max(1, repeatCount)
+        self.endAction = endAction
+        self.isFine = isFine
     }
 
     /// Set or clear the accent pattern. Returns `true` if accepted,
@@ -81,7 +95,8 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
 
 extension SongSection {
     private enum CodingKeys: String, CodingKey {
-        case id, name, bpm, timeSignature, subdivision, measureCount, accentPattern, soundPreset, repeatCount
+        case id, name, bpm, timeSignature, subdivision, measureCount,
+             accentPattern, soundPreset, repeatCount, endAction, isFine
     }
 
     public init(from decoder: Decoder) throws {
@@ -94,8 +109,10 @@ extension SongSection {
         let measureCount = try c.decode(Int.self, forKey: .measureCount)
         let pattern = try c.decodeIfPresent(AccentPattern.self, forKey: .accentPattern)
         let soundPreset = try c.decodeIfPresent(String.self, forKey: .soundPreset)
-        // Default to 1 for legacy rows that pre-date the repeatCount field.
+        // Defaults for legacy rows that pre-date each field.
         let repeatCount = (try c.decodeIfPresent(Int.self, forKey: .repeatCount)) ?? 1
+        let endAction = (try c.decodeIfPresent(SectionEndAction.self, forKey: .endAction)) ?? .continue
+        let isFine = (try c.decodeIfPresent(Bool.self, forKey: .isFine)) ?? false
         guard let section = SongSection(
             id: id,
             name: name,
@@ -105,7 +122,9 @@ extension SongSection {
             measureCount: measureCount,
             accentPattern: pattern,
             soundPreset: soundPreset,
-            repeatCount: repeatCount
+            repeatCount: repeatCount,
+            endAction: endAction,
+            isFine: isFine
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .measureCount, in: c,
@@ -126,7 +145,9 @@ extension SongSection {
         try c.encodeIfPresent(accentPattern, forKey: .accentPattern)
         try c.encodeIfPresent(soundPreset, forKey: .soundPreset)
         // Always encode — Codable consumers (CSV export, hand-crafted
-        // JSON, tests) shouldn't have to guess at the default.
+        // JSON, tests) shouldn't have to guess at defaults.
         try c.encode(repeatCount, forKey: .repeatCount)
+        try c.encode(endAction, forKey: .endAction)
+        try c.encode(isFine, forKey: .isFine)
     }
 }

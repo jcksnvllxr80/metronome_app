@@ -33,8 +33,8 @@ Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tem
 - UI: secondary BPM/meter pair, visual indicator showing both pulse streams
 
 ### Multi-section songs — remaining (spec §7.3)
-Each section carries its own complete state: name, BPM, time signature, subdivision, measure count, accent pattern, sound preset, repeat count. Editor exposes all inline. Playback auto-advances on measure boundaries and loops within a section per its repeat count. Stage indicator shows current section + position + repetition (e.g. "VERSE · 2/4 · 2/3" — section 2 of 4, repeat 2 of 3). Drag-to-reorder via toolbar Edit. Still backlog:
-- DC al fine / segno / coda jumps — "from the head until 'fine'", "back to the sign, then jump to coda." Structural jumps that are richer than per-section repeats.
+Each section carries its own complete state: name, BPM, time signature, subdivision, measure count, accent pattern, sound preset, repeat count, end-action, Fine marker. Editor exposes all inline. Playback auto-advances on measure boundaries, loops within a section per its repeat count, and honors D.C. al Fine (jumps back to section 0 and stops at the next section marked Fine). Stage indicator shows current section + position + repetition + AL FINE badge when applicable. Drag-to-reorder, duplicate-section. Still backlog:
+- D.S. (Dal Segno) / coda jumps — like D.C. al Fine but with a "segno" mark replacing section 0 as the jump target, plus mid-pass jumps to a coda destination. Needs more UI surface than v1.
 - Full time-signature picker per section (current inline menu covers 8 common ones; exotic meters like 11/8 still require setting at the song level before enabling sections)
 - Setlist integration — setlists currently treat multi-section songs as flat at the song's top-level BPM; auto-advance through sections inside a setlist is a follow-up
 

@@ -833,6 +833,14 @@ struct SongDetailView: View {
                             : DS.DSColor.accentTempo)
                 }
             }
+            sectionEndActionMenu(index: index, section: section)
+            Toggle("Fine (D.C. al Fine target)", isOn: Binding(
+                get: { section.isFine },
+                set: { newValue in
+                    updateSection(at: index) { $0.isFine = newValue }
+                }
+            ))
+            .tint(DS.DSColor.accentTempo)
             NavigationLink {
                 AccentPatternEditView(
                     timeSignature: section.timeSignature,
@@ -899,6 +907,26 @@ struct SongDetailView: View {
                 Text("\(section.timeSignature.numerator)/\(section.timeSignature.denominator.rawValue)")
                     .font(DS.Font.monoData)
                     .foregroundStyle(DS.DSColor.accentTempo)
+            }
+        }
+    }
+
+    private func sectionEndActionMenu(index: Int, section: SongSection) -> some View {
+        Menu {
+            ForEach(SectionEndAction.allCases, id: \.self) { action in
+                Button(action.displayName) {
+                    updateSection(at: index) { $0.endAction = action }
+                }
+            }
+        } label: {
+            HStack {
+                Text("After")
+                    .foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text(section.endAction.displayName)
+                    .foregroundStyle(section.endAction == .continue
+                        ? DS.DSColor.textMuted
+                        : DS.DSColor.accentTempo)
             }
         }
     }
