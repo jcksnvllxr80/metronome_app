@@ -41,9 +41,8 @@ Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tem
 - `SetlistPlayer` already handles song-to-song transitions; section-to-section would parallel that
 
 ### Haptic feedback — remaining sub-features (spec §9)
-All 5 modes shipped (off / downbeats only / accents only / every beat / subdivisions too). Drives off `HapticScheduler` which mirrors `AudioScheduler`'s shape — same engine click stream, same refill cadence. Per-accent intensity + sharpness mapped to sensible defaults (mute→0, soft→0.3, normal→0.6, loud→0.85, accent→1.0). Real device only — Simulator has no haptic engine. Still backlog:
-- Per-accent intensity sliders in Settings (spec asks for "configurable haptic intensity per accent level" — currently hardcoded)
-- Real-device verification + tuning of the intensity / sharpness curves; the current defaults are guesses
+All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `AudioScheduler`'s shape — same engine click stream, same refill cadence. Sharpness curve still hardcoded (it's a tactile quality, not user-facing loudness). Real device only — Simulator has no haptic engine. Still backlog:
+- Real-device verification + tuning of the default intensity / sharpness curves; the current defaults are guesses
 
 ## Phase 4 polish
 

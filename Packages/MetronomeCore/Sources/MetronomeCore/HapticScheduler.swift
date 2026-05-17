@@ -111,7 +111,7 @@ public actor HapticScheduler {
         for click in upcoming {
             lastScheduledTime = click.time
             guard settings.hapticMode.shouldFire(for: click) else { continue }
-            await scheduleEvent(forClick: click)
+            await scheduleEvent(forClick: click, intensity: settings.hapticIntensity)
         }
     }
 
@@ -126,13 +126,14 @@ public actor HapticScheduler {
     /// we can set `playAt:` for precise timing. Transient events are
     /// the right primitive for a metronome tap (sharp, percussive,
     /// minimal latency).
-    private func scheduleEvent(forClick click: Click) async {
+    private func scheduleEvent(forClick click: Click, intensity: HapticIntensity) async {
         guard let hapticEngine = engine else { return }
-        let (intensity, sharpness) = Self.parameters(for: click.accent)
+        let intensityValue = Float(intensity.value(for: click.accent))
+        let sharpness = Self.sharpness(for: click.accent)
         let event = CHHapticEvent(
             eventType: .hapticTransient,
             parameters: [
-                CHHapticEventParameter(parameterID: .hapticIntensity, value: intensity),
+                CHHapticEventParameter(parameterID: .hapticIntensity, value: intensityValue),
                 CHHapticEventParameter(parameterID: .hapticSharpness, value: sharpness)
             ],
             relativeTime: 0
@@ -152,16 +153,16 @@ public actor HapticScheduler {
         }
     }
 
-    /// Map accent level to (intensity, sharpness) — both 0…1. Mute
-    /// would never reach here (filtered by `HapticMode.shouldFire`).
-    /// Higher accents are stronger AND sharper (more "tap-like" feel).
-    private static func parameters(for accent: AccentLevel) -> (Float, Float) {
+    /// Sharpness curve — kept hardcoded because it's a tactile quality,
+    /// not a "loudness" knob the user should be tweaking. Higher accent
+    /// levels feel "snappier."
+    private static func sharpness(for accent: AccentLevel) -> Float {
         switch accent {
-        case .mute:   return (0.0, 0.5)
-        case .soft:   return (0.3, 0.4)
-        case .normal: return (0.6, 0.6)
-        case .loud:   return (0.85, 0.8)
-        case .accent: return (1.0, 1.0)
+        case .mute:   return 0.5
+        case .soft:   return 0.4
+        case .normal: return 0.6
+        case .loud:   return 0.8
+        case .accent: return 1.0
         }
     }
 }

@@ -210,12 +210,41 @@ struct SettingsView: View {
             .pickerStyle(.menu)
             .tint(DS.DSColor.accentTempo)
             .listRowBackground(DS.DSColor.bgElevated)
+
+            if settings.hapticMode != .off {
+                intensitySlider(label: "Soft", value: $settings.hapticIntensity.soft)
+                intensitySlider(label: "Normal", value: $settings.hapticIntensity.normal)
+                intensitySlider(label: "Loud", value: $settings.hapticIntensity.loud)
+                intensitySlider(label: "Accent", value: $settings.hapticIntensity.accent)
+            }
         } header: {
             Text("Haptics").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Vibrate on selected clicks. Useful for silent practice or wrist-feel reinforcement. Real device only — Simulator has no haptic engine.")
+            Text(hapticFooter)
                 .foregroundStyle(DS.DSColor.textMuted)
         }
+    }
+
+    private var hapticFooter: String {
+        if settings.hapticMode == .off {
+            return "Vibrate on selected clicks. Useful for silent practice or wrist-feel reinforcement. Real device only — Simulator has no haptic engine."
+        }
+        return "Per-accent intensity for each beat level. Soft = subdivisions / mid-pattern. Accent = downbeats and explicitly-accented beats."
+    }
+
+    private func intensitySlider(label: String, value: Binding<Double>) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack {
+                Text(label).foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text("\(Int((value.wrappedValue * 100).rounded()))%")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.textPrimary)
+            }
+            Slider(value: value, in: 0...1)
+                .tint(DS.DSColor.accentTempo)
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
     }
 
     // MARK: - Random Mute (spec §6.4 speed-trainer practice mode)

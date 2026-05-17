@@ -1,5 +1,39 @@
 import Foundation
 
+/// Per-accent haptic intensity (spec §9). Each slider is 0…1, mapped
+/// onto `CHHapticEventParameter` intensity. Mute is always 0 and isn't
+/// configurable (a muted beat has no haptic event to attach intensity
+/// to). Defaults match `HapticScheduler`'s pre-config curve: soft and
+/// normal are subtle; loud is firm; accent is the strongest.
+public struct HapticIntensity: Hashable, Sendable, Codable {
+    public var soft: Double
+    public var normal: Double
+    public var loud: Double
+    public var accent: Double
+
+    public init(soft: Double = 0.3, normal: Double = 0.6, loud: Double = 0.85, accent: Double = 1.0) {
+        self.soft = Self.clamp(soft)
+        self.normal = Self.clamp(normal)
+        self.loud = Self.clamp(loud)
+        self.accent = Self.clamp(accent)
+    }
+
+    private static func clamp(_ v: Double) -> Double { max(0, min(1, v)) }
+
+    /// Intensity to apply for a given accent level. Mute returns 0 —
+    /// the scheduler should already filter mute clicks before this is
+    /// queried, but this defends against accidental misuse.
+    public func value(for accent: AccentLevel) -> Double {
+        switch accent {
+        case .mute:   return 0
+        case .soft:   return soft
+        case .normal: return normal
+        case .loud:   return loud
+        case .accent: return self.accent
+        }
+    }
+}
+
 /// Persistable user preferences that affect engine behavior, per spec §10.
 ///
 /// Scoped to the *engine* side (audio + playback rules). UI-only settings —
@@ -61,6 +95,10 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// want audio without buzz. The `HapticScheduler` reads this each
     /// refill pass so toggling in Settings takes effect immediately.
     public var hapticMode: HapticMode
+    /// Per-accent haptic intensity (spec §9). 4 sliders (mute is fixed
+    /// at 0). HapticScheduler reads these instead of the hardcoded
+    /// curve it used at v0.8.0.
+    public var hapticIntensity: HapticIntensity
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -79,7 +117,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         midiClockReceiveEnabled: Bool = false,
         voiceCountMode: VoiceCountMode = .off,
         randomMutePercentage: Int = 0,
-        hapticMode: HapticMode = .off
+        hapticMode: HapticMode = .off,
+        hapticIntensity: HapticIntensity = HapticIntensity()
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -104,5 +143,32 @@ public struct EngineSettings: Hashable, Sendable, Codable {
             )
         }
         self.hapticMode = hapticMode
+        self.hapticIntensity = hapticIntensity
+    }
+}
+
+extension EngineSettings {
+    /// Custom Codable to provide a default for `hapticIntensity` when
+    /// decoding pre-v0.8.2 payloads that don't carry the field. SwiftData
+    /// handles this via its nullable-column migration, but JSON Codable
+    /// (used by tests, exports, and any debug fixtures) needs the
+    /// explicit fallback.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            masterVolume: try c.decodeIfPresent(Double.self, forKey: .masterVolume) ?? 1.0,
+            latencyOffsetSeconds: try c.decodeIfPresent(TimeInterval.self, forKey: .latencyOffsetSeconds) ?? 0,
+            mixWithOthers: try c.decodeIfPresent(Bool.self, forKey: .mixWithOthers) ?? true,
+            countIn: try c.decodeIfPresent(CountIn.self, forKey: .countIn) ?? .off,
+            bpmPrecisionMode: try c.decodeIfPresent(Bool.self, forKey: .bpmPrecisionMode) ?? false,
+            autoResumeAfterInterruption: try c.decodeIfPresent(Bool.self, forKey: .autoResumeAfterInterruption) ?? false,
+            clickSound: try c.decodeIfPresent(ClickSound.self, forKey: .clickSound) ?? .digitalBeep,
+            midiClockEnabled: try c.decodeIfPresent(Bool.self, forKey: .midiClockEnabled) ?? false,
+            midiClockReceiveEnabled: try c.decodeIfPresent(Bool.self, forKey: .midiClockReceiveEnabled) ?? false,
+            voiceCountMode: try c.decodeIfPresent(VoiceCountMode.self, forKey: .voiceCountMode) ?? .off,
+            randomMutePercentage: try c.decodeIfPresent(Int.self, forKey: .randomMutePercentage) ?? 0,
+            hapticMode: try c.decodeIfPresent(HapticMode.self, forKey: .hapticMode) ?? .off,
+            hapticIntensity: try c.decodeIfPresent(HapticIntensity.self, forKey: .hapticIntensity) ?? HapticIntensity()
+        )
     }
 }

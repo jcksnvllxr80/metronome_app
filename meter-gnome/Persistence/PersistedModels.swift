@@ -44,6 +44,13 @@ final class PersistedEngineSettings {
     /// `HapticMode.rawValue` (spec §9). Defaults to `.off` so existing
     /// users don't suddenly start feeling buzz on every beat.
     var hapticModeRaw: String = HapticMode.off.rawValue
+    /// Per-accent haptic intensity (spec §9). Stored as 4 scalar fields
+    /// rather than an embedded Codable so SwiftData's nullable-column
+    /// migration covers each one individually. Mute always 0 — no field.
+    var hapticIntensitySoft: Double = 0.3
+    var hapticIntensityNormal: Double = 0.6
+    var hapticIntensityLoud: Double = 0.85
+    var hapticIntensityAccent: Double = 1.0
 
     init(
         masterVolume: Double = 1.0,
@@ -57,7 +64,11 @@ final class PersistedEngineSettings {
         midiClockReceiveEnabled: Bool = false,
         voiceCountModeRaw: String = VoiceCountMode.off.rawValue,
         randomMutePercentage: Int = 0,
-        hapticModeRaw: String = HapticMode.off.rawValue
+        hapticModeRaw: String = HapticMode.off.rawValue,
+        hapticIntensitySoft: Double = 0.3,
+        hapticIntensityNormal: Double = 0.6,
+        hapticIntensityLoud: Double = 0.85,
+        hapticIntensityAccent: Double = 1.0
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -71,6 +82,10 @@ final class PersistedEngineSettings {
         self.voiceCountModeRaw = voiceCountModeRaw
         self.randomMutePercentage = randomMutePercentage
         self.hapticModeRaw = hapticModeRaw
+        self.hapticIntensitySoft = hapticIntensitySoft
+        self.hapticIntensityNormal = hapticIntensityNormal
+        self.hapticIntensityLoud = hapticIntensityLoud
+        self.hapticIntensityAccent = hapticIntensityAccent
     }
 
     convenience init(from settings: EngineSettings) {
@@ -86,7 +101,11 @@ final class PersistedEngineSettings {
             midiClockReceiveEnabled: settings.midiClockReceiveEnabled,
             voiceCountModeRaw: settings.voiceCountMode.rawValue,
             randomMutePercentage: settings.randomMutePercentage,
-            hapticModeRaw: settings.hapticMode.rawValue
+            hapticModeRaw: settings.hapticMode.rawValue,
+            hapticIntensitySoft: settings.hapticIntensity.soft,
+            hapticIntensityNormal: settings.hapticIntensity.normal,
+            hapticIntensityLoud: settings.hapticIntensity.loud,
+            hapticIntensityAccent: settings.hapticIntensity.accent
         )
     }
 
@@ -103,7 +122,13 @@ final class PersistedEngineSettings {
             midiClockReceiveEnabled: midiClockReceiveEnabled,
             voiceCountMode: VoiceCountMode(rawValue: voiceCountModeRaw) ?? .off,
             randomMutePercentage: randomMutePercentage,
-            hapticMode: HapticMode(rawValue: hapticModeRaw) ?? .off
+            hapticMode: HapticMode(rawValue: hapticModeRaw) ?? .off,
+            hapticIntensity: HapticIntensity(
+                soft: hapticIntensitySoft,
+                normal: hapticIntensityNormal,
+                loud: hapticIntensityLoud,
+                accent: hapticIntensityAccent
+            )
         )
     }
 
@@ -120,6 +145,10 @@ final class PersistedEngineSettings {
         voiceCountModeRaw = settings.voiceCountMode.rawValue
         randomMutePercentage = settings.randomMutePercentage
         hapticModeRaw = settings.hapticMode.rawValue
+        hapticIntensitySoft = settings.hapticIntensity.soft
+        hapticIntensityNormal = settings.hapticIntensity.normal
+        hapticIntensityLoud = settings.hapticIntensity.loud
+        hapticIntensityAccent = settings.hapticIntensity.accent
     }
 }
 
