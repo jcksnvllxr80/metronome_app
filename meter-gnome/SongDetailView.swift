@@ -758,6 +758,14 @@ struct SongDetailView: View {
                     .tracking(2)
                     .foregroundStyle(DS.DSColor.textMuted)
                 Spacer()
+                Button {
+                    duplicateSection(at: index)
+                } label: {
+                    Image(systemName: "plus.square.on.square")
+                        .foregroundStyle(DS.DSColor.accentTempo)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Duplicate section \(index + 1)")
                 if canDelete {
                     Button(role: .destructive) {
                         deleteSection(at: index)
@@ -944,6 +952,28 @@ struct SongDetailView: View {
         guard var sections = song.sections, sections.indices.contains(index) else { return }
         sections.remove(at: index)
         song.sections = sections.isEmpty ? nil : sections
+    }
+
+    /// Insert a copy of `sections[index]` right after it in the array.
+    /// Fresh UUID + " (copy)" suffix on the name so the duplicate is
+    /// identifiable in the list. All other fields carry over verbatim.
+    private func duplicateSection(at index: Int) {
+        guard var sections = song.sections, sections.indices.contains(index) else { return }
+        let source = sections[index]
+        let copiedName: String? = source.name.map { "\($0) (copy)" }
+        guard let dup = SongSection(
+            id: UUID(),
+            name: copiedName,
+            bpm: source.bpm,
+            timeSignature: source.timeSignature,
+            subdivision: source.subdivision,
+            measureCount: source.measureCount,
+            accentPattern: source.accentPattern,
+            soundPreset: source.soundPreset,
+            repeatCount: source.repeatCount
+        ) else { return }
+        sections.insert(dup, at: index + 1)
+        song.sections = sections
     }
 
     private func reorderSections(from source: IndexSet, to destination: Int) {
