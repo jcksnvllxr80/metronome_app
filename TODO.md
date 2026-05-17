@@ -88,7 +88,8 @@ Settings → MIDI now shows a "Source" picker when "Listen for MIDI Clock" is on
 
 ### iPad-specific layouts
 - Size-class branching covers the basics: BPM scales 180→280pt on `.regular`. Large display mode (spec §10.3) shipped in v0.16.2 — Settings → Display → Large Display jumps the hero to 260pt on iPhone / 440pt on iPad, persisted in `EngineSettings.largeDisplayMode`.
-- Still backlog: iPad two-column layout (Stage left + Library right). Viewport-relative scaling via GeometryReader as a polish step over the four-way static table.
+- ~~iPad two-column layout (Stage left + Library right)~~ — shipped in v0.29.0. ContentView branches on horizontalSizeClass: `.regular` renders HStack(stageBody, Divider, LibraryView with 420pt fixed width); `.compact` keeps the original sheet-based flow. BPM hero gets `.minimumScaleFactor(0.4)` + `.lineLimit(1)` so the 280pt iPad font collapses to fit the narrower Stage column. Library's `Done` button is hidden on iPad split since its `dismiss()` would have no presenter to dismiss to. Library button on Stage is hidden on iPad (library is always visible).
+- Still backlog: viewport-relative scaling via GeometryReader as a polish step over the four-way static font-size table. Resizable splitter / collapsible dock if users want to focus on Stage on iPad.
 
 ### Settings — UI prefs not yet exposed
 - Allow hardware volume keys to start/stop — spec §10.4

@@ -56,6 +56,52 @@ struct ContentView: View {
     }
 
     var body: some View {
+        Group {
+            if horizontalSizeClass == .regular {
+                // iPad split: Stage on the left, Library docked on the
+                // right. Library stays put when songs load — `dismiss()`
+                // calls inside LibraryView become no-ops because the
+                // view isn't in a presentation context. The Stage panel
+                // owns the sheets for time-sig / subdivision / etc. so
+                // they continue to look like Stage modals.
+                HStack(spacing: 0) {
+                    stageBody
+                        .frame(maxWidth: .infinity)
+                    Divider()
+                        .background(DS.DSColor.bgElevated)
+                    LibraryView(viewModel: viewModel)
+                        .frame(width: librarySidebarWidth)
+                }
+                .background(DS.DSColor.bgBase.ignoresSafeArea())
+            } else {
+                stageBody
+                    .sheet(isPresented: $showLibrary) {
+                        LibraryView(viewModel: viewModel)
+                            .presentationDetents([.large])
+                    }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onChange(of: viewModel.bpm) { _, newBPM in
+            announceBPMIfNeeded(newBPM)
+        }
+        .onChange(of: viewModel.isRunning) { _, isRunning in
+            announceRunStateIfNeeded(isRunning)
+        }
+    }
+
+    /// Width of the docked library panel on iPad. ~420pt fits a tab
+    /// picker (320pt) plus comfortable padding, leaves the BPM hero
+    /// the dominant element on the Stage side at landscape and most
+    /// portrait sizes.
+    private var librarySidebarWidth: CGFloat { 420 }
+
+    /// Stage content (BPM hero, transport, top overlay). On iPhone this
+    /// is the whole app body; on iPad it's the left column of the
+    /// split layout. All Stage-owned sheets attach here so they
+    /// surface from the Stage column on iPad rather than from the
+    /// whole window.
+    private var stageBody: some View {
         ZStack(alignment: .top) {
             DS.DSColor.bgBase.ignoresSafeArea()
 
@@ -73,19 +119,16 @@ struct ContentView: View {
             // and a small Ramp (tempo automation quick-sheet) button next
             // to Settings. Icons stay small + muted so they recede during
             // performance and DESIGN.md's 5-element rule applies in spirit.
+            // On iPad the library is docked beside the Stage, so the
+            // libraryButton is redundant there and is hidden.
             HStack {
-                libraryButton
+                if horizontalSizeClass != .regular {
+                    libraryButton
+                }
                 Spacer()
                 tempoAutomationButton
                 settingsButton
             }
-        }
-        .preferredColorScheme(.dark)
-        .onChange(of: viewModel.bpm) { _, newBPM in
-            announceBPMIfNeeded(newBPM)
-        }
-        .onChange(of: viewModel.isRunning) { _, isRunning in
-            announceRunStateIfNeeded(isRunning)
         }
         .sheet(isPresented: $showTimeSigPicker) {
             TimeSignaturePickerView(current: viewModel.timeSignature) { selected in
@@ -111,10 +154,6 @@ struct ContentView: View {
                 viewModel.setSettings(updated)
             }
             .presentationDetents([.large])
-        }
-        .sheet(isPresented: $showLibrary) {
-            LibraryView(viewModel: viewModel)
-                .presentationDetents([.large])
         }
         .sheet(isPresented: $showTempoPresets) {
             TempoMarkingPickerView(currentBPM: viewModel.bpm) { selected in
@@ -509,6 +548,8 @@ struct ContentView: View {
                 .monospacedDigit()
                 .tracking(-bpmFontSize * 0.022)  // ~ -2% per DESIGN.md
                 .foregroundStyle(digitColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
                 .contentTransition(.numericText(value: viewModel.bpm.value))
                 .animation(.snappy(duration: 0.15), value: viewModel.bpm.value)
                 .accessibilityLabel("Tempo, \(viewModel.bpmDisplay) BPM")

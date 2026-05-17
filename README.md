@@ -10,7 +10,7 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 
 **Phases 1 + 2 shipped, most of Phase 3 shipped.** Audio, MIDI send + receive, persistence, library + setlists, accent-pattern editor with preset library, tempo automation (gradual + step + loop), speed trainer (random mute + step with stop/reverse-on-ceiling), practice stats with charts + daily goal + CSV export, haptics with per-accent intensity, lock-screen / AirPods control, multi-section songs (with D.C. al Fine, repeats, per-section settings, setlist integration across all advance modes), per-subdivision-level click config, and Large Display mode all work end-to-end. Real-device-verified bug fixes through v0.14.8 (cold-launch downbeat, tempo-change dropout, haptic buzz, haptic mode-change, multi-section transition double-click, Stage BPM display lag during section transitions).
 
-Latest tag: **v0.16.2**.
+Latest tag: **v0.29.0**.
 
 | Layer | State |
 |---|---|

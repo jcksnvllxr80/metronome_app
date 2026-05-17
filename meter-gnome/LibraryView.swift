@@ -20,6 +20,7 @@ private enum LibraryTab: String, Hashable {
 struct LibraryView: View {
     @Bindable var viewModel: MetronomeViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var tab: LibraryTab = .songs
     @State private var showSaveSongAlert = false
@@ -40,9 +41,14 @@ struct LibraryView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                        .foregroundStyle(DS.DSColor.accentTempo)
+                // When docked inline (iPad split), there's no presenting
+                // context to dismiss to. Hide the Done button so users
+                // don't tap a no-op control.
+                if horizontalSizeClass != .regular {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") { dismiss() }
+                            .foregroundStyle(DS.DSColor.accentTempo)
+                    }
                 }
                 ToolbarItem(placement: .principal) {
                     Picker("Library section", selection: $tab) {
