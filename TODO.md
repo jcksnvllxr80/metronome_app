@@ -23,10 +23,10 @@ Gradual ramp shipped (per-song, accelerando/ritardando over measures or seconds)
 - Ramp loops: cycle through multiple tempo targets
 - Stage-quick-sheet variant (current UI is per-song only)
 
-### Speed trainer mode (spec §6.4)
-- Start at slow BPM, increase by X every N measures or N "successful" loops
+### Speed trainer — remaining sub-features (spec §6.4)
+Random-mute mode shipped (Settings → Speed Trainer; 10–50% with per-session seed, mutes whole beats including subdivisions, count-in exempt). Still backlog:
+- Step BPM: start at slow BPM, increase by X every N measures or N "successful" loops
 - Optional ceiling — stop or reverse on hit
-- Random-mute mode: mute 10-50% of beats (user-set %)
 - Pairs with practice stats (tracks "successful" attempts)
 
 ## Phase 3 backlog

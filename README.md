@@ -22,7 +22,8 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 | Background mode + interruption + route-change handling | ✓ Pauses cleanly on phone calls + headphone unplug |
 | Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title; play/pause from AirPods + Control Center; setlist prev/next |
 | Tempo automation — gradual ramp (accel / rit) | ✓ Per-song over N measures or N seconds, Stage indicator while active |
-| Real percussion samples, haptics, practice stats, polyrhythm, multi-section songs, speed trainer, step + ramp-loop automation | Backlog — see [TODO.md](TODO.md) |
+| Speed trainer — random mute | ✓ Mutes 10–50% of beats during playback; per-session seed so patterns differ each run |
+| Real percussion samples, haptics, practice stats, polyrhythm, multi-section songs, step BPM + ramp-loop automation | Backlog — see [TODO.md](TODO.md) |
 | Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
 
 ## Development
