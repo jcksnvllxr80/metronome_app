@@ -82,10 +82,6 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 - At low BPM with subdivisions on, lookahead can balloon. Cap at some reasonable upper bound?
 - Real-device profiling needed before tuning
 
-### Sound override mid-pattern doesn't trigger schedule reset
-- If user opens AccentPatternEditView while engine is running and changes per-beat sounds, the engine's `setAccentPattern` re-anchors the schedule but the AudioScheduler's queued buffers reflect the OLD pattern until the queue drains. Brief audible lag.
-- Fix would require coordinating per-beat data through scheduler queue management — non-trivial. Acceptable for v1.
-
 ### MIDI Song Position Pointer support (spec §12.2)
 - 0xF2 message — lets meter-gnome jump to a specific position when slaved
 - Current receiver ignores it
