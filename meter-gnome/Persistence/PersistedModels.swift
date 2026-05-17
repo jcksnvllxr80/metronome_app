@@ -64,6 +64,12 @@ final class PersistedEngineSettings {
     var startOnLaunch: Bool = false
     /// Daily practice goal in minutes (spec §11). 0 = no goal.
     var dailyPracticeGoalMinutes: Int = 0
+    /// Weekly practice goal in minutes (spec §11). 0 = no goal. New
+    /// column in v0.23.0; SwiftData lightweight migration adds it
+    /// with default 0 for existing rows.
+    var weeklyPracticeGoalMinutes: Int = 0
+    /// Monthly practice goal in minutes (spec §11). 0 = no goal.
+    var monthlyPracticeGoalMinutes: Int = 0
     /// JSON-encoded `[Subdivision: SubdivisionConfig]` (spec §2.3,
     /// shipped v0.16.0). Stored as Data so SwiftData lightweight
     /// migration adds the column with a nil default — existing rows
@@ -98,6 +104,8 @@ final class PersistedEngineSettings {
         keepScreenAwakeDuringPlayback: Bool = true,
         startOnLaunch: Bool = false,
         dailyPracticeGoalMinutes: Int = 0,
+        weeklyPracticeGoalMinutes: Int = 0,
+        monthlyPracticeGoalMinutes: Int = 0,
         subdivisionConfigsData: Data? = nil,
         largeDisplayMode: Bool = false
     ) {
@@ -121,6 +129,8 @@ final class PersistedEngineSettings {
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
         self.startOnLaunch = startOnLaunch
         self.dailyPracticeGoalMinutes = dailyPracticeGoalMinutes
+        self.weeklyPracticeGoalMinutes = weeklyPracticeGoalMinutes
+        self.monthlyPracticeGoalMinutes = monthlyPracticeGoalMinutes
         self.subdivisionConfigsData = subdivisionConfigsData
         self.largeDisplayMode = largeDisplayMode
     }
@@ -169,6 +179,8 @@ final class PersistedEngineSettings {
             keepScreenAwakeDuringPlayback: settings.keepScreenAwakeDuringPlayback,
             startOnLaunch: settings.startOnLaunch,
             dailyPracticeGoalMinutes: settings.dailyPracticeGoalMinutes,
+            weeklyPracticeGoalMinutes: settings.weeklyPracticeGoalMinutes,
+            monthlyPracticeGoalMinutes: settings.monthlyPracticeGoalMinutes,
             subdivisionConfigsData: Self.encode(settings.subdivisionConfigs),
             largeDisplayMode: settings.largeDisplayMode
         )
@@ -198,6 +210,8 @@ final class PersistedEngineSettings {
             keepScreenAwakeDuringPlayback: keepScreenAwakeDuringPlayback,
             startOnLaunch: startOnLaunch,
             dailyPracticeGoalMinutes: dailyPracticeGoalMinutes,
+            weeklyPracticeGoalMinutes: weeklyPracticeGoalMinutes,
+            monthlyPracticeGoalMinutes: monthlyPracticeGoalMinutes,
             subdivisionConfigs: Self.decodeSubdivisionConfigs(subdivisionConfigsData),
             largeDisplayMode: largeDisplayMode
         )
@@ -224,6 +238,8 @@ final class PersistedEngineSettings {
         keepScreenAwakeDuringPlayback = settings.keepScreenAwakeDuringPlayback
         startOnLaunch = settings.startOnLaunch
         dailyPracticeGoalMinutes = settings.dailyPracticeGoalMinutes
+        weeklyPracticeGoalMinutes = settings.weeklyPracticeGoalMinutes
+        monthlyPracticeGoalMinutes = settings.monthlyPracticeGoalMinutes
         subdivisionConfigsData = Self.encode(settings.subdivisionConfigs)
         largeDisplayMode = settings.largeDisplayMode
     }

@@ -229,10 +229,12 @@ struct SettingsView: View {
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
             dailyGoalRow
+            weeklyGoalRow
+            monthlyGoalRow
         } header: {
             Text("Playback Behavior").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song.")
+            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song. Goals are independent — set just the ones you want to track.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }
@@ -316,15 +318,47 @@ struct SettingsView: View {
     // MARK: - Daily practice goal (spec §11)
 
     private var dailyGoalRow: some View {
-        Stepper(
+        goalRow(
+            label: "Daily goal",
             value: $settings.dailyPracticeGoalMinutes,
-            in: 0...240,
+            range: 0...240,
             step: 5
-        ) {
+        )
+    }
+
+    /// Weekly goal — wider range than daily (an ambitious week of
+    /// practice can run 5–10 hours), coarser step to keep the
+    /// stepper press count reasonable.
+    private var weeklyGoalRow: some View {
+        goalRow(
+            label: "Weekly goal",
+            value: $settings.weeklyPracticeGoalMinutes,
+            range: 0...1200,
+            step: 15
+        )
+    }
+
+    /// Monthly goal — even wider range, coarser still.
+    private var monthlyGoalRow: some View {
+        goalRow(
+            label: "Monthly goal",
+            value: $settings.monthlyPracticeGoalMinutes,
+            range: 0...5000,
+            step: 30
+        )
+    }
+
+    private func goalRow(
+        label: String,
+        value: Binding<Int>,
+        range: ClosedRange<Int>,
+        step: Int
+    ) -> some View {
+        Stepper(value: value, in: range, step: step) {
             HStack {
-                Text("Daily goal").foregroundStyle(DS.DSColor.textPrimary)
+                Text(label).foregroundStyle(DS.DSColor.textPrimary)
                 Spacer()
-                Text(settings.dailyPracticeGoalMinutes == 0 ? "Off" : "\(settings.dailyPracticeGoalMinutes) min")
+                Text(value.wrappedValue == 0 ? "Off" : "\(value.wrappedValue) min")
                     .font(DS.Font.monoData)
                     .foregroundStyle(DS.DSColor.textPrimary)
             }

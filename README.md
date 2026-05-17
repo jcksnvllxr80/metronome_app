@@ -14,7 +14,7 @@ Latest tag: **v0.16.2**.
 
 | Layer | State |
 |---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 336 tests passing, drift < 1 ms/min verified in math |
+| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 339 tests passing, drift < 1 ms/min verified in math |
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
 | Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
 | Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
@@ -27,7 +27,7 @@ Latest tag: **v0.16.2**.
 | Tempo automation — gradual + step + loop | ✓ Per-song picker covering all 3 §6.3 modes — gradual accel/rit, step with optional ceiling (Stop / Reverse behavior), multi-stage loop cycling indefinitely |
 | Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling. Engine auto-stops at ceiling (Stop), or counts back down to start as a triangle-wave ramp (Reverse). |
 | Per-subdivision-level config (§2.3) | ✓ Independent volume + optional sound override per level (eighths, triplets, sixteenths, …, nonuplets). Settings → Subdivisions. |
-| Practice stats / session log | ✓ Library → Stats: today/week/month totals + per-song breakdown + 14-day daily + 8-week weekly charts + BPM-progression chart per top song + daily goal progress + CSV export. 30-sec minimum, pause-aware. |
+| Practice stats / session log | ✓ Library → Stats: today/week/month totals + per-song breakdown + 14-day daily + 8-week weekly charts + BPM-progression chart per top song + daily / weekly / monthly goal progress bars + CSV export. 30-sec minimum, pause-aware. |
 | Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Per-accent intensity sliders. Real device only. |
 | Real percussion samples, polyrhythm, D.S. / coda jumps, iPad two-column layout | Backlog — see [TODO.md](TODO.md) |
 | Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
@@ -80,7 +80,7 @@ cd Packages/MetronomeCore
 swift test
 ```
 
-336 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, MIDI SPP parsing + position offset, practice-session aggregations (daily / weekly / BPM history), Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
+339 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, MIDI SPP parsing + position offset, practice-session aggregations (daily / weekly / BPM history), goal-clamping rules, Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
 
 ### Run package tests inside Xcode
 

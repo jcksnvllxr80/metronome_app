@@ -239,6 +239,34 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
     #expect(back == s)
 }
 
+@Test func engineSettingsWeeklyAndMonthlyGoalsRoundTrip() throws {
+    let s = EngineSettings(
+        dailyPracticeGoalMinutes: 30,
+        weeklyPracticeGoalMinutes: 180,
+        monthlyPracticeGoalMinutes: 800
+    )
+    let back = try roundTrip(s)
+    #expect(back.weeklyPracticeGoalMinutes == 180)
+    #expect(back.monthlyPracticeGoalMinutes == 800)
+    #expect(back == s)
+}
+
+@Test func engineSettingsGoalsDefaultToZero() {
+    let s = EngineSettings()
+    #expect(s.dailyPracticeGoalMinutes == 0)
+    #expect(s.weeklyPracticeGoalMinutes == 0)
+    #expect(s.monthlyPracticeGoalMinutes == 0)
+}
+
+@Test func engineSettingsNegativeGoalsClampToZero() {
+    let s = EngineSettings(
+        weeklyPracticeGoalMinutes: -50,
+        monthlyPracticeGoalMinutes: -1000
+    )
+    #expect(s.weeklyPracticeGoalMinutes == 0)
+    #expect(s.monthlyPracticeGoalMinutes == 0)
+}
+
 @Test func engineSettingsLegacyJSONHasNilMidiSourceName() throws {
     // Pre-picker payloads omit the field — decode must fall back to nil
     // so existing users keep "listen to all sources" behavior.

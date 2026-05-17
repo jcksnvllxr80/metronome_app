@@ -122,6 +122,14 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// it's > 0. Stored as Int to match the slider's snap-to-whole
     /// behavior.
     public var dailyPracticeGoalMinutes: Int
+    /// Optional weekly practice goal in minutes (spec §11). 0 = off.
+    /// Independent of daily — a user might want a daily floor + a
+    /// weekly stretch goal. Stats renders a progress bar for each
+    /// non-zero goal.
+    public var weeklyPracticeGoalMinutes: Int
+    /// Optional monthly practice goal in minutes (spec §11). 0 = off.
+    /// Same semantics as weekly — independent progress bar in Stats.
+    public var monthlyPracticeGoalMinutes: Int
     /// Per-subdivision-level click config (spec §2.3). When a level
     /// isn't present in the map, `SubdivisionConfig.legacy` applies —
     /// `.soft` accent, no sound override, identical to pre-feature
@@ -159,6 +167,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         keepScreenAwakeDuringPlayback: Bool = true,
         startOnLaunch: Bool = false,
         dailyPracticeGoalMinutes: Int = 0,
+        weeklyPracticeGoalMinutes: Int = 0,
+        monthlyPracticeGoalMinutes: Int = 0,
         subdivisionConfigs: [Subdivision: SubdivisionConfig] = [:],
         largeDisplayMode: Bool = false
     ) {
@@ -190,6 +200,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
         self.startOnLaunch = startOnLaunch
         self.dailyPracticeGoalMinutes = max(0, dailyPracticeGoalMinutes)
+        self.weeklyPracticeGoalMinutes = max(0, weeklyPracticeGoalMinutes)
+        self.monthlyPracticeGoalMinutes = max(0, monthlyPracticeGoalMinutes)
         self.subdivisionConfigs = subdivisionConfigs
         self.largeDisplayMode = largeDisplayMode
     }
@@ -206,7 +218,8 @@ extension EngineSettings {
         case voiceCountMode
         case randomMutePercentage, hapticMode, hapticIntensity
         case keepScreenAwakeDuringPlayback, startOnLaunch
-        case dailyPracticeGoalMinutes, subdivisionConfigs, largeDisplayMode
+        case dailyPracticeGoalMinutes, weeklyPracticeGoalMinutes
+        case monthlyPracticeGoalMinutes, subdivisionConfigs, largeDisplayMode
     }
 
     /// Custom Codable to provide a default for `hapticIntensity` when
@@ -234,6 +247,8 @@ extension EngineSettings {
             keepScreenAwakeDuringPlayback: try c.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeDuringPlayback) ?? true,
             startOnLaunch: try c.decodeIfPresent(Bool.self, forKey: .startOnLaunch) ?? false,
             dailyPracticeGoalMinutes: try c.decodeIfPresent(Int.self, forKey: .dailyPracticeGoalMinutes) ?? 0,
+            weeklyPracticeGoalMinutes: try c.decodeIfPresent(Int.self, forKey: .weeklyPracticeGoalMinutes) ?? 0,
+            monthlyPracticeGoalMinutes: try c.decodeIfPresent(Int.self, forKey: .monthlyPracticeGoalMinutes) ?? 0,
             // Decoder uses [String: SubdivisionConfig] because Swift's
             // JSONEncoder only allows string-keyed dictionaries; map
             // back to [Subdivision: ...] here. Missing field → empty
@@ -268,6 +283,8 @@ extension EngineSettings {
         try c.encode(keepScreenAwakeDuringPlayback, forKey: .keepScreenAwakeDuringPlayback)
         try c.encode(startOnLaunch, forKey: .startOnLaunch)
         try c.encode(dailyPracticeGoalMinutes, forKey: .dailyPracticeGoalMinutes)
+        try c.encode(weeklyPracticeGoalMinutes, forKey: .weeklyPracticeGoalMinutes)
+        try c.encode(monthlyPracticeGoalMinutes, forKey: .monthlyPracticeGoalMinutes)
         // Skip the field when no user customization exists — keeps JSON
         // for pre-feature payloads clean and avoids round-trip noise.
         if !subdivisionConfigs.isEmpty {

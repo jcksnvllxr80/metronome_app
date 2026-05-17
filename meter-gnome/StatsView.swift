@@ -270,16 +270,26 @@ struct StatsView: View {
         let startOfMonth = Calendar.current.date(
             from: Calendar.current.dateComponents([.year, .month], from: now)
         ) ?? startOfToday
-        let goalMinutes = viewModel.settings.dailyPracticeGoalMinutes
+        let dailyGoal = viewModel.settings.dailyPracticeGoalMinutes
+        let weeklyGoal = viewModel.settings.weeklyPracticeGoalMinutes
+        let monthlyGoal = viewModel.settings.monthlyPracticeGoalMinutes
         let todayTotal = sessions.started(onOrAfter: startOfToday).totalDuration
+        let weekTotal = sessions.started(onOrAfter: startOfWeek).totalDuration
+        let monthTotal = sessions.started(onOrAfter: startOfMonth).totalDuration
         return VStack(spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.sm) {
                 timeCard(label: "Today", total: todayTotal)
-                timeCard(label: "Week", total: sessions.started(onOrAfter: startOfWeek).totalDuration)
-                timeCard(label: "Month", total: sessions.started(onOrAfter: startOfMonth).totalDuration)
+                timeCard(label: "Week", total: weekTotal)
+                timeCard(label: "Month", total: monthTotal)
             }
-            if goalMinutes > 0 {
-                goalProgressBar(todayMinutes: todayTotal / 60, goalMinutes: Double(goalMinutes))
+            if dailyGoal > 0 {
+                goalProgressBar(label: "DAILY GOAL", currentMinutes: todayTotal / 60, goalMinutes: Double(dailyGoal))
+            }
+            if weeklyGoal > 0 {
+                goalProgressBar(label: "WEEKLY GOAL", currentMinutes: weekTotal / 60, goalMinutes: Double(weeklyGoal))
+            }
+            if monthlyGoal > 0 {
+                goalProgressBar(label: "MONTHLY GOAL", currentMinutes: monthTotal / 60, goalMinutes: Double(monthlyGoal))
             }
         }
     }
@@ -302,20 +312,21 @@ struct StatsView: View {
         )
     }
 
-    /// Progress bar against the user's daily goal. Caps the visual fill
-    /// at 100% even if the user blew past the goal — the text label
-    /// shows the actual ratio either way.
-    private func goalProgressBar(todayMinutes: Double, goalMinutes: Double) -> some View {
-        let fraction = min(1, todayMinutes / goalMinutes)
-        let reached = todayMinutes >= goalMinutes
+    /// Progress bar against a practice goal. Caps the visual fill at
+    /// 100% even if the user blew past the goal — the text label shows
+    /// the actual ratio either way. Shared across daily / weekly /
+    /// monthly via the `label` parameter.
+    private func goalProgressBar(label: String, currentMinutes: Double, goalMinutes: Double) -> some View {
+        let fraction = min(1, currentMinutes / goalMinutes)
+        let reached = currentMinutes >= goalMinutes
         return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             HStack {
-                Text("DAILY GOAL")
+                Text(label)
                     .font(DS.Font.label)
                     .tracking(2)
                     .foregroundStyle(DS.DSColor.textMuted)
                 Spacer()
-                Text("\(Int(todayMinutes.rounded()))/\(Int(goalMinutes)) min")
+                Text("\(Int(currentMinutes.rounded()))/\(Int(goalMinutes)) min")
                     .font(DS.Font.monoData)
                     .foregroundStyle(reached ? DS.DSColor.semanticOk : DS.DSColor.textPrimary)
             }
