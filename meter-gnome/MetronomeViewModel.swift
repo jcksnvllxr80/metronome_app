@@ -34,6 +34,11 @@ final class MetronomeViewModel {
     // interruptions keep the session continuous).
     @ObservationIgnored private var sessionStartedAt: Date? = nil
     @ObservationIgnored private var sessionStartBPM: BPM? = nil
+    /// Min/max BPM observed during the active session (updated in
+    /// refresh() while the session is alive). Used to populate
+    /// PracticeSession.bpmMin/bpmMax at finalize.
+    @ObservationIgnored private var sessionMinBPM: BPM? = nil
+    @ObservationIgnored private var sessionMaxBPM: BPM? = nil
     @ObservationIgnored private var sessionSongTitleSnapshot: String? = nil
     @ObservationIgnored private var sessionSetlistNameSnapshot: String? = nil
     @ObservationIgnored private var wasRunning: Bool = false
@@ -181,10 +186,19 @@ final class MetronomeViewModel {
     /// false (i.e. the engine was stopped, not paused).
     private func trackPracticeSession(running: Bool, paused: Bool, currentBPM: BPM) {
         defer { wasRunning = running }
+        // Update min/max anytime a session is in-flight (whether or not
+        // the engine just transitioned). Catches manual BPM nudges,
+        // tempo-automation drift, MIDI-received tempo, etc.
+        if sessionStartedAt != nil {
+            sessionMinBPM = sessionMinBPM.map { min($0, currentBPM) } ?? currentBPM
+            sessionMaxBPM = sessionMaxBPM.map { max($0, currentBPM) } ?? currentBPM
+        }
         // Started a new session
         if !wasRunning && running && sessionStartedAt == nil {
             sessionStartedAt = Date()
             sessionStartBPM = currentBPM
+            sessionMinBPM = currentBPM
+            sessionMaxBPM = currentBPM
             sessionSongTitleSnapshot = playingSongTitle ?? loadedSongTitle
             sessionSetlistNameSnapshot = playingSetlistName
             return
@@ -196,12 +210,16 @@ final class MetronomeViewModel {
                 endedAt: Date(),
                 bpmAtStart: sessionStartBPM ?? currentBPM,
                 bpmAtStop: currentBPM,
+                bpmMin: sessionMinBPM,
+                bpmMax: sessionMaxBPM,
                 songTitle: sessionSongTitleSnapshot,
                 setlistName: sessionSetlistNameSnapshot
             )
             practiceSessionStore?.record(session)
             sessionStartedAt = nil
             sessionStartBPM = nil
+            sessionMinBPM = nil
+            sessionMaxBPM = nil
             sessionSongTitleSnapshot = nil
             sessionSetlistNameSnapshot = nil
         }

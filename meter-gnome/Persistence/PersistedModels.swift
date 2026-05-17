@@ -264,6 +264,11 @@ final class PersistedPracticeSession {
     var endedAt: Date
     var bpmAtStartValue: Double
     var bpmAtStopValue: Double
+    /// Min/max BPM seen during the session (spec §11 "BPM range"). Added
+    /// in v0.8.6. Legacy rows have these defaulted from start/stop via
+    /// SwiftData column defaults so reading them is safe.
+    var bpmMinValue: Double = 0
+    var bpmMaxValue: Double = 0
     var songID: UUID?
     var songTitle: String?
     var setlistID: UUID?
@@ -275,6 +280,8 @@ final class PersistedPracticeSession {
         endedAt: Date,
         bpmAtStartValue: Double,
         bpmAtStopValue: Double,
+        bpmMinValue: Double = 0,
+        bpmMaxValue: Double = 0,
         songID: UUID? = nil,
         songTitle: String? = nil,
         setlistID: UUID? = nil,
@@ -285,6 +292,8 @@ final class PersistedPracticeSession {
         self.endedAt = endedAt
         self.bpmAtStartValue = bpmAtStartValue
         self.bpmAtStopValue = bpmAtStopValue
+        self.bpmMinValue = bpmMinValue
+        self.bpmMaxValue = bpmMaxValue
         self.songID = songID
         self.songTitle = songTitle
         self.setlistID = setlistID
@@ -298,6 +307,8 @@ final class PersistedPracticeSession {
             endedAt: session.endedAt,
             bpmAtStartValue: session.bpmAtStart.value,
             bpmAtStopValue: session.bpmAtStop.value,
+            bpmMinValue: session.bpmMin.value,
+            bpmMaxValue: session.bpmMax.value,
             songID: session.songID,
             songTitle: session.songTitle,
             setlistID: session.setlistID,
@@ -306,12 +317,19 @@ final class PersistedPracticeSession {
     }
 
     func toPracticeSession() -> PracticeSession {
-        PracticeSession(
+        // Legacy rows (pre-v0.8.6) have bpmMin/bpmMax stored as 0; the
+        // PracticeSession init's nil-fallback derives them from start/stop
+        // when we pass nil for the optionals, which is what we want.
+        let storedMin = bpmMinValue > 0 ? BPM(bpmMinValue) : nil
+        let storedMax = bpmMaxValue > 0 ? BPM(bpmMaxValue) : nil
+        return PracticeSession(
             id: id,
             startedAt: startedAt,
             endedAt: endedAt,
             bpmAtStart: BPM(bpmAtStartValue),
             bpmAtStop: BPM(bpmAtStopValue),
+            bpmMin: storedMin,
+            bpmMax: storedMax,
             songID: songID,
             songTitle: songTitle,
             setlistID: setlistID,

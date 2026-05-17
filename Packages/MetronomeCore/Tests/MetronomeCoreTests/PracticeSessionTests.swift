@@ -111,7 +111,35 @@ import Foundation
 
 @Test func csvHeaderAlwaysPresent() {
     let csv = ([] as [PracticeSession]).csv
-    #expect(csv.starts(with: "id,started_at,ended_at,duration_seconds,bpm_at_start,bpm_at_stop,song_title,setlist_name\n"))
+    #expect(csv.starts(with: "id,started_at,ended_at,duration_seconds,bpm_at_start,bpm_at_stop,bpm_min,bpm_max,song_title,setlist_name\n"))
+}
+
+@Test func legacyConstructionDerivesMinMaxFromStartStop() {
+    // Callers that pass only start/stop (e.g. a Codable decoder that
+    // didn't see bpm_min/bpm_max keys) should get derived min/max.
+    let now = Date()
+    let session = PracticeSession(
+        startedAt: now,
+        endedAt: now.addingTimeInterval(60),
+        bpmAtStart: BPM(80),
+        bpmAtStop: BPM(120)
+    )
+    #expect(session.bpmMin == BPM(80))
+    #expect(session.bpmMax == BPM(120))
+}
+
+@Test func explicitMinMaxAreRespected() {
+    let now = Date()
+    let session = PracticeSession(
+        startedAt: now,
+        endedAt: now.addingTimeInterval(60),
+        bpmAtStart: BPM(100),
+        bpmAtStop: BPM(100),
+        bpmMin: BPM(80),
+        bpmMax: BPM(140)
+    )
+    #expect(session.bpmMin == BPM(80))
+    #expect(session.bpmMax == BPM(140))
 }
 
 @Test func csvIncludesOneRowPerSession() {

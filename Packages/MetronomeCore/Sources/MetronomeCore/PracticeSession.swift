@@ -18,6 +18,12 @@ public struct PracticeSession: Hashable, Sendable, Identifiable, Codable {
     public let endedAt: Date
     public let bpmAtStart: BPM
     public let bpmAtStop: BPM
+    /// Minimum BPM observed during the session. For legacy rows
+    /// (pre-v0.8.6) this equals `min(bpmAtStart, bpmAtStop)`.
+    public let bpmMin: BPM
+    /// Maximum BPM observed during the session. Like `bpmMin`, legacy
+    /// rows derive from start/stop.
+    public let bpmMax: BPM
     public let songID: UUID?
     public let songTitle: String?
     public let setlistID: UUID?
@@ -29,6 +35,8 @@ public struct PracticeSession: Hashable, Sendable, Identifiable, Codable {
         endedAt: Date,
         bpmAtStart: BPM,
         bpmAtStop: BPM,
+        bpmMin: BPM? = nil,
+        bpmMax: BPM? = nil,
         songID: UUID? = nil,
         songTitle: String? = nil,
         setlistID: UUID? = nil,
@@ -42,6 +50,13 @@ public struct PracticeSession: Hashable, Sendable, Identifiable, Codable {
         self.endedAt = max(startedAt, endedAt)
         self.bpmAtStart = bpmAtStart
         self.bpmAtStop = bpmAtStop
+        // When min/max aren't supplied (legacy rows or unaware callers),
+        // derive them from start/stop. Both BPMs reachable AT LEAST,
+        // so this is a safe lower bound for the actual range.
+        let defaultMin = min(bpmAtStart, bpmAtStop)
+        let defaultMax = max(bpmAtStart, bpmAtStop)
+        self.bpmMin = bpmMin ?? defaultMin
+        self.bpmMax = bpmMax ?? defaultMax
         self.songID = songID
         self.songTitle = songTitle
         self.setlistID = setlistID
@@ -101,7 +116,7 @@ public extension Sequence where Element == PracticeSession {
     var csv: String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        var out = "id,started_at,ended_at,duration_seconds,bpm_at_start,bpm_at_stop,song_title,setlist_name\n"
+        var out = "id,started_at,ended_at,duration_seconds,bpm_at_start,bpm_at_stop,bpm_min,bpm_max,song_title,setlist_name\n"
         for session in self {
             let cells: [String] = [
                 session.id.uuidString,
@@ -110,6 +125,8 @@ public extension Sequence where Element == PracticeSession {
                 String(format: "%.3f", session.duration),
                 String(session.bpmAtStart.displayInt),
                 String(session.bpmAtStop.displayInt),
+                String(session.bpmMin.displayInt),
+                String(session.bpmMax.displayInt),
                 session.songTitle ?? "",
                 session.setlistName ?? ""
             ]
