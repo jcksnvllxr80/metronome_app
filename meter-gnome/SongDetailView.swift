@@ -44,6 +44,14 @@ struct SongDetailView: View {
         .navigationTitle("Song")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // Secondary action — enables the drag handles on the
+            // multi-section and tempo-loop lists. Visible always so
+            // users can tell reorder is available; no-op when neither
+            // list has > 1 item.
+            ToolbarItem(placement: .secondaryAction) {
+                EditButton()
+                    .foregroundStyle(DS.DSColor.accentTempo)
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     onLoad(song)
@@ -547,6 +555,9 @@ struct SongDetailView: View {
         ForEach(Array(l.stages.enumerated()), id: \.offset) { idx, stage in
             loopStageRow(l: l, index: idx, stage: stage)
         }
+        .onMove { source, destination in
+            reorderLoopStages(l: l, from: source, to: destination)
+        }
         Button {
             // Append a new stage cloning the last stage's BPM and 4
             // measures by default.
@@ -625,6 +636,17 @@ struct SongDetailView: View {
         .listRowBackground(DS.DSColor.bgElevated)
     }
 
+    private func reorderLoopStages(l: TempoAutomation.Loop, from source: IndexSet, to destination: Int) {
+        var stages = l.stages
+        stages.move(fromOffsets: source, toOffset: destination)
+        // Empty-stages is structurally impossible after a move (count is
+        // preserved), so the factory should never reject here — guard
+        // defensively anyway.
+        if let next = TempoAutomation.loop(stages: stages) {
+            song.setAutomation(next)
+        }
+    }
+
     // MARK: Row helpers
 
     private func bpmRow(label: String, value: BPM, prefix: String = "") -> some View {
@@ -681,6 +703,9 @@ struct SongDetailView: View {
             if let sections = song.sections {
                 ForEach(Array(sections.enumerated()), id: \.element.id) { idx, section in
                     sectionRow(index: idx, section: section, total: sections.count)
+                }
+                .onMove { source, destination in
+                    reorderSections(from: source, to: destination)
                 }
                 Button {
                     addSection()
@@ -812,6 +837,12 @@ struct SongDetailView: View {
         guard var sections = song.sections, sections.indices.contains(index) else { return }
         sections.remove(at: index)
         song.sections = sections.isEmpty ? nil : sections
+    }
+
+    private func reorderSections(from source: IndexSet, to destination: Int) {
+        guard var sections = song.sections else { return }
+        sections.move(fromOffsets: source, toOffset: destination)
+        song.sections = sections
     }
 
     private var sectionsFooter: String {

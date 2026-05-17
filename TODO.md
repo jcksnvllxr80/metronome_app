@@ -15,9 +15,8 @@ Practice-session log shipped end-to-end: PracticeSession value type, SwiftData s
 - Weekly / monthly goals (currently only daily)
 
 ### Tempo automation — remaining sub-features (spec §6.3)
-All three §6.3 modes shipped: gradual, step, and ramp-loop. SongDetail's picker selects between them; loop mode edits a list of (BPM, measures) stages that cycle forever. Stage indicator renders the active mode. Still backlog:
+All three §6.3 modes shipped: gradual, step, and ramp-loop. SongDetail's picker selects between them; loop mode edits a list of (BPM, measures) stages that cycle forever. Drag-to-reorder via the Edit button in the toolbar. Stage indicator renders the active mode. Still backlog:
 - Stage-quick-sheet variant (current UI is per-song only)
-- Drag-to-reorder loop stages (currently only add at the end + delete by index)
 
 ### Speed trainer — remaining sub-features (spec §6.4)
 Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tempo Automation → Step: start BPM, increment per step, measures per step, optional ceiling that holds BPM constant once reached. Still backlog:
@@ -34,10 +33,9 @@ Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tem
 - UI: secondary BPM/meter pair, visual indicator showing both pulse streams
 
 ### Multi-section songs — remaining (spec §7.3)
-Core feature shipped: SongSection value type + Song.sections field + persistence + SongSectionPlayer for auto-advance + section editor in SongDetailView + Stage indicator showing current section name + position. Still backlog:
+Core feature shipped: SongSection value type + Song.sections field + persistence + SongSectionPlayer for auto-advance + section editor in SongDetailView + Stage indicator showing current section name + position + drag-to-reorder via the Edit button. Still backlog:
 - Repeat markers / DC al fine logic — repeat N times, "go back to section X" jumps
 - Per-section accent pattern editing in the section editor (currently only name/BPM/measures are editable inline; accent pattern + per-section sound preset still require the song's flat pattern)
-- Section reorder via drag (currently append at end + delete by index)
 - Setlist integration — setlists currently treat multi-section songs as flat at the song's top-level BPM; auto-advance through sections inside a setlist is a follow-up
 
 ### Haptic feedback — remaining sub-features (spec §9)
@@ -118,6 +116,14 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 ### Accent pattern library — remaining (spec §3.2)
 Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/8, 7/8 2+2+3, 5/4 3+2). AccentPatternEditView has a "Save as preset" button + a list of existing presets matching the current time signature (swipe to delete) + "Add starter presets" button when the library is empty. Each song still owns its own per-beat pattern; loading a preset copies its beats into the draft. Still backlog:
 - Dedicated patterns-library view (browse / rename / edit standalone without going through a song)
+
+## Open bugs (real-device testing 2026-05)
+
+### Brief audio dropout on tempo change while running
+Changing tempo (or meter / subdivision) while the engine is running causes the audio to cut out for a noticeable moment before resuming. Suspect: `reanchorIfRunning` calls `AudioScheduler.scheduleReset()` which flushes pending buffers; refill on the new schedule may have a gap before the audio engine renders the new clicks. Possibly related to AVAudioPlayerNode needing the player to keep playing through the flush. Needs profiling on device with the new schedule.startTime, refill timing, and any `playerNode.stop()` calls during reset.
+
+### First downbeat dropped on initial play — accent ends up on beat 4
+On the very first press of Play after launch, the audible pattern in 4/4 reads as `normal · normal · normal · ACCENT` (perceived accent on beat 4) instead of `ACCENT · normal · normal · normal`. Subsequent measures sound correct. Suspect: the engine anchors `schedule.startTime = clock.now`, so the first click's hostTime is roughly "now." By the time `AudioScheduler.refillOnce` runs + `scheduleBuffer(at:)` is called, that hostTime is slightly in the past — `AVAudioPlayerNode` drops it. The user's ear then counts the first audible click (engine's index 1) as "1," which shifts the perceived downbeat by one beat — the next true downbeat (engine's index 4) lands where the user counts "4." Fix likely involves a small startup lead-in (~50–100 ms) on `engine.start`'s anchor so the first click lands a tick in the future.
 
 ## Known issues / debt
 
