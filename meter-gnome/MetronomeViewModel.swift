@@ -23,6 +23,19 @@ final class MetronomeViewModel {
     /// Setlist playback coordinator. Optional so previews work without
     /// the full app stack.
     @ObservationIgnored let setlistPlayer: SetlistPlayer?
+    /// Practice-session log store. Optional so previews + tests still
+    /// construct the view model without a SwiftData container.
+    @ObservationIgnored let practiceSessionStore: PracticeSessionStore?
+
+    // Practice-session tracking. Non-nil while a session is in progress;
+    // set when the engine transitions stopped→running, written + cleared
+    // when it transitions running→stopped (NOT on pause — phone-call
+    // interruptions keep the session continuous).
+    @ObservationIgnored private var sessionStartedAt: Date? = nil
+    @ObservationIgnored private var sessionStartBPM: BPM? = nil
+    @ObservationIgnored private var sessionSongTitleSnapshot: String? = nil
+    @ObservationIgnored private var sessionSetlistNameSnapshot: String? = nil
+    @ObservationIgnored private var wasRunning: Bool = false
 
     // Mirrored engine state. Optimistically updated on user action; the
     // authoritative read happens in refresh() right after.
@@ -91,12 +104,14 @@ final class MetronomeViewModel {
         engine: MetronomeEngine = MetronomeEngine(),
         settingsStore: SettingsStore? = nil,
         libraryStore: LibraryStore? = nil,
-        setlistPlayer: SetlistPlayer? = nil
+        setlistPlayer: SetlistPlayer? = nil,
+        practiceSessionStore: PracticeSessionStore? = nil
     ) {
         self.engine = engine
         self.settingsStore = settingsStore
         self.libraryStore = libraryStore
         self.setlistPlayer = setlistPlayer
+        self.practiceSessionStore = practiceSessionStore
         // Seed `settings` synchronously from the store if available so
         // the SettingsView opens with the persisted values, not defaults.
         if let initial = settingsStore?.current {
@@ -122,6 +137,7 @@ final class MetronomeViewModel {
         let ts = await engine.timeSignature
         let sub = await engine.subdivision
         let running = await engine.isRunning
+        let paused = await engine.isPaused
         let sched = await engine.schedule
         let settings = await engine.settings
         let automation = await engine.automation
@@ -132,6 +148,43 @@ final class MetronomeViewModel {
         self.schedule = sched
         self.settings = settings
         self.automation = automation
+
+        trackPracticeSession(running: running, paused: paused, currentBPM: bpm)
+    }
+
+    // MARK: - Practice-session tracking (spec §11)
+
+    /// Detect stopped↔running transitions and record one PracticeSession
+    /// per genuine engine stop. Pause/resume during a phone-call
+    /// interruption is treated as part of the same session — the session
+    /// only ends when `isRunning` goes false AND `isPaused` is also
+    /// false (i.e. the engine was stopped, not paused).
+    private func trackPracticeSession(running: Bool, paused: Bool, currentBPM: BPM) {
+        defer { wasRunning = running }
+        // Started a new session
+        if !wasRunning && running && sessionStartedAt == nil {
+            sessionStartedAt = Date()
+            sessionStartBPM = currentBPM
+            sessionSongTitleSnapshot = playingSongTitle ?? loadedSongTitle
+            sessionSetlistNameSnapshot = playingSetlistName
+            return
+        }
+        // Stopped (NOT paused) → finalize the session
+        if wasRunning && !running && !paused, let startedAt = sessionStartedAt {
+            let session = PracticeSession(
+                startedAt: startedAt,
+                endedAt: Date(),
+                bpmAtStart: sessionStartBPM ?? currentBPM,
+                bpmAtStop: currentBPM,
+                songTitle: sessionSongTitleSnapshot,
+                setlistName: sessionSetlistNameSnapshot
+            )
+            practiceSessionStore?.record(session)
+            sessionStartedAt = nil
+            sessionStartBPM = nil
+            sessionSongTitleSnapshot = nil
+            sessionSetlistNameSnapshot = nil
+        }
     }
 
     // MARK: - User actions

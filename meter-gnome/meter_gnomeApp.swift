@@ -22,7 +22,8 @@ struct meter_gnomeApp: App {
             container = try ModelContainer(
                 for: PersistedEngineSettings.self,
                     PersistedSong.self,
-                    PersistedSetlist.self
+                    PersistedSetlist.self,
+                    PersistedPracticeSession.self
             )
         } catch {
             fatalError("Failed to initialize SwiftData ModelContainer: \(error)")
@@ -34,6 +35,7 @@ struct meter_gnomeApp: App {
         let context = ModelContext(container)
         let settingsStore = SettingsStore(context: context)
         let libraryStore = LibraryStore(context: context)
+        let practiceSessionStore = PracticeSessionStore(context: context)
 
         // Audio
         AudioSessionCoordinator.shared.configure()
@@ -72,7 +74,8 @@ struct meter_gnomeApp: App {
             engine: engine,
             settingsStore: settingsStore,
             libraryStore: libraryStore,
-            setlistPlayer: setlistPlayer
+            setlistPlayer: setlistPlayer,
+            practiceSessionStore: practiceSessionStore
         )
 
         // Lock-screen + Control Center + AirPods integration. The

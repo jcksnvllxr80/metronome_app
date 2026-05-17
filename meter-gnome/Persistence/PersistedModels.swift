@@ -210,6 +210,71 @@ final class PersistedSong {
     }
 }
 
+// MARK: - PracticeSession (spec §11)
+
+@Model
+final class PersistedPracticeSession {
+    @Attribute(.unique) var id: UUID
+    var startedAt: Date
+    var endedAt: Date
+    var bpmAtStartValue: Double
+    var bpmAtStopValue: Double
+    var songID: UUID?
+    var songTitle: String?
+    var setlistID: UUID?
+    var setlistName: String?
+
+    init(
+        id: UUID,
+        startedAt: Date,
+        endedAt: Date,
+        bpmAtStartValue: Double,
+        bpmAtStopValue: Double,
+        songID: UUID? = nil,
+        songTitle: String? = nil,
+        setlistID: UUID? = nil,
+        setlistName: String? = nil
+    ) {
+        self.id = id
+        self.startedAt = startedAt
+        self.endedAt = endedAt
+        self.bpmAtStartValue = bpmAtStartValue
+        self.bpmAtStopValue = bpmAtStopValue
+        self.songID = songID
+        self.songTitle = songTitle
+        self.setlistID = setlistID
+        self.setlistName = setlistName
+    }
+
+    convenience init(from session: PracticeSession) {
+        self.init(
+            id: session.id,
+            startedAt: session.startedAt,
+            endedAt: session.endedAt,
+            bpmAtStartValue: session.bpmAtStart.value,
+            bpmAtStopValue: session.bpmAtStop.value,
+            songID: session.songID,
+            songTitle: session.songTitle,
+            setlistID: session.setlistID,
+            setlistName: session.setlistName
+        )
+    }
+
+    func toPracticeSession() -> PracticeSession {
+        PracticeSession(
+            id: id,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            bpmAtStart: BPM(bpmAtStartValue),
+            bpmAtStop: BPM(bpmAtStopValue),
+            songID: songID,
+            songTitle: songTitle,
+            setlistID: setlistID,
+            setlistName: setlistName
+        )
+    }
+}
+
 // MARK: - Setlist
 
 @Model
