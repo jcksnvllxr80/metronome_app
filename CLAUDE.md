@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-This repo contains the `meter-gnome` iOS app target (SwiftUI, `meter-gnome.xcodeproj`) and the local `MetronomeCore` Swift package at `Packages/MetronomeCore/` (engine math, schedulers, value types). **Phase 1 + most of Phase 2 are shipped:** synthesized click audio via `AudioScheduler`, MIDI Clock send + receive, SwiftData persistence, library/setlist UI, accent pattern editor, background + interruption handling. Remaining work is tracked in `TODO.md`. The original spec lives at `FUNCTIONAL_SPEC.md`; `AUDIO_INTEGRATION_PLAN.md` is the original audio plan (largely executed, kept for reference). CLAUDE.md is the source of truth for non-obvious architectural constraints — read it before changing engine code, audio code, or anything that affects timing.
+This repo contains the `meter-gnome` iOS app target (SwiftUI, `meter-gnome.xcodeproj`) and the local `MetronomeCore` Swift package at `Packages/MetronomeCore/` (engine math, schedulers, value types). **Phases 1 + 2 shipped; most of Phase 3 shipped.** Latest tag: **v0.16.2**. What's live: synthesized click audio via `AudioScheduler`, MIDI Clock send + receive, SwiftData persistence, library/setlist UI with auto-advance across all three modes, multi-section songs (D.C. al Fine + per-section settings + setlist integration), accent pattern editor + preset library, tempo automation (gradual / step / loop) with ceiling stop-or-reverse, speed trainer (random mute + step), practice stats, haptics, per-subdivision-level click config (§2.3), Large Display mode (§10.3), per-song sound preset Stage indicator, background + interruption + route-change handling, Now Playing + Remote Command Center. Remaining work is tracked in `TODO.md`. The original spec lives at `FUNCTIONAL_SPEC.md`; `AUDIO_INTEGRATION_PLAN.md` is the original audio plan (largely executed, kept for reference). CLAUDE.md is the source of truth for non-obvious architectural constraints — read it before changing engine code, audio code, or anything that affects timing.
 
 ## Build & test
 
 ```sh
-# Run engine tests (fast, no audio, no UI — ~10ms, 194 tests)
+# Run engine tests (fast, no audio, no UI — ~20ms, 316 tests)
 cd Packages/MetronomeCore && swift test
 
 # Run a single test
@@ -45,10 +45,11 @@ The spec is unusually prescriptive about the audio path because casual choices h
 ## Architecture (spec §17)
 
 - **MVVM with the iOS 17 Observation framework** (`@Observable`), not legacy `ObservableObject`.
-- `MetronomeEngine` is an `actor` (NOT `@MainActor`); it owns mutable state + the attached `AudioScheduler` / `MIDIScheduler` / `MIDIReceiver`. View models read from it on the main actor via `await`.
-- The scheduling math lives in `ClickSchedule` — pure, no AVFoundation, no time source of its own — so it's fully testable against `FakeClock` (`EngineClock` protocol). This is what enables the 194 fast unit tests.
-- `AudioScheduler` is a **separate** `actor` that owns the `AVAudioEngine` + a single `AVAudioPlayerNode` and runs the refill loop. The engine pushes "schedule changed" events via `scheduleReset()`; the scheduler flushes pending buffers and refills from the new schedule. Keeping it separate from the engine means `MetronomeCore` stays buildable in environments without AVFoundation (and audio code can be swapped/mocked).
-- `MIDIScheduler` (send) and `MIDIReceiver` (slave) are separate actors with the same attach-and-push pattern. Both are optional; engine works silently without them.
+- `MetronomeEngine` is an `actor` (NOT `@MainActor`); it owns mutable state + the attached `AudioScheduler` / `MIDIScheduler` / `MIDIReceiver` / `HapticScheduler`. View models read from it on the main actor via `await`.
+- The scheduling math lives in `ClickSchedule` — pure, no AVFoundation, no time source of its own — so it's fully testable against `FakeClock` (`EngineClock` protocol). This is what enables the 316 fast unit tests.
+- `AudioScheduler` is a **separate** `actor` that owns the `AVAudioEngine` + a single `AVAudioPlayerNode` and runs the refill loop. The engine pushes "schedule changed" events via `scheduleReset()`; the scheduler flushes pending buffers and refills from the new schedule. Keeping it separate from the engine means `MetronomeCore` stays buildable in environments without AVFoundation (and audio code can be swapped/mocked). `schedulingEndTime` (set via `scheduleResetWithCap`) caps how far ahead the scheduler queues clicks — used by `SongSectionPlayer` to prevent past-boundary clicks from queuing into the next section.
+- `MIDIScheduler` (send) and `MIDIReceiver` (slave) are separate actors with the same attach-and-push pattern. Both are optional; engine works silently without them. `HapticScheduler` follows the same shape and caps queueing at `schedulingHorizonSeconds = 0.5s` so mode changes propagate within half a second (haptic engine has no `.interrupts` equivalent).
+- `SongSectionPlayer` and `SetlistPlayer` are actors that coordinate section-by-section and song-by-song advance. `SongSectionPlayer.play(_:, onSectionsExhausted:)` accepts an optional completion callback so `SetlistPlayer` can chain into the next song without the section player tearing down the engine. Section transitions go through `MetronomeEngine.applyForSectionTransition(_:sectionMeasureCount:)` which atomically detaches the audio scheduler during `apply()`, then resets + caps in one call to eliminate Task races.
 - **Persistence**: SwiftData `@Model` classes in the app target (`meter-gnome/Persistence/PersistedModels.swift`), with `SettingsStore` and `LibraryStore` as the read/write surfaces. The spec's "suggested" three-package split (Core / UI / Persistence) was **not** adopted — one package + app target was sufficient.
 - **Testing strategy**: unit-test against `FakeClock` in `Tests/MetronomeCoreTests/`. No audio output is exercised in tests; drift verification at the math level only. Real-device drift test is still a manual procedure (see TODO.md).
 
@@ -59,7 +60,7 @@ The spec is unusually prescriptive about the audio path because casual choices h
 - **Compound-meter accent groupings** (e.g., 7/8 as 2+2+3 vs 3+2+2 vs 2+3+2) are user-editable per time signature — needs first-class modeling, not a flag.
 - **Accent level is a 5-value enum**: `mute / soft / normal / loud / accent`. Per beat you also store optional sound override and ±1-octave pitch override.
 - **Accent pattern presets are scoped to a specific time signature** — don't make them globally interchangeable.
-- **Subdivisions** go up through septuplets plus custom 8/9. **Each subdivision level has independent volume AND optional independent sound.**
+- **Subdivisions** go up through septuplets plus custom 8/9. **Each subdivision level has independent volume AND optional independent sound** — shipped in v0.16.0 as `EngineSettings.subdivisionConfigs: [Subdivision: SubdivisionConfig]`. Missing keys fall through to the legacy `.soft` + parent-beat-sound default; count-in subdivisions always use the legacy default regardless.
 - **Polyrhythm mode** runs two independent meters concurrently (e.g., 3 against 4), each with its own sound and volume — not a single meter with secondary accents.
 - **User-imported sounds**: WAV/AIFF/CAF, **< 2 s, < 1 MB**, loaded via Files app. Enforce these limits at import.
 - **Voice count assets**: pre-recorded samples for English, Spanish, French, German, Japanese × male/female variants. Plan asset loading/bundle size accordingly; design for extensibility to more languages.
@@ -90,12 +91,12 @@ The spec is unusually prescriptive about the audio path because casual choices h
 
 ## Implementation phasing (spec §21)
 
-Status as of 2026-05. Don't re-do shipped work; check TODO.md before starting a Phase 2/3 item.
+Status as of 2026-05 (through v0.16.2). Don't re-do shipped work; check TODO.md before starting a Phase 2/3 item.
 
-- **Phase 1 (MVP) — ✓ shipped:** §1 engine, §2.1–2.3 meter/subdivision, §3 accents, §4.1 synthesized sounds (real samples still pending), §6.1 tap tempo, §6.2 Italian tempo presets (tap BPM digit for picker; primary marking shown under the BPM hero), §8 visual pulse, §10.1–10.3 settings, §16 background/interruption/route-change + Now Playing + Remote Command Center (artwork on the lock-screen card still pending).
-- **Phase 2 (practice tools) — shipped:** §5 voice count *scaffold + .beats mode* ✓, full language/gender sample matrix ✗; §7.1–7.2 songs/setlists ✓ (incl. accent pattern editor, setlist auto-advance); §6.3 tempo automation — gradual ramp + step BPM + ramp loops ✓; §6.4 speed trainer — random mute + step BPM ✓ (stop/reverse-on-ceiling + "successful loops" trigger ✗); §11 practice stats ✓ (session log, today/week/month totals, per-song breakdown, CSV export); §9 haptics ✓ (all 5 modes + per-accent intensity sliders; sharpness curve still hardcoded).
-- **Phase 3 (pro) — partial:** §12.2 MIDI Clock send + receive ✓; §7.3 multi-section songs ✓ (auto-advance + section editor; repeat markers / DC al fine still pending); §2.4 polyrhythm ✗; §12.1 BLE pedals, §12.3 Ableton Link, §13 Apple Watch, §14 iCloud — **user has explicitly dropped these** (TODO.md).
-- **Phase 4 (polish):** §15 accessibility audit, latency tuning, edge cases — partially in place (Reduce Motion respected; full audit pending).
+- **Phase 1 (MVP) — ✓ shipped:** §1 engine, §2.1–2.3 meter/subdivision (incl. per-level volume + sound config, v0.16.0), §3 accents, §4.1 synthesized sounds (real samples still pending), §6.1 tap tempo, §6.2 Italian tempo presets (tap BPM digit for picker; primary marking shown under the BPM hero), §8 visual pulse, §10.1–10.3 settings (incl. Large Display mode, v0.16.2), §16 background/interruption/route-change + Now Playing + Remote Command Center (real-device verification of AirPods double-tap + Control Center transport pending).
+- **Phase 2 (practice tools) — shipped:** §5 voice count *scaffold + .beats mode* ✓, full language/gender sample matrix ✗; §7.1–7.2 songs/setlists ✓ (incl. accent pattern editor, setlist auto-advance across all 3 modes); §6.3 tempo automation — gradual ramp + step BPM + ramp loops ✓; §6.4 speed trainer — random mute + step BPM + ceiling auto-stop (v0.15.1) + reverse-on-ceiling triangle ramp (v0.15.2) ✓ ("successful loops" trigger ✗ — needs practice-stats integration); §11 practice stats ✓ (session log, today/week/month totals, per-song breakdown, CSV export; richer charts + weekly/monthly goals pending); §9 haptics ✓ (all 5 modes + per-accent intensity sliders; sharpness curve still hardcoded).
+- **Phase 3 (pro) — partial:** §12.2 MIDI Clock send + receive ✓ (Song Position Pointer + source picker pending); §7.3 multi-section songs ✓ (per-section state, D.C. al Fine, repeats, drag-to-reorder, full setlist integration across all 3 advance modes — D.S./coda jumps + per-section time-signature picker + count-in routing still pending); §2.4 polyrhythm ✗; §12.1 BLE pedals, §12.3 Ableton Link, §13 Apple Watch, §14 iCloud — **user has explicitly dropped these** (TODO.md).
+- **Phase 4 (polish):** §15 accessibility audit, latency tuning, edge cases — partially in place (Reduce Motion respected; full audit pending). Real percussion samples (§4.1), real voice count samples (§5), user-imported sounds (§4.2) all backlog.
 
 ## Frameworks in play
 

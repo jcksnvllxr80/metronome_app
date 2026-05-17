@@ -8,25 +8,28 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 
 ## Status
 
-**Phases 1 + 2 shipped, most of Phase 3 shipped.** Audio, MIDI, persistence, library + setlists, accent-pattern editor with preset library, tempo automation (gradual + step + loop), speed trainer (random mute + step), practice stats with charts + daily goal + CSV export, haptics with per-accent intensity, lock-screen / AirPods control, and multi-section songs all work end-to-end. Two real-device-verified audio bugs (first-downbeat drop on cold launch, dropout on mid-playback tempo change) and two haptic bugs (continuous-buzz, mode-change-requires-restart) all fixed.
+**Phases 1 + 2 shipped, most of Phase 3 shipped.** Audio, MIDI send + receive, persistence, library + setlists, accent-pattern editor with preset library, tempo automation (gradual + step + loop), speed trainer (random mute + step with stop/reverse-on-ceiling), practice stats with charts + daily goal + CSV export, haptics with per-accent intensity, lock-screen / AirPods control, multi-section songs (with D.C. al Fine, repeats, per-section settings, setlist integration across all advance modes), per-subdivision-level click config, and Large Display mode all work end-to-end. Real-device-verified bug fixes through v0.14.8 (cold-launch downbeat, tempo-change dropout, haptic buzz, haptic mode-change, multi-section transition double-click, Stage BPM display lag during section transitions).
+
+Latest tag: **v0.16.2**.
 
 | Layer | State |
 |---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 283 tests passing, drift < 1 ms/min verified in math |
+| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 316 tests passing, drift < 1 ms/min verified in math |
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
-| Stage UI | ✓ BPM hero, beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + ramp + section indicators |
+| Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
 | Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
 | Library: songs, setlists, song detail, accent-pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides, swipe-to-duplicate songs, accent-pattern preset library with starter set |
-| Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate |
+| Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate — all three modes work for both flat and multi-section songs |
+| Multi-section songs (§7.3) | ✓ Per-section name + BPM + meter + subdivision + measures + accent pattern + sound + repeat count + end-action + Fine marker. Auto-advance with D.C. al Fine; drag-to-reorder + duplicate. Sections auto-advance inside a setlist across all advance modes. |
 | MIDI Clock send + receive (slave mode) | ✓ Virtual source "meter-gnome"; follows external Clock + Start/Stop |
 | Background mode + interruption + route-change handling | ✓ Pauses cleanly on phone calls + headphone unplug |
 | Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title + app-icon artwork; play/pause from AirPods + Control Center; setlist prev/next |
-| Tempo automation — gradual + step + loop | ✓ Per-song picker covering all 3 §6.3 modes — gradual accel/rit, step with optional ceiling, multi-stage loop cycling indefinitely |
-| Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling. Engine auto-stops at ceiling, or counts back down to start (triangle-wave reverse mode). |
-| Multi-section songs (§7.3) | ✓ Per-section name + BPM + meter + subdivision + measures + accent pattern + sound + repeat count. Auto-advance + drag-to-reorder + duplicate. Sections auto-advance inside a setlist too (`.immediate` / `.countdown` modes). |
+| Tempo automation — gradual + step + loop | ✓ Per-song picker covering all 3 §6.3 modes — gradual accel/rit, step with optional ceiling (Stop / Reverse behavior), multi-stage loop cycling indefinitely |
+| Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling. Engine auto-stops at ceiling (Stop), or counts back down to start as a triangle-wave ramp (Reverse). |
+| Per-subdivision-level config (§2.3) | ✓ Independent volume + optional sound override per level (eighths, triplets, sixteenths, …, nonuplets). Settings → Subdivisions. |
 | Practice stats / session log | ✓ Library → Stats: today/week/month totals + per-song breakdown + 14-day chart + daily goal progress + CSV export. 30-sec minimum, pause-aware. |
 | Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Per-accent intensity sliders. Real device only. |
-| Real percussion samples, polyrhythm, DC al fine / coda jumps, iPad layout | Backlog — see [TODO.md](TODO.md) |
+| Real percussion samples, polyrhythm, D.S. / coda jumps, iPad two-column layout | Backlog — see [TODO.md](TODO.md) |
 | Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
 
 ## Development
@@ -77,7 +80,7 @@ cd Packages/MetronomeCore
 swift test
 ```
 
-194 tests at the time of writing — all engine math, accent pattern logic, setlist player behavior, Codable round-trips. Runs in ~10ms; no audio or UI is exercised.
+316 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
 
 ### Run package tests inside Xcode
 
@@ -136,8 +139,8 @@ meter-gnome/                          iOS app target (SwiftUI)
   *.swift                             Views, view model, audio session coordinator
 
 Packages/MetronomeCore/               Swift package — engine + data types + tests
-  Sources/MetronomeCore/              Engine, schedule math, value types, audio/MIDI schedulers
-  Tests/MetronomeCoreTests/           194 tests, FakeClock-driven
+  Sources/MetronomeCore/              Engine, schedule math, value types, audio/MIDI/haptic schedulers, multi-section + setlist players
+  Tests/MetronomeCoreTests/           316 tests, FakeClock-driven
 
 meter-gnome.xcodeproj/                Xcode project (objectVersion 77, synchronized groups)
 ```
