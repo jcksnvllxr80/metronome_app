@@ -276,15 +276,33 @@ public actor MetronomeEngine {
         let oldMidiRxSource = settings.midiReceiveSourceName
         let oldEffectivePoly = effectivePolyrhythm
         let oldSubdivConfig = settings.subdivisionConfigs[subdivision]
+        let oldClickSound = settings.clickSound
+        let oldVoiceCount = settings.voiceCountMode
         settings = newSettings
-        // Hot-apply polyrhythm changes (spec §2.4) and subdivision-config
-        // changes (spec §2.3) so the user toggling them mid-run rebuilds
-        // the schedule and the audio path picks them up at the next
-        // refill. Comparison uses `effectivePolyrhythm` (override-aware)
+        // Hot-apply settings changes that affect rendered audio so the
+        // user toggling them mid-run rebuilds the schedule and the
+        // audio path picks them up at the next refill. Without the
+        // reanchor, the audio scheduler's lookahead queue (4–48 clicks
+        // ahead) keeps playing buffers built from the old config until
+        // it drains — typically 2–24 seconds depending on tempo + the
+        // lookahead clamp.
+        //
+        // What needs a reanchor:
+        //   - polyrhythm: changes the secondary stream entirely
+        //   - subdivision-config for the active level: changes the
+        //     sub-beat sound + accent
+        //   - clickSound: changes the engine-default sound
+        //   - voiceCountMode: voice tones substitute for the main click
+        //
+        // Comparison for poly uses `effectivePolyrhythm` (override-aware)
         // so editing the engine default while a song override is
         // active doesn't reanchor needlessly.
         let newSubdivConfig = newSettings.subdivisionConfigs[subdivision]
-        if oldEffectivePoly != effectivePolyrhythm || oldSubdivConfig != newSubdivConfig {
+        let needsReanchor = oldEffectivePoly != effectivePolyrhythm
+            || oldSubdivConfig != newSubdivConfig
+            || oldClickSound != newSettings.clickSound
+            || oldVoiceCount != newSettings.voiceCountMode
+        if needsReanchor {
             reanchorIfRunning()
         }
         // Hot-apply midiClockEnabled so the user toggling it in the
@@ -323,8 +341,16 @@ public actor MetronomeEngine {
     /// `apply(_:Song)`; the audio scheduler reads this each refill and
     /// uses it (when it resolves to a known `ClickSound`) instead of
     /// `settings.clickSound`. Pass `nil` to revert to the global default.
+    /// Re-anchors when the preset actually changes so the player
+    /// node's lookahead queue flushes its now-stale buffers and the
+    /// new sound becomes audible within one refill pass (~50 ms),
+    /// not after the queue drains (which could take seconds).
     public func setSoundPreset(_ preset: String?) {
+        let changed = currentSoundPreset != preset
         currentSoundPreset = preset
+        if changed {
+            reanchorIfRunning()
+        }
     }
 
     /// Set or clear the per-song polyrhythm override (spec §2.4).
