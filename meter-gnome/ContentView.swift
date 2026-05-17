@@ -84,6 +84,9 @@ struct ContentView: View {
         .onChange(of: viewModel.bpm) { _, newBPM in
             announceBPMIfNeeded(newBPM)
         }
+        .onChange(of: viewModel.isRunning) { _, isRunning in
+            announceRunStateIfNeeded(isRunning)
+        }
         .sheet(isPresented: $showTimeSigPicker) {
             TimeSignaturePickerView(current: viewModel.timeSignature) { selected in
                 viewModel.setTimeSignature(selected)
@@ -171,6 +174,18 @@ struct ContentView: View {
         lastAnnouncedBPMDisplay = display
         lastAnnounceAt = now
         UIAccessibility.post(notification: .announcement, argument: "\(display) BPM")
+    }
+
+    /// Announce engine play/stop transitions to VoiceOver. Single
+    /// event per state change — no debounce since these don't fire in
+    /// bursts. Skipped when VoiceOver isn't running so non-AT users
+    /// pay no cost. Spec §15.
+    private func announceRunStateIfNeeded(_ isRunning: Bool) {
+        guard UIAccessibility.isVoiceOverRunning else { return }
+        UIAccessibility.post(
+            notification: .announcement,
+            argument: isRunning ? "Playing" : "Stopped"
+        )
     }
 
     private var tempoAutomationButton: some View {
