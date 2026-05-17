@@ -38,6 +38,13 @@ public actor HapticScheduler {
     /// "play this haptic N seconds from now" offset passed to
     /// CHHapticPatternPlayer.start(atTime:).
     private let clock = SystemClock()
+    /// In-flight haptic players, keyed by the engine-clock time the
+    /// haptic is scheduled to fire. `CHHapticPatternPlayer` instances
+    /// MUST stay alive until they fire — releasing them early causes
+    /// the haptic engine to fire them immediately (the cause of the
+    /// "fast double-bass-pedal buzz" bug reported on 2026-05). The
+    /// refill loop prunes expired entries each pass.
+    private var inFlightPlayers: [(playAt: TimeInterval, player: any CHHapticPatternPlayer)] = []
 
     public init() {}
 
@@ -83,6 +90,10 @@ public actor HapticScheduler {
         refillTask = nil
         try? await engine?.stop()
         lastScheduledTime = -.infinity
+        // Drop all in-flight players. The engine is stopping; anything
+        // still queued either has fired (so the player is stale) or
+        // shouldn't fire (engine is being shut down).
+        inFlightPlayers.removeAll()
     }
 
     /// Drop the in-flight queue and re-anchor at the new engine clock —
@@ -106,6 +117,7 @@ public actor HapticScheduler {
 
     private func refillOnce() async {
         guard let engine = engineRef, self.engine != nil else { return }
+        pruneExpiredPlayers()
         let settings = await engine.settings
         // Mode-off is the common case — short-circuit before paying for
         // the click query.
@@ -156,10 +168,30 @@ public actor HapticScheduler {
             let pattern = try CHHapticPattern(events: [event], parameters: [])
             let player = try hapticEngine.makePlayer(with: pattern)
             try player.start(atTime: offset)
+            // Hold a strong reference until past the fire time. The
+            // haptic engine fires queued players IMMEDIATELY if the
+            // app releases the player reference before it plays — that
+            // was the root cause of the "fast double-bass-pedal buzz"
+            // bug. Refill-loop pruning removes the entry once the
+            // haptic has played.
+            inFlightPlayers.append((playAt: click.time, player: player))
         } catch {
             // Don't spam logs — haptic engine can throw under load. Drop.
             _ = error
         }
+    }
+
+    /// Drop in-flight player references whose scheduled time has
+    /// passed. Called from the refill loop so cleanup happens at the
+    /// same cadence as scheduling — no separate timer.
+    private func pruneExpiredPlayers() {
+        let now = clock.now
+        // Keep a small grace window (200 ms past the scheduled time)
+        // before releasing. Some haptic events have non-zero duration
+        // even though we use `.hapticTransient`; releasing during
+        // playback could re-trigger the immediate-fire bug.
+        let grace: TimeInterval = 0.2
+        inFlightPlayers.removeAll { $0.playAt + grace < now }
     }
 
     /// Sharpness curve — kept hardcoded because it's a tactile quality,
