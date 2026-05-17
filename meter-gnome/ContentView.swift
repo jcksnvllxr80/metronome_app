@@ -559,8 +559,11 @@ struct ContentView: View {
                 .foregroundStyle(digitColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.4)
-                .contentTransition(.numericText(value: viewModel.bpm.value))
-                .animation(.snappy(duration: 0.15), value: viewModel.bpm.value)
+                // Animated digit transition fades + slides between BPM
+                // values; with Reduce Motion the digit snaps. Spec §15
+                // requires the engine to respect this system pref.
+                .contentTransition(reduceMotion ? .identity : .numericText(value: viewModel.bpm.value))
+                .animation(reduceMotion ? nil : .snappy(duration: 0.15), value: viewModel.bpm.value)
                 .accessibilityLabel("Tempo, \(viewModel.bpmDisplay) BPM")
                 .accessibilityHint("Double tap for Italian tempo presets")
                 .accessibilityAddTraits(.isButton)
@@ -607,7 +610,9 @@ struct ContentView: View {
                     )
             }
         }
-        .animation(.snappy(duration: 0.08), value: activeBeat)
+        // Reduce Motion users still see the active beat change color
+        // — they just don't see the 80ms ease between states.
+        .animation(reduceMotion ? nil : .snappy(duration: 0.08), value: activeBeat)
     }
 
     /// Secondary dot row for the polyrhythm stream (spec §2.4). Rendered
@@ -634,7 +639,7 @@ struct ContentView: View {
                     )
             }
         }
-        .animation(.snappy(duration: 0.08), value: activePulse)
+        .animation(reduceMotion ? nil : .snappy(duration: 0.08), value: activePulse)
     }
 
     // MARK: - Controls

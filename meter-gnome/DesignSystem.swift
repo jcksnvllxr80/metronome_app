@@ -42,13 +42,30 @@ enum DS {
     /// Typography. Numeric / mono surfaces use JetBrains Mono (bundled .ttf,
     /// registered via Info.plist UIAppFonts). Body + UI fall back to SF Pro
     /// per DESIGN.md.
+    ///
+    /// Dynamic Type support (spec §15): semantic fonts (`system(.body)`,
+    /// `system(.title2)`, …) scale with the user's Text Size preference.
+    /// Custom JetBrains fonts use `relativeTo:` so they scale in lock-step
+    /// with the semantic anchor — preserves visual hierarchy at any size.
+    /// `bpmHero` / `bpmNormal` deliberately stay fixed: per DESIGN.md the
+    /// Stage hero is a glyph sized to ~55% of viewport, not text content,
+    /// and ContentView's `.minimumScaleFactor(0.4)` lets it adapt to
+    /// available width. Decorative icons (empty-state, badges) also stay
+    /// fixed — they're not text-content for screen readers.
     enum Font {
-        static let bpmHero    = SwiftUI.Font.custom("JetBrainsMono-Bold",    size: 180)
-        static let bpmNormal  = SwiftUI.Font.custom("JetBrainsMono-Bold",    size: 96)
-        static let display    = SwiftUI.Font.custom("JetBrainsMono-Medium",  size: 32)
-        static let headline   = SwiftUI.Font.system(size: 22,  weight: .semibold)
-        static let body       = SwiftUI.Font.system(size: 17,  weight: .regular)
-        static let label      = SwiftUI.Font.system(size: 13,  weight: .medium)
-        static let monoData   = SwiftUI.Font.custom("JetBrainsMono-Regular", size: 13)
+        static let bpmHero    = SwiftUI.Font.custom("JetBrainsMono-Bold", size: 180)
+        static let bpmNormal  = SwiftUI.Font.custom("JetBrainsMono-Bold", size: 96)
+        /// Defaults to 32pt JetBrains Medium, scales relative to `.title2`
+        /// (22pt at default Text Size). Used for time-sig display, the
+        /// AL FINE / AL CODA badge, large-format labels.
+        static let display    = SwiftUI.Font.custom("JetBrainsMono-Medium", size: 32, relativeTo: .title2)
+        /// 22pt semibold at default; scales via `.title2`.
+        static let headline   = SwiftUI.Font.system(.title2).weight(.semibold)
+        /// 17pt at default; scales via `.body`.
+        static let body       = SwiftUI.Font.system(.body)
+        /// 13pt medium at default; scales via `.footnote`.
+        static let label      = SwiftUI.Font.system(.footnote).weight(.medium)
+        /// 13pt JetBrains Regular at default; scales relative to `.footnote`.
+        static let monoData   = SwiftUI.Font.custom("JetBrainsMono-Regular", size: 13, relativeTo: .footnote)
     }
 }

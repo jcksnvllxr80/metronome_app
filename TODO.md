@@ -2,7 +2,7 @@
 
 Backlog of features and improvements, organized by priority. Phase numbers refer to [`FUNCTIONAL_SPEC.md`](FUNCTIONAL_SPEC.md) §21.
 
-Items the user has explicitly decided NOT to pursue for the foreseeable future: iCloud sync (§14), Apple Watch (§13), Ableton Link (§12.3), BLE foot pedals (§12.1).
+Items the user has explicitly decided NOT to pursue for the foreseeable future: iCloud sync (§14), Apple Watch (§13), Ableton Link (§12.3), BLE foot pedals (§12.1), bundled real percussion samples (§4.1 — anything that bakes audio into the app binary), bundled real voice count samples (§5 — language × gender pre-recordings shipped with the app). User-imported sounds (§4.2) is still in — those live in the user's sandbox, not the app binary.
 
 ## Priority — next session candidates
 
@@ -45,17 +45,11 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 - Switch Control compatibility
 - Full audio-only operation (blind-accessible) — primary Stage + Library surfaces audited in v0.28.0; remaining sweeps: SongDetailView pickers, SettingsView toggles, StatsView charts
 
-### Real percussion samples (spec §4.1)
-- Replace synthesized `ClickSound` cases with bundled `.caf` or `.wav` samples
-- Source CC0 / royalty-free wood block, cowbell, clave, hi-hat, etc.
-- Spec lists 12+ sounds; 4 are synthesized today
-- `ClickBufferGenerator` already structured to swap any case to a sample loader
+### ~~Real percussion samples (spec §4.1)~~ — dropped indefinitely
+Would require bundling .caf / .wav samples into the app binary. User decided in v0.30.0 that's not the direction; the 4 synthesized timbres are sufficient and the import flow below covers users who want custom sounds.
 
-### Real voice count samples (spec §5)
-- Pre-recorded "one, two, three..." per language (English, Spanish, French, German, Japanese × M/F)
-- Replace `ClickBufferGenerator.makeVoiceTone` with a sample loader
-- Add language + gender pickers to Settings (currently hardcoded)
-- Implement `.subdivisions` ("one-and-two-and"), `.measures` (announce measure number at downbeat), `.silentCount` (count first N beats of each measure) — placeholders today
+### ~~Real voice count samples (spec §5)~~ — dropped indefinitely
+Same reason — the language × gender × phrase matrix would balloon the app binary. The synthesized voice tones stay as the only voice-count implementation; `.subdivisions` / `.measures` / `.silentCount` modes also dropped since they only made sense with real samples.
 
 ### User-imported sounds (spec §4.2)
 - Files app integration
