@@ -29,7 +29,7 @@ Latest tag: **v0.31.0**.
 | Per-subdivision-level config (§2.3) | ✓ Independent volume + optional sound override per level (eighths, triplets, sixteenths, …, nonuplets). Settings → Subdivisions. |
 | Practice stats / session log | ✓ Library → Stats: today/week/month totals + per-song breakdown + 14-day daily + 8-week weekly charts + BPM-progression chart per top song + daily / weekly / monthly goal progress bars + CSV export. 30-sec minimum, pause-aware. |
 | Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Per-accent intensity sliders. Real device only. |
-| Real percussion samples, polyrhythm, D.S. / coda jumps, iPad two-column layout | Backlog — see [TODO.md](TODO.md) |
+| Remaining items (drift verification on hardware, resizable iPad splitter) | See [docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md) and [docs/TODO.md](docs/TODO.md) |
 | Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
 
 ## Development
@@ -127,7 +127,7 @@ The spec's < 1 ms/min drift budget applies to the full audio output path. Math-l
 3. Align the recordings; measure spacing between detected click onsets.
 4. Variance should stay under 1 ms across the 5-minute window.
 
-Listed as a high-priority TODO in [TODO.md](TODO.md).
+Listed as the remaining priority item in [docs/TODO.md](docs/TODO.md).
 
 ## Layout
 
@@ -147,11 +147,14 @@ meter-gnome.xcodeproj/                Xcode project (objectVersion 77, synchroni
 
 ## Docs
 
-- **[CLAUDE.md](CLAUDE.md)** — load-bearing architectural constraints; read before changing the engine or making AI-assisted edits.
-- **[DESIGN.md](DESIGN.md)** — design system; read before any visual or UI change.
-- **[TODO.md](TODO.md)** — feature backlog and known debt.
-- **[AUDIO_INTEGRATION_PLAN.md](AUDIO_INTEGRATION_PLAN.md)** — original audio integration plan (largely executed; kept for reference).
-- **[FUNCTIONAL_SPEC.md](FUNCTIONAL_SPEC.md)** — original functional spec; deep reference for features not yet captured elsewhere.
+All project documentation lives in [`docs/`](docs/):
+
+- **[docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)** — spec-coverage roll-up: what's shipped, what's verified on real device, what's been deliberately dropped.
+- **[docs/CLAUDE.md](docs/CLAUDE.md)** — load-bearing architectural constraints; read before changing the engine or making AI-assisted edits. (A stub at the repo root re-imports this file so Claude Code's auto-load still works.)
+- **[docs/DESIGN.md](docs/DESIGN.md)** — design system; read before any visual or UI change.
+- **[docs/TODO.md](docs/TODO.md)** — feature backlog and known debt.
+- **[docs/AUDIO_INTEGRATION_PLAN.md](docs/AUDIO_INTEGRATION_PLAN.md)** — original audio integration plan (largely executed; kept for reference).
+- **[docs/FUNCTIONAL_SPEC.md](docs/FUNCTIONAL_SPEC.md)** — original functional spec; deep reference for features not yet captured elsewhere.
 
 ## License
 
