@@ -906,6 +906,13 @@ struct SongDetailView: View {
                 }
             ))
             .tint(DS.DSColor.accentTempo)
+            Toggle("Coda (D.C./D.S. al Coda target)", isOn: Binding(
+                get: { section.isCoda },
+                set: { newValue in
+                    updateSection(at: index) { $0.isCoda = newValue }
+                }
+            ))
+            .tint(DS.DSColor.accentTempo)
             NavigationLink {
                 AccentPatternEditView(
                     timeSignature: section.timeSignature,

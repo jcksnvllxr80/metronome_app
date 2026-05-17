@@ -34,11 +34,24 @@ public actor SongSectionPlayer {
     /// section instead of looping again.
     public private(set) var currentRepetition: Int = 0
     public private(set) var isActive: Bool = false
-    /// True after a section with `endAction == .daCapoAlFine` finishes —
-    /// playback has jumped back to section 0 and is now scanning for the
-    /// next section marked `isFine`, which will be the stopping point.
+    /// True after a section with `endAction == .daCapoAlFine` or
+    /// `.dalSegnoAlFine` finishes — playback has jumped back to the
+    /// section 0 / segno target and is now scanning for the next
+    /// section marked `isFine`, which will be the stopping point.
     /// Spec §7.3.
     public private(set) var isAlFineMode: Bool = false
+    /// True after a section with `.daCapoAlCoda` or `.dalSegnoAlCoda`
+    /// triggers — playback has jumped back to the section 0 / segno
+    /// target. When the section that originally triggered the jump
+    /// (tracked in `codaTriggerIndex`) reaches its natural boundary
+    /// on this second pass, the player jumps FORWARD to the next
+    /// section marked `isCoda` instead of running the trigger's
+    /// normal endAction. Spec §7.3.
+    public private(set) var isAlCodaMode: Bool = false
+    /// Index of the section whose `.daCapoAlCoda` / `.dalSegnoAlCoda`
+    /// endAction launched the current al-coda pass. -1 when not in
+    /// al-coda mode. Spec §7.3.
+    public private(set) var codaTriggerIndex: Int = -1
     private var pollTask: Task<Void, Never>?
     private var isAdvancing: Bool = false
     /// Optional handler invoked when the song's sections naturally
@@ -99,6 +112,8 @@ public actor SongSectionPlayer {
         self.currentIndex = safeIndex
         self.currentRepetition = 0
         self.isAlFineMode = false
+        self.isAlCodaMode = false
+        self.codaTriggerIndex = -1
         self.isActive = true
         self.onSectionsExhausted = onSectionsExhausted
         let firstSection = sections[safeIndex]
@@ -145,6 +160,8 @@ public actor SongSectionPlayer {
         currentIndex = -1
         currentRepetition = 0
         isAlFineMode = false
+        isAlCodaMode = false
+        codaTriggerIndex = -1
         onSectionsExhausted = nil
         pollTask?.cancel()
         pollTask = nil
@@ -219,6 +236,11 @@ public actor SongSectionPlayer {
                 // Spec §7.3: in al-fine mode, the first Fine-marked
                 // section ends the song.
                 await endNaturally()
+            } else if isAlCodaMode && currentIndex == codaTriggerIndex {
+                // Spec §7.3: on the second pass through the trigger
+                // section, jump forward to the coda instead of
+                // running the trigger's normal endAction.
+                await jumpToCoda()
             } else {
                 switch section.endAction {
                 case .stop:
@@ -227,6 +249,10 @@ public actor SongSectionPlayer {
                     await jumpToDaCapoAlFine()
                 case .dalSegnoAlFine:
                     await jumpToDalSegnoAlFine()
+                case .daCapoAlCoda:
+                    await jumpToDaCapoAlCoda()
+                case .dalSegnoAlCoda:
+                    await jumpToDalSegnoAlCoda()
                 case .continue:
                     await advanceToNextSection()
                 }
@@ -301,6 +327,69 @@ public actor SongSectionPlayer {
         currentRepetition = 0
         isAlFineMode = true
         let target = sections[segnoIndex]
+        let materialized = Self.materialize(section: target, parentSong: song)
+        await engine.applyForSectionTransition(materialized, sectionMeasureCount: target.measureCount)
+    }
+
+    /// D.C. al Coda: jump to section 0 and enter al-coda mode. The
+    /// trigger index is remembered so we know which section's
+    /// boundary should fire the coda jump on the second pass.
+    private func jumpToDaCapoAlCoda() async {
+        guard let song,
+              let sections = song.sections,
+              !sections.isEmpty,
+              let engine = engineRef
+        else { return }
+        codaTriggerIndex = currentIndex
+        currentIndex = 0
+        currentRepetition = 0
+        isAlCodaMode = true
+        let firstSection = sections[0]
+        let materialized = Self.materialize(section: firstSection, parentSong: song)
+        await engine.applyForSectionTransition(materialized, sectionMeasureCount: firstSection.measureCount)
+    }
+
+    /// D.S. al Coda: scan backwards for the nearest segno, jump there,
+    /// and enter al-coda mode (remembering the trigger). Fallback to
+    /// section 0 when no segno is configured — same as D.S. al Fine.
+    private func jumpToDalSegnoAlCoda() async {
+        guard let song,
+              let sections = song.sections,
+              !sections.isEmpty,
+              let engine = engineRef
+        else { return }
+        codaTriggerIndex = currentIndex
+        let segnoIndex = (0..<currentIndex).reversed().first { sections[$0].isSegno } ?? 0
+        currentIndex = segnoIndex
+        currentRepetition = 0
+        isAlCodaMode = true
+        let target = sections[segnoIndex]
+        let materialized = Self.materialize(section: target, parentSong: song)
+        await engine.applyForSectionTransition(materialized, sectionMeasureCount: target.measureCount)
+    }
+
+    /// Forward jump during the al-coda pass: scan from
+    /// `codaTriggerIndex + 1` onward for the first `isCoda` section
+    /// and resume there. al-coda mode clears (we're now past the
+    /// jump). If no coda mark exists downstream, end naturally —
+    /// rather than continuing to play the trigger again, which
+    /// would loop forever.
+    private func jumpToCoda() async {
+        guard let song,
+              let sections = song.sections,
+              !sections.isEmpty,
+              let engine = engineRef
+        else { return }
+        let searchStart = max(0, codaTriggerIndex + 1)
+        guard let codaIndex = (searchStart..<sections.count).first(where: { sections[$0].isCoda }) else {
+            await endNaturally()
+            return
+        }
+        currentIndex = codaIndex
+        currentRepetition = 0
+        isAlCodaMode = false
+        codaTriggerIndex = -1
+        let target = sections[codaIndex]
         let materialized = Self.materialize(section: target, parentSong: song)
         await engine.applyForSectionTransition(materialized, sectionMeasureCount: target.measureCount)
     }

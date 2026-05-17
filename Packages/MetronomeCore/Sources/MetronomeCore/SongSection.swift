@@ -39,12 +39,19 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
     /// Spec §7.3.
     public var isFine: Bool
     /// When true, this section is the "Segno" mark — the jump target
-    /// for any later section with `endAction = .dalSegnoAlFine`. Like
-    /// the head section in D.C. notation but explicit so the form's
-    /// real repeat target can sit mid-song. When multiple sections
-    /// carry the flag, D.S. jumps to the nearest preceding one.
-    /// Spec §7.3.
+    /// for any later section with `endAction = .dalSegnoAlFine` or
+    /// `.dalSegnoAlCoda`. Like the head section in D.C. notation but
+    /// explicit so the form's real repeat target can sit mid-song.
+    /// When multiple sections carry the flag, D.S. jumps to the
+    /// nearest preceding one. Spec §7.3.
     public var isSegno: Bool
+    /// When true, this section is the "Coda" target — the forward
+    /// jump destination during the second pass of a `.daCapoAlCoda`
+    /// or `.dalSegnoAlCoda` form. Player scans forward from the
+    /// trigger section for the nearest `isCoda` mark on the al-coda
+    /// pass. Multiple coda marks are allowed but only the first
+    /// after the trigger is targeted. Spec §7.3.
+    public var isCoda: Bool
 
     /// Returns `nil` if `measureCount < 1` or
     /// `accentPattern.timeSignature != timeSignature`.
@@ -60,7 +67,8 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         repeatCount: Int = 1,
         endAction: SectionEndAction = .continue,
         isFine: Bool = false,
-        isSegno: Bool = false
+        isSegno: Bool = false,
+        isCoda: Bool = false
     ) {
         guard measureCount >= 1 else { return nil }
         if let pattern = accentPattern, pattern.timeSignature != timeSignature {
@@ -78,6 +86,7 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         self.endAction = endAction
         self.isFine = isFine
         self.isSegno = isSegno
+        self.isCoda = isCoda
     }
 
     /// Set or clear the accent pattern. Returns `true` if accepted,
@@ -107,7 +116,7 @@ extension SongSection {
     private enum CodingKeys: String, CodingKey {
         case id, name, bpm, timeSignature, subdivision, measureCount,
              accentPattern, soundPreset, repeatCount, endAction, isFine,
-             isSegno
+             isSegno, isCoda
     }
 
     public init(from decoder: Decoder) throws {
@@ -125,6 +134,7 @@ extension SongSection {
         let endAction = (try c.decodeIfPresent(SectionEndAction.self, forKey: .endAction)) ?? .continue
         let isFine = (try c.decodeIfPresent(Bool.self, forKey: .isFine)) ?? false
         let isSegno = (try c.decodeIfPresent(Bool.self, forKey: .isSegno)) ?? false
+        let isCoda = (try c.decodeIfPresent(Bool.self, forKey: .isCoda)) ?? false
         guard let section = SongSection(
             id: id,
             name: name,
@@ -137,7 +147,8 @@ extension SongSection {
             repeatCount: repeatCount,
             endAction: endAction,
             isFine: isFine,
-            isSegno: isSegno
+            isSegno: isSegno,
+            isCoda: isCoda
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .measureCount, in: c,
@@ -163,5 +174,6 @@ extension SongSection {
         try c.encode(endAction, forKey: .endAction)
         try c.encode(isFine, forKey: .isFine)
         try c.encode(isSegno, forKey: .isSegno)
+        try c.encode(isCoda, forKey: .isCoda)
     }
 }
