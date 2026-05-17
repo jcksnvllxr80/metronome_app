@@ -143,6 +143,12 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// engine doesn't read it. Lives next to `bpmPrecisionMode` because
     /// both are display preferences that persist via this same payload.
     public var largeDisplayMode: Bool
+    /// Same-measure polyrhythm config (spec §2.4). `nil` = off. When
+    /// set, the engine produces a parallel stream of pulses across each
+    /// measure with this config's sound + volume. Songs can override
+    /// via `Song.polyrhythm`; absent override falls through to this
+    /// engine-level default.
+    public var polyrhythm: PolyrhythmConfig?
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -170,7 +176,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         weeklyPracticeGoalMinutes: Int = 0,
         monthlyPracticeGoalMinutes: Int = 0,
         subdivisionConfigs: [Subdivision: SubdivisionConfig] = [:],
-        largeDisplayMode: Bool = false
+        largeDisplayMode: Bool = false,
+        polyrhythm: PolyrhythmConfig? = nil
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -204,6 +211,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.monthlyPracticeGoalMinutes = max(0, monthlyPracticeGoalMinutes)
         self.subdivisionConfigs = subdivisionConfigs
         self.largeDisplayMode = largeDisplayMode
+        self.polyrhythm = polyrhythm
     }
 }
 
@@ -220,6 +228,7 @@ extension EngineSettings {
         case keepScreenAwakeDuringPlayback, startOnLaunch
         case dailyPracticeGoalMinutes, weeklyPracticeGoalMinutes
         case monthlyPracticeGoalMinutes, subdivisionConfigs, largeDisplayMode
+        case polyrhythm
     }
 
     /// Custom Codable to provide a default for `hapticIntensity` when
@@ -260,7 +269,8 @@ extension EngineSettings {
             ) ?? [:]).reduce(into: [Subdivision: SubdivisionConfig]()) { acc, kv in
                 if let sub = Subdivision(rawValue: kv.key) { acc[sub] = kv.value }
             },
-            largeDisplayMode: try c.decodeIfPresent(Bool.self, forKey: .largeDisplayMode) ?? false
+            largeDisplayMode: try c.decodeIfPresent(Bool.self, forKey: .largeDisplayMode) ?? false,
+            polyrhythm: try c.decodeIfPresent(PolyrhythmConfig.self, forKey: .polyrhythm)
         )
     }
 
@@ -296,5 +306,6 @@ extension EngineSettings {
         if largeDisplayMode {
             try c.encode(largeDisplayMode, forKey: .largeDisplayMode)
         }
+        try c.encodeIfPresent(polyrhythm, forKey: .polyrhythm)
     }
 }

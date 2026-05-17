@@ -259,7 +259,17 @@ public actor MetronomeEngine {
         let oldMidi = settings.midiClockEnabled
         let oldMidiRx = settings.midiClockReceiveEnabled
         let oldMidiRxSource = settings.midiReceiveSourceName
+        let oldPoly = settings.polyrhythm
+        let oldSubdivConfig = settings.subdivisionConfigs[subdivision]
         settings = newSettings
+        // Hot-apply polyrhythm changes (spec §2.4) and subdivision-config
+        // changes (spec §2.3) so the user toggling them mid-run rebuilds
+        // the schedule and the audio path picks them up at the next
+        // refill. Both feed into rebuildSchedule's ClickSchedule init.
+        let newSubdivConfig = newSettings.subdivisionConfigs[subdivision]
+        if oldPoly != newSettings.polyrhythm || oldSubdivConfig != newSubdivConfig {
+            reanchorIfRunning()
+        }
         // Hot-apply midiClockEnabled so the user toggling it in the
         // Settings sheet takes effect immediately (no need to stop and
         // restart the engine).
@@ -379,6 +389,25 @@ public actor MetronomeEngine {
         return (0..<count).map { schedule.click(at: startIdx + $0) }
     }
 
+    /// Next `count` polyrhythm pulses starting at or after `clock.now`.
+    /// Returns `[]` when polyrhythm is disabled or the engine is stopped.
+    /// AudioScheduler / HapticScheduler call this analogue of
+    /// `upcomingClicks` to drive a parallel refill loop for the secondary
+    /// stream (spec §2.4).
+    public func upcomingPolyClicks(count: Int) -> [PolyClick] {
+        guard isRunning, let schedule else { return [] }
+        return schedule.polyClicks(from: clock.now, count: count)
+    }
+
+    /// Polyrhythm pulses with `time > after`, up to `count`. Mirror of
+    /// `clicks(after:count:)` for the polyrhythm stream.
+    public func polyClicks(after: TimeInterval, count: Int) -> [PolyClick] {
+        guard isRunning, let schedule, schedule.polyrhythm != nil else { return [] }
+        let strict = after + 1e-9
+        let startIdx = schedule.firstPolyClickIndex(atOrAfter: strict)
+        return (0..<count).compactMap { schedule.polyClick(at: startIdx + $0) }
+    }
+
     /// True when step-mode tempo automation has reached its BPM ceiling
     /// at the current clock time. Spec §6.4 says the engine should stop
     /// playback when the user's target tempo is reached; the schedule
@@ -453,7 +482,13 @@ public actor MetronomeEngine {
             // accent + sound config. The engine looks up the active
             // subdivision's entry; missing entries fall through to
             // ClickSchedule's legacy default (`.soft`, no override).
-            subdivisionConfig: settings.subdivisionConfigs[subdivision]
+            subdivisionConfig: settings.subdivisionConfigs[subdivision],
+            // Per spec §2.4: same-measure polyrhythm. The schedule
+            // produces a parallel stream of pulses; nil = off. Songs
+            // override via Song.polyrhythm; engine-level default
+            // applies when no override is set (resolution happens in
+            // apply(_:) so this read sees the effective value).
+            polyrhythm: settings.polyrhythm
         )
     }
 

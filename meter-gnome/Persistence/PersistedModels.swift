@@ -82,6 +82,11 @@ final class PersistedEngineSettings {
     /// Defaults `false` so existing rows boot with the original Stage
     /// hero size.
     var largeDisplayMode: Bool = false
+    /// JSON-encoded `PolyrhythmConfig?` (spec §2.4). Stored as Data so
+    /// SwiftData lightweight migration adds the column with a nil
+    /// default — existing rows boot with polyrhythm off, identical to
+    /// pre-feature behavior.
+    var polyrhythmData: Data? = nil
 
     init(
         masterVolume: Double = 1.0,
@@ -107,7 +112,8 @@ final class PersistedEngineSettings {
         weeklyPracticeGoalMinutes: Int = 0,
         monthlyPracticeGoalMinutes: Int = 0,
         subdivisionConfigsData: Data? = nil,
-        largeDisplayMode: Bool = false
+        largeDisplayMode: Bool = false,
+        polyrhythmData: Data? = nil
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -133,6 +139,17 @@ final class PersistedEngineSettings {
         self.monthlyPracticeGoalMinutes = monthlyPracticeGoalMinutes
         self.subdivisionConfigsData = subdivisionConfigsData
         self.largeDisplayMode = largeDisplayMode
+        self.polyrhythmData = polyrhythmData
+    }
+
+    private static func encodePolyrhythm(_ poly: PolyrhythmConfig?) -> Data? {
+        guard let poly else { return nil }
+        return try? JSONEncoder().encode(poly)
+    }
+
+    private static func decodePolyrhythm(_ data: Data?) -> PolyrhythmConfig? {
+        guard let data else { return nil }
+        return try? JSONDecoder().decode(PolyrhythmConfig.self, from: data)
     }
 
     /// JSON shape for `subdivisionConfigsData`. String-keyed because
@@ -182,7 +199,8 @@ final class PersistedEngineSettings {
             weeklyPracticeGoalMinutes: settings.weeklyPracticeGoalMinutes,
             monthlyPracticeGoalMinutes: settings.monthlyPracticeGoalMinutes,
             subdivisionConfigsData: Self.encode(settings.subdivisionConfigs),
-            largeDisplayMode: settings.largeDisplayMode
+            largeDisplayMode: settings.largeDisplayMode,
+            polyrhythmData: Self.encodePolyrhythm(settings.polyrhythm)
         )
     }
 
@@ -213,7 +231,8 @@ final class PersistedEngineSettings {
             weeklyPracticeGoalMinutes: weeklyPracticeGoalMinutes,
             monthlyPracticeGoalMinutes: monthlyPracticeGoalMinutes,
             subdivisionConfigs: Self.decodeSubdivisionConfigs(subdivisionConfigsData),
-            largeDisplayMode: largeDisplayMode
+            largeDisplayMode: largeDisplayMode,
+            polyrhythm: Self.decodePolyrhythm(polyrhythmData)
         )
     }
 
@@ -242,6 +261,7 @@ final class PersistedEngineSettings {
         monthlyPracticeGoalMinutes = settings.monthlyPracticeGoalMinutes
         subdivisionConfigsData = Self.encode(settings.subdivisionConfigs)
         largeDisplayMode = settings.largeDisplayMode
+        polyrhythmData = Self.encodePolyrhythm(settings.polyrhythm)
     }
 }
 

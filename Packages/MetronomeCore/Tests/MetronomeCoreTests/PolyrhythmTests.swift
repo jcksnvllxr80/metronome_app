@@ -143,6 +143,49 @@ import Foundation
 
 // MARK: - polyClick under odd meter
 
+// MARK: - Engine wiring
+
+@Test func enginePolyrhythmOffByDefault() async {
+    let engine = MetronomeEngine(clock: FakeClock())
+    await engine.start()
+    let pcs = await engine.upcomingPolyClicks(count: 4)
+    #expect(pcs.isEmpty)
+}
+
+@Test func engineProducesPolyClicksWhenSet() async {
+    let clock = FakeClock(start: 0)
+    let engine = MetronomeEngine(clock: clock)
+    var settings = EngineSettings()
+    settings.polyrhythm = PolyrhythmConfig(pulses: 3, sound: .cowbell, volume: 0.7)
+    await engine.setSettings(settings)
+    await engine.start()
+    let pcs = await engine.upcomingPolyClicks(count: 4)
+    #expect(pcs.count == 4)
+    #expect(pcs[0].pulseIndex == 0)
+    #expect(pcs[3].pulseIndex == 0)  // next measure's downbeat
+    #expect(pcs[3].measureIndex == 1)
+    #expect(pcs.allSatisfy { $0.sound == .cowbell })
+    #expect(pcs.allSatisfy { abs($0.volume - 0.7) < 1e-12 })
+}
+
+@Test func engineHotTogglesPolyrhythm() async {
+    let clock = FakeClock(start: 0)
+    let engine = MetronomeEngine(clock: clock)
+    await engine.start()
+    // Initially off.
+    #expect((await engine.upcomingPolyClicks(count: 1)).isEmpty)
+    // Enable mid-run — schedule rebuilds via reanchorIfRunning.
+    var settings = EngineSettings()
+    settings.polyrhythm = PolyrhythmConfig(pulses: 5)
+    await engine.setSettings(settings)
+    let pcs = await engine.upcomingPolyClicks(count: 3)
+    #expect(pcs.count == 3)
+    // Disable mid-run — pulses should disappear from the stream.
+    settings.polyrhythm = nil
+    await engine.setSettings(settings)
+    #expect((await engine.upcomingPolyClicks(count: 1)).isEmpty)
+}
+
 @Test func polyClickAgainstSevenEight() {
     // 5 against 7/8 at 120 BPM. 7/8 measure period = 7 × 0.25s = 1.75s
     // (denominator 8 → beat is an eighth note → period bpm.beatPeriod / 2).
