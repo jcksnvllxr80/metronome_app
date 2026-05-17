@@ -77,6 +77,7 @@ public actor SongSectionPlayer {
         let materialized = Self.materialize(section: sections[safeIndex], parentSong: song)
         await engine.apply(materialized)
         await engine.start()
+        await capSchedulingAtSectionBoundary(engine: engine)
         startPolling()
     }
 
@@ -89,6 +90,12 @@ public actor SongSectionPlayer {
         pollTask?.cancel()
         pollTask = nil
         if let engine = engineRef {
+            // Clear the scheduling cap so any later non-section play
+            // doesn't inherit it. engine.stop tears the engine down,
+            // but the scheduler instance persists.
+            if let scheduler = await engine.scheduler {
+                await scheduler.setSchedulingEndTime(nil)
+            }
             await engine.stop()
         }
         song = nil
@@ -177,22 +184,27 @@ public actor SongSectionPlayer {
         else { return }
         let materialized = Self.materialize(section: sections[currentIndex], parentSong: song)
         await engine.apply(materialized)
-        await flushAudioQueueAtTransition(engine: engine)
+        await capSchedulingAtSectionBoundary(engine: engine)
     }
 
-    /// Aggressively flush the audio scheduler's queue after a section
-    /// transition. `engine.apply` re-anchors the schedule and triggers
-    /// soft resets (via `.interrupts`), but those don't drop
-    /// future-queued buffers — so the OLD section's already-queued
-    /// "next measure downbeat" click would still play at the boundary
-    /// alongside the NEW section's first click. Device QA reported
-    /// hearing both. The hard-flush variant calls `playerNode.stop()`
-    /// + `play()` which actually drops the queue, then re-queues from
-    /// the new schedule. Tempo nudges keep the soft path (they don't
-    /// have past-boundary clicks queued).
-    private func flushAudioQueueAtTransition(engine: MetronomeEngine) async {
-        guard let scheduler = await engine.scheduler else { return }
-        await scheduler.scheduleResetWithFlush()
+    /// Tell the audio scheduler not to queue any clicks at or past the
+    /// current section's natural boundary. Without this, the boundary
+    /// click — which conceptually belongs to the NEXT section, not this
+    /// one — ends up scheduled in the player node's queue and plays
+    /// alongside the next section's first click after the transition.
+    ///
+    /// Called on play, every advance / repeat / D.C. jump. The cap is
+    /// recomputed each time because the schedule's startTime changes
+    /// on every reanchor, so the boundary's absolute time changes too.
+    private func capSchedulingAtSectionBoundary(engine: MetronomeEngine) async {
+        guard let scheduler = await engine.scheduler,
+              let schedule = await engine.schedule,
+              let section = currentSection
+        else { return }
+        let songFirstClickIndex = schedule.countInClicks
+        let boundaryClickIndex = songFirstClickIndex + section.measureCount * schedule.clicksPerMeasure
+        let boundaryTime = schedule.click(at: boundaryClickIndex).time
+        await scheduler.setSchedulingEndTime(boundaryTime)
     }
 
     private func advanceToNextSection() async {
@@ -209,7 +221,7 @@ public actor SongSectionPlayer {
         currentRepetition = 0
         let materialized = Self.materialize(section: sections[nextIdx], parentSong: song)
         await engine.apply(materialized)
-        await flushAudioQueueAtTransition(engine: engine)
+        await capSchedulingAtSectionBoundary(engine: engine)
     }
 
     /// D.C. al Fine jump: go back to section 0, leave in al-fine mode
@@ -227,7 +239,7 @@ public actor SongSectionPlayer {
         isAlFineMode = true
         let materialized = Self.materialize(section: sections[0], parentSong: song)
         await engine.apply(materialized)
-        await flushAudioQueueAtTransition(engine: engine)
+        await capSchedulingAtSectionBoundary(engine: engine)
     }
 
     /// Synthesize a single-section Song from a SongSection + its parent

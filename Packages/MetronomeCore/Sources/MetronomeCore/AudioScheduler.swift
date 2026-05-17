@@ -34,6 +34,15 @@ public actor AudioScheduler {
     public let format: AVAudioFormat
 
     private let clock = SystemClock()
+    /// Hard upper bound on the click times we'll schedule. Set by
+    /// `SongSectionPlayer` to the current section's boundary time so
+    /// the OLD section's "next-measure downbeat" — which lives at the
+    /// boundary's hostTime — never enters the player node's queue.
+    /// Without this cap, that click and the NEW section's first click
+    /// both fire at boundaryTime, producing the "two downbeats"
+    /// device QA reported. `nil` means "no cap" (the standalone
+    /// non-section playback path).
+    private var schedulingEndTime: TimeInterval?
     /// Pre-rendered buffers keyed by (sound × accent × pitch). 4 sounds ×
     /// 5 accents × 3 pitches = 60 buffers (~450 KB total at 48 kHz).
     /// Pre-computing at init means switching ClickSound or per-beat
@@ -183,6 +192,15 @@ public actor AudioScheduler {
         await refillOnce(interruptsFirst: true)
     }
 
+    /// Set the hard upper bound on click times this scheduler will
+    /// queue. Pass `nil` to clear (standalone playback). Section
+    /// playback sets this to each section's boundary so the OLD
+    /// section's "next-measure downbeat" never gets queued and the
+    /// NEW section's first click owns the boundary hostTime alone.
+    public func setSchedulingEndTime(_ time: TimeInterval?) {
+        self.schedulingEndTime = time
+    }
+
     /// Hard reset variant for cases where the existing queue contains
     /// buffers we definitely DON'T want to play — e.g. section
     /// boundaries, where the OLD section's "next-measure downbeat"
@@ -230,8 +248,15 @@ public actor AudioScheduler {
         playerNode.volume = Float(settings.masterVolume)
 
         let upcoming = await engine.clicks(after: lastScheduledTime, count: lookahead)
+        let endTime = schedulingEndTime
         var didScheduleAny = false
         for click in upcoming {
+            // Hard cap — don't queue clicks past the section boundary.
+            // Without this, the boundary click (which belongs to the
+            // NEXT section's measure 0, not this section) ends up
+            // in the queue and plays alongside the new section's
+            // first click after the transition.
+            if let endTime = endTime, click.time >= endTime { break }
             // Mute click: still advance `lastScheduledTime` so we don't
             // re-pull it next pass, but don't schedule anything audible.
             if click.accent == .mute {
