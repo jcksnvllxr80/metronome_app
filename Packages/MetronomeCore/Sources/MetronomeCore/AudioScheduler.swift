@@ -167,20 +167,25 @@ public actor AudioScheduler {
     }
 
     /// Engine calls this when it rebuilds its schedule (BPM change, time
-    /// signature change, etc.). Drops everything queued in the player
-    /// node and re-populates from the new schedule **immediately** — the
-    /// regular refill loop only ticks every 50 ms, which was long enough
-    /// to produce an audible audio dropout when the user nudged tempo
-    /// mid-playback (real-device QA, 2026-05). Doing the refill inline
-    /// here closes that gap to whatever it takes to enqueue 4 buffers.
+    /// signature change, etc.). Does NOT flush the player node's queue
+    /// — `playerNode.reset()` was found to cause an audible dropout that
+    /// even v0.12.3's inline-refill workaround couldn't close. Instead,
+    /// we let the existing queue play through and pull NEW clicks from
+    /// the (now-reanchored) engine schedule that fall AFTER the last
+    /// scheduled time. The user hears at most one lookahead worth (~4
+    /// clicks at the old tempo) before the new tempo takes over —
+    /// gapless transition with no silence.
+    ///
+    /// Trade-off: the audible BPM lags the displayed BPM by one
+    /// lookahead. Acceptable for tempo nudges; far better than dropout.
     public func scheduleReset() async {
         guard playerNode.isPlaying else { return }
-        playerNode.reset()
-        playerNode.play()
-        lastScheduledTime = -.infinity
-        // Queue the new schedule's clicks NOW so the player node has
-        // something to render in the next audio cycle instead of waiting
-        // up to a refill interval for the next loop iteration.
+        // Keep `lastScheduledTime` exactly where it is so the next
+        // refill pulls clicks from the new schedule that come AFTER
+        // the queue's tail. The new schedule has startTime = clock.now,
+        // so its click N is at clock.now + N*new_period; only those
+        // beyond lastScheduledTime get queued — picks up gaplessly
+        // wherever the old queue ends.
         await refillOnce()
     }
 

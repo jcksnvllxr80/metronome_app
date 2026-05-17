@@ -119,8 +119,8 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
-### ~~Brief audio dropout on tempo change while running~~ — fixed in v0.12.3
-`AudioScheduler.scheduleReset()` now does the refill inline instead of waiting up to 50 ms for the next loop tick — `playerNode.reset()` flushed the queue, then nothing was scheduled until the next refill cycle, producing an audible gap. The inline `refillOnce()` after the reset queues new buffers immediately. Verify on device after pushing.
+### ~~Brief audio dropout on tempo change while running~~ — attempted fix in v0.12.4
+v0.12.3 tried "inline `refillOnce()` after `playerNode.reset()`" — still dropped audio on device. v0.12.4 drops the `playerNode.reset()` call entirely: leaves the existing 4-click queue playing through at the OLD tempo and queues new clicks (from the now-reanchored schedule) starting AFTER the last-scheduled time. Transition is gapless; the audible BPM lags the displayed BPM by up to one lookahead's worth (~4 clicks) before the new tempo audibly kicks in. Trade-off vs. dropout: accepted. Verify on device. If user perceives the lag as objectionable, a follow-up could shrink the lookahead in the immediate vicinity of a reset.
 
 ### ~~First downbeat dropped on initial play~~ — fixed in v0.12.2
 Engine now applies `MetronomeEngine.startupLeadInSeconds` (120 ms) to the schedule anchor on `start()` and `resume()`, so the first click lands a comfortable margin in the future of the audio path's first `scheduleBuffer(at:)` call. Mid-playback re-anchors (BPM / meter / subdivision tweaks via `setBPM` etc.) keep the lead-in at 0 — the audio engine is already running and doesn't have the startup race. Verify on device after pushing.
