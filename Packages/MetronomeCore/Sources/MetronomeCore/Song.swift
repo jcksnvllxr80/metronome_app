@@ -27,6 +27,14 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
     /// Optional tempo ramp (spec §6.3). When present, `bpm` is forced to
     /// `automation.startBPM` so callers don't have to keep them in sync.
     public private(set) var automation: TempoAutomation?
+    /// Optional multi-section breakdown (spec §7.3). When present and
+    /// non-empty, the song plays through sections in order via
+    /// `SongSectionPlayer`. When nil or empty, the song is "flat" — a
+    /// single BPM + meter + subdivision as before. `bpm` / `timeSignature`
+    /// / `subdivision` remain meaningful even when sections are present:
+    /// they represent the "first section" defaults shown on Stage before
+    /// playback engages section navigation.
+    public var sections: [SongSection]?
 
     /// Returns `nil` when `accentPattern.timeSignature != timeSignature`.
     /// `automation`'s `startBPM` overrides the `bpm` argument when provided.
@@ -40,7 +48,8 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
         soundPreset: String? = nil,
         notes: String? = nil,
         duration: SongDuration? = nil,
-        automation: TempoAutomation? = nil
+        automation: TempoAutomation? = nil,
+        sections: [SongSection]? = nil
     ) {
         if let pattern = accentPattern, pattern.timeSignature != timeSignature {
             return nil
@@ -55,6 +64,17 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
         self.notes = notes
         self.duration = duration
         self.automation = automation
+        // Treat empty array same as nil — simplifies "has multi-section
+        // playback?" checks downstream. Both mean "single-section song."
+        self.sections = (sections?.isEmpty ?? true) ? nil : sections
+    }
+
+    /// True when this song has at least one section configured (spec
+    /// §7.3). When true, `SongSectionPlayer` drives playback through
+    /// the sections list. When false, the song plays at its flat
+    /// `bpm` / `timeSignature` / `subdivision` as before.
+    public var isMultiSection: Bool {
+        (sections?.count ?? 0) > 0
     }
 
     /// Set or clear the active tempo automation. Forces `bpm` to
@@ -92,7 +112,7 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
 extension Song {
     private enum CodingKeys: String, CodingKey {
         case id, title, bpm, timeSignature, subdivision, accentPattern
-        case soundPreset, notes, duration, automation
+        case soundPreset, notes, duration, automation, sections
     }
 
     public init(from decoder: Decoder) throws {
@@ -107,6 +127,7 @@ extension Song {
         let notes = try container.decodeIfPresent(String.self, forKey: .notes)
         let duration = try container.decodeIfPresent(SongDuration.self, forKey: .duration)
         let automation = try container.decodeIfPresent(TempoAutomation.self, forKey: .automation)
+        let sections = try container.decodeIfPresent([SongSection].self, forKey: .sections)
         guard let song = Song(
             id: id,
             title: title,
@@ -117,7 +138,8 @@ extension Song {
             soundPreset: soundPreset,
             notes: notes,
             duration: duration,
-            automation: automation
+            automation: automation,
+            sections: sections
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .accentPattern,
@@ -140,6 +162,7 @@ extension Song {
         try container.encodeIfPresent(notes, forKey: .notes)
         try container.encodeIfPresent(duration, forKey: .duration)
         try container.encodeIfPresent(automation, forKey: .automation)
+        try container.encodeIfPresent(sections, forKey: .sections)
     }
 }
 

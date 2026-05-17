@@ -195,6 +195,10 @@ final class PersistedSong {
     /// New in v2 of the schema — old rows decode as nil via SwiftData's
     /// implicit-nullable-column migration.
     var automationData: Data?
+    /// JSON-encoded `[SongSection]?` (nil for single-section songs).
+    /// Added in the §7.3 multi-section commit; SwiftData lightweight
+    /// migration handles old rows defaulting to nil.
+    var sectionsData: Data?
 
     init(
         id: UUID,
@@ -207,7 +211,8 @@ final class PersistedSong {
         notes: String? = nil,
         durationData: Data? = nil,
         accentPatternData: Data? = nil,
-        automationData: Data? = nil
+        automationData: Data? = nil,
+        sectionsData: Data? = nil
     ) {
         self.id = id
         self.title = title
@@ -220,12 +225,14 @@ final class PersistedSong {
         self.durationData = durationData
         self.accentPatternData = accentPatternData
         self.automationData = automationData
+        self.sectionsData = sectionsData
     }
 
     convenience init?(from song: Song) {
         let durationData = song.duration.flatMap { try? JSONEncoder().encode($0) }
         let patternData = song.accentPattern.flatMap { try? JSONEncoder().encode($0) }
         let automationData = song.automation.flatMap { try? JSONEncoder().encode($0) }
+        let sectionsData = song.sections.flatMap { try? JSONEncoder().encode($0) }
         self.init(
             id: song.id,
             title: song.title,
@@ -237,7 +244,8 @@ final class PersistedSong {
             notes: song.notes,
             durationData: durationData,
             accentPatternData: patternData,
-            automationData: automationData
+            automationData: automationData,
+            sectionsData: sectionsData
         )
     }
 
@@ -255,6 +263,9 @@ final class PersistedSong {
         let automation = automationData.flatMap {
             try? JSONDecoder().decode(TempoAutomation.self, from: $0)
         }
+        let sections = sectionsData.flatMap {
+            try? JSONDecoder().decode([SongSection].self, from: $0)
+        }
         return Song(
             id: id,
             title: title,
@@ -265,7 +276,8 @@ final class PersistedSong {
             soundPreset: soundPreset,
             notes: notes,
             duration: duration,
-            automation: automation
+            automation: automation,
+            sections: sections
         )
     }
 }
