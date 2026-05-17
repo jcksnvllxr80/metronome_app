@@ -803,6 +803,28 @@ struct SongDetailView: View {
             ) {
                 intRow(label: "Measures", value: section.measureCount)
             }
+            NavigationLink {
+                AccentPatternEditView(
+                    timeSignature: section.timeSignature,
+                    current: section.accentPattern,
+                    viewModel: viewModel
+                ) { newPattern in
+                    updateSection(at: index) { s in
+                        _ = s.setAccentPattern(newPattern)
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("Pattern")
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                    Spacer()
+                    Text(section.accentPattern?.name ?? "Default")
+                        .font(DS.Font.body)
+                        .foregroundStyle(section.accentPattern == nil
+                            ? DS.DSColor.textMuted
+                            : DS.DSColor.accentTempo)
+                }
+            }
         }
         .padding(.vertical, DS.Spacing.xs)
         .listRowBackground(DS.DSColor.bgElevated)

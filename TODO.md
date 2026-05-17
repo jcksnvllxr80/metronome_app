@@ -33,9 +33,10 @@ Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tem
 - UI: secondary BPM/meter pair, visual indicator showing both pulse streams
 
 ### Multi-section songs — remaining (spec §7.3)
-Core feature shipped: SongSection value type + Song.sections field + persistence + SongSectionPlayer for auto-advance + section editor in SongDetailView + Stage indicator showing current section name + position + drag-to-reorder via the Edit button. Still backlog:
+Core feature shipped: SongSection value type + Song.sections field + persistence + SongSectionPlayer for auto-advance + section editor in SongDetailView + Stage indicator showing current section name + position + drag-to-reorder + per-section accent pattern editor (NavigationLink in each section row that opens the standard AccentPatternEditView scoped to the section's time signature). Still backlog:
 - Repeat markers / DC al fine logic — repeat N times, "go back to section X" jumps
-- Per-section accent pattern editing in the section editor (currently only name/BPM/measures are editable inline; accent pattern + per-section sound preset still require the song's flat pattern)
+- Per-section time-signature + subdivision editing (currently sections inherit from the song at create time; no per-section TS picker yet)
+- Per-section sound preset (already in the value type, just no UI surface)
 - Setlist integration — setlists currently treat multi-section songs as flat at the song's top-level BPM; auto-advance through sections inside a setlist is a follow-up
 
 ### Haptic feedback — remaining sub-features (spec §9)
@@ -119,11 +120,11 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
-### ~~Audio dropout on tempo change while running~~ — attempted fix in v0.12.6
-v0.12.3 (reset + inline refill) dropped audio. v0.12.4 (no reset, queue-after-tail) made old tempo persist. v0.12.5 (reset + 60 ms lead-in) still dropped — `playerNode.reset()` apparently needs much more than 60 ms to render the next buffer cleanly. v0.12.6 drops `playerNode.reset()` entirely and instead schedules the first new-schedule buffer with `AVAudioPlayerNodeBufferOptions.interrupts` — the documented way to make a new buffer preempt the in-flight queue. The engine's 60 ms `reanchorLeadInSeconds` stays so visual / audio / haptics share the same anchor. Verify on device.
+### ~~Audio dropout on tempo change while running~~ — fixed in v0.12.6 (device-confirmed)
+`AVAudioPlayerNodeBufferOptions.interrupts` on the first new-schedule buffer is the documented way to preempt an in-flight queue without the recovery cost that `playerNode.reset()` was paying. No flush ceremony — the player node just switches to the new buffer. v0.12.3–v0.12.5 attempts (various combinations of reset + lead-in) all left an audible dropout; v0.12.6's .interrupts approach landed clean.
 
-### ~~First downbeat dropped on initial play~~ — fix expanded in v0.12.5
-v0.12.2 set `startupLeadInSeconds` to 120 ms; that handled warm starts but real-device QA found the very first launch of the app (cold audio session) still dropped the first downbeat intermittently. v0.12.5 bumps the lead-in to 250 ms — covers the larger cold-launch audio activation window. Verify on device. If the perceived Play-tap delay feels too long, can tune back down once we have a way to detect "first activation since launch" vs subsequent.
+### ~~First downbeat dropped on initial play~~ — fixed in v0.12.5 (device-confirmed)
+v0.12.2 set `startupLeadInSeconds` to 120 ms; v0.12.5 bumped to 250 ms to cover the larger cold-launch audio activation window. Both warm and cold-launch first downbeats now land correctly.
 
 ## Known issues / debt
 
