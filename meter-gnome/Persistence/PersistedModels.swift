@@ -270,6 +270,37 @@ final class PersistedSong {
     }
 }
 
+// MARK: - AccentPattern preset library (spec §3.2)
+
+/// A named accent pattern saved to the library, independent of any song.
+/// Allows reuse — "rock 4/4" once, applied to many songs without re-
+/// editing per song.
+@Model
+final class PersistedAccentPatternPreset {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    /// JSON-encoded `AccentPattern`. Same approach as `PersistedSong`'s
+    /// patterns — the value type's Codable handles the scoping invariant.
+    var patternData: Data
+
+    init(id: UUID, name: String, patternData: Data) {
+        self.id = id
+        self.name = name
+        self.patternData = patternData
+    }
+
+    /// Returns nil if either argument fails (`pattern` encoding failure
+    /// shouldn't happen in practice).
+    convenience init?(id: UUID = UUID(), name: String, pattern: AccentPattern) {
+        guard let data = try? JSONEncoder().encode(pattern) else { return nil }
+        self.init(id: id, name: name, patternData: data)
+    }
+
+    func toPattern() -> AccentPattern? {
+        try? JSONDecoder().decode(AccentPattern.self, from: patternData)
+    }
+}
+
 // MARK: - PracticeSession (spec §11)
 
 @Model

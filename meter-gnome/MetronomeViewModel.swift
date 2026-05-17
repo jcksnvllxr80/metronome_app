@@ -27,6 +27,9 @@ final class MetronomeViewModel {
     /// Practice-session log store. Optional so previews + tests still
     /// construct the view model without a SwiftData container.
     @ObservationIgnored let practiceSessionStore: PracticeSessionStore?
+    /// Named accent-pattern preset library (spec §3.2). Optional so
+    /// previews + tests can construct the view model without one.
+    @ObservationIgnored let accentPatternPresetStore: AccentPatternPresetStore?
 
     // Practice-session tracking. Non-nil while a session is in progress;
     // set when the engine transitions stopped→running, written + cleared
@@ -60,6 +63,9 @@ final class MetronomeViewModel {
     /// Cached snapshot of recorded practice sessions (spec §11). Refreshed
     /// when the Stats tab appears.
     var practiceSessions: [PracticeSession] = []
+    /// Cached snapshot of named accent-pattern presets (spec §3.2).
+    /// Refreshed when the accent editor opens.
+    var accentPatternPresets: [AccentPatternPreset] = []
 
     // MARK: - Setlist playback state (mirrored from SetlistPlayer)
 
@@ -114,13 +120,15 @@ final class MetronomeViewModel {
         settingsStore: SettingsStore? = nil,
         libraryStore: LibraryStore? = nil,
         setlistPlayer: SetlistPlayer? = nil,
-        practiceSessionStore: PracticeSessionStore? = nil
+        practiceSessionStore: PracticeSessionStore? = nil,
+        accentPatternPresetStore: AccentPatternPresetStore? = nil
     ) {
         self.engine = engine
         self.settingsStore = settingsStore
         self.libraryStore = libraryStore
         self.setlistPlayer = setlistPlayer
         self.practiceSessionStore = practiceSessionStore
+        self.accentPatternPresetStore = accentPatternPresetStore
         // Seed `settings` synchronously from the store if available so
         // the SettingsView opens with the persisted values, not defaults.
         if let initial = settingsStore?.current {
@@ -322,6 +330,29 @@ final class MetronomeViewModel {
     /// Stats tab onAppear; cheap (no UI work, one FetchDescriptor).
     func refreshPracticeSessions() {
         practiceSessions = practiceSessionStore?.all() ?? []
+    }
+
+    // MARK: - Accent pattern preset library (spec §3.2)
+
+    func refreshAccentPatternPresets() {
+        accentPatternPresets = accentPatternPresetStore?.all() ?? []
+    }
+
+    /// Save a pattern as a new preset under the given name. Trims
+    /// whitespace and rejects blanks. Returns the new preset on success.
+    @discardableResult
+    func saveAccentPatternPreset(name: String, pattern: AccentPattern) -> AccentPatternPreset? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let store = accentPatternPresetStore else { return nil }
+        let preset = AccentPatternPreset(id: UUID(), name: trimmed, pattern: pattern)
+        guard store.save(preset) else { return nil }
+        refreshAccentPatternPresets()
+        return preset
+    }
+
+    func deleteAccentPatternPreset(id: UUID) {
+        accentPatternPresetStore?.delete(id: id)
+        refreshAccentPatternPresets()
     }
 
     /// Discard the entire practice-session history. Used by the Stats

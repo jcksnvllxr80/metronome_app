@@ -23,7 +23,8 @@ struct meter_gnomeApp: App {
                 for: PersistedEngineSettings.self,
                     PersistedSong.self,
                     PersistedSetlist.self,
-                    PersistedPracticeSession.self
+                    PersistedPracticeSession.self,
+                    PersistedAccentPatternPreset.self
             )
         } catch {
             fatalError("Failed to initialize SwiftData ModelContainer: \(error)")
@@ -36,6 +37,7 @@ struct meter_gnomeApp: App {
         let settingsStore = SettingsStore(context: context)
         let libraryStore = LibraryStore(context: context)
         let practiceSessionStore = PracticeSessionStore(context: context)
+        let accentPatternPresetStore = AccentPatternPresetStore(context: context)
 
         // Audio
         AudioSessionCoordinator.shared.configure()
@@ -82,7 +84,8 @@ struct meter_gnomeApp: App {
             settingsStore: settingsStore,
             libraryStore: libraryStore,
             setlistPlayer: setlistPlayer,
-            practiceSessionStore: practiceSessionStore
+            practiceSessionStore: practiceSessionStore,
+            accentPatternPresetStore: accentPatternPresetStore
         )
 
         // Lock-screen + Control Center + AirPods integration. The

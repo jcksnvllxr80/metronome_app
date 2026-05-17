@@ -154,7 +154,8 @@ struct SongDetailView: View {
             NavigationLink {
                 AccentPatternEditView(
                     timeSignature: song.timeSignature,
-                    current: song.accentPattern
+                    current: song.accentPattern,
+                    viewModel: viewModel
                 ) { newPattern in
                     // setAccentPattern enforces TS scoping (returns false
                     // on mismatch). The editor's pattern is built from

@@ -21,6 +21,7 @@ import MetronomeCore
 
 struct AccentPatternEditView: View {
     let timeSignature: TimeSignature
+    let viewModel: MetronomeViewModel?
     let onSave: (AccentPattern?) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -29,13 +30,18 @@ struct AccentPatternEditView: View {
     /// per-beat pitch shift. The editor builds an AccentPattern from this
     /// array at save time.
     @State private var beats: [BeatConfig]
+    @State private var showSavePresetAlert = false
+    @State private var newPresetName: String = ""
+    @State private var presetsForThisMeter: [AccentPatternPreset] = []
 
     init(
         timeSignature: TimeSignature,
         current: AccentPattern?,
+        viewModel: MetronomeViewModel? = nil,
         onSave: @escaping (AccentPattern?) -> Void
     ) {
         self.timeSignature = timeSignature
+        self.viewModel = viewModel
         self.onSave = onSave
         if let current {
             self._name = State(initialValue: current.name)
@@ -55,10 +61,29 @@ struct AccentPatternEditView: View {
             DS.DSColor.bgBase.ignoresSafeArea()
             Form {
                 nameSection
+                presetsSection
                 beatsSection
                 actionsSection
             }
             .scrollContentBackground(.hidden)
+        }
+        .onAppear { refreshPresets() }
+        .alert("Save as Preset", isPresented: $showSavePresetAlert) {
+            TextField("Preset name", text: $newPresetName)
+                .textInputAutocapitalization(.words)
+            Button("Save") {
+                let trimmedNewName = newPresetName.trimmingCharacters(in: .whitespacesAndNewlines)
+                let pattern = currentDraftPattern()
+                if !trimmedNewName.isEmpty, let pattern,
+                   let vm = viewModel {
+                    _ = vm.saveAccentPatternPreset(name: trimmedNewName, pattern: pattern)
+                    refreshPresets()
+                }
+                newPresetName = ""
+            }
+            Button("Cancel", role: .cancel) { newPresetName = "" }
+        } message: {
+            Text("Stores the current pattern under a name. Available in any song with the same time signature.")
         }
         .navigationTitle("Accent Pattern")
         .navigationBarTitleDisplayMode(.inline)
@@ -211,6 +236,87 @@ struct AccentPatternEditView: View {
             }
             .listRowBackground(DS.DSColor.bgElevated)
         }
+    }
+
+    // MARK: - Presets (spec §3.2 library)
+
+    /// Section that lets the user save the current draft as a named
+    /// preset and load any existing preset whose time signature
+    /// matches. Hidden when no view model is wired (preview mode).
+    @ViewBuilder
+    private var presetsSection: some View {
+        if viewModel != nil {
+            Section {
+                Button {
+                    newPresetName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    showSavePresetAlert = true
+                } label: {
+                    HStack {
+                        Image(systemName: "square.and.arrow.down")
+                        Text("Save current as preset")
+                    }
+                    .foregroundStyle(DS.DSColor.accentTempo)
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+
+                if presetsForThisMeter.isEmpty {
+                    Text("No saved presets yet for \(timeSignature.numerator)/\(timeSignature.denominator.rawValue).")
+                        .font(DS.Font.label)
+                        .foregroundStyle(DS.DSColor.textMuted)
+                        .listRowBackground(DS.DSColor.bgElevated)
+                } else {
+                    ForEach(presetsForThisMeter) { preset in
+                        Button {
+                            // Load preset into the draft. User can still
+                            // edit + save normally afterward.
+                            name = preset.name
+                            beats = preset.pattern.beats
+                        } label: {
+                            HStack {
+                                Image(systemName: "tray.and.arrow.up")
+                                Text(preset.name)
+                                    .foregroundStyle(DS.DSColor.textPrimary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .listRowBackground(DS.DSColor.bgElevated)
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                viewModel?.deleteAccentPatternPreset(id: preset.id)
+                                refreshPresets()
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            } header: {
+                Text("Presets")
+                    .foregroundStyle(DS.DSColor.textMuted)
+            } footer: {
+                Text("Patterns are scoped to a time signature. \(timeSignature.numerator)/\(timeSignature.denominator.rawValue) presets only appear here when this song is in \(timeSignature.numerator)/\(timeSignature.denominator.rawValue).")
+                    .foregroundStyle(DS.DSColor.textMuted)
+            }
+        }
+    }
+
+    private func refreshPresets() {
+        guard let vm = viewModel else { return }
+        vm.refreshAccentPatternPresets()
+        presetsForThisMeter = vm.accentPatternPresets.filter { $0.pattern.timeSignature == timeSignature }
+    }
+
+    /// Materialize the current draft as an AccentPattern, if valid. Used
+    /// by both the main Save action and the "Save as preset" flow.
+    private func currentDraftPattern() -> AccentPattern? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return AccentPattern(
+            name: trimmedName.isEmpty ? "Pattern" : trimmedName,
+            timeSignature: timeSignature,
+            beats: beats
+        )
     }
 
     // MARK: - Commit
