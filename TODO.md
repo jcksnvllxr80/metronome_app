@@ -17,12 +17,11 @@ Spec §1.1 mandates < 1 ms/minute drift. Engine math is verified via `FakeClock`
 - SwiftData @Model — `PracticeSessionStore` parallels existing stores
 - Engine instrumentation to write a session on start/stop
 
-### Tempo automation (spec §6.3)
-- `TempoAutomation` value type
-- Gradual change: start BPM, end BPM, over N beats / N measures / N seconds
-- Step change: increase by X BPM every N measures
-- Loop / ramp cycles through multiple targets
-- UI: separate tab? Inline on Stage? In Song detail?
+### Tempo automation — remaining sub-features (spec §6.3)
+Gradual ramp shipped (per-song, accelerando/ritardando over measures or seconds) plus the Stage ramp indicator. Still backlog:
+- Step change: increase by X BPM every N measures (overlaps heavily with Speed trainer; consider folding)
+- Ramp loops: cycle through multiple tempo targets
+- Stage-quick-sheet variant (current UI is per-song only)
 
 ### Speed trainer mode (spec §6.4)
 - Start at slow BPM, increase by X every N measures or N "successful" loops
@@ -65,10 +64,6 @@ Spec §1.1 mandates < 1 ms/minute drift. Engine math is verified via `FakeClock`
   - Chips on Stage to quick-set BPM
   - Section in the BPM nudge area
   - Sheet from the BPM digit
-
-### Currently-loaded song indicator on Stage
-- When a song is loaded via Library tap (not setlist), no visible indicator on Stage shows which song
-- Small affordance near the time sig + sub-row: "Song: <name>" muted text, tappable to clear / re-pick
 
 ### Real percussion samples (spec §4.1)
 - Replace synthesized `ClickSound` cases with bundled `.caf` or `.wav` samples
@@ -132,10 +127,8 @@ Spec §1.1 mandates < 1 ms/minute drift. Engine math is verified via `FakeClock`
 - Allow hardware volume keys to start/stop — spec §10.4
 - Headphone remote button mapping — spec §10.4
 
-### Now Playing + Remote Command Center (spec §16, partially done)
-- `MPNowPlayingInfoCenter` to show tempo + song name on lock screen / Control Center
-- `MPRemoteCommandCenter` for lock screen / AirPods controls (play/pause, next/prev in setlist)
-- Currently the app keeps running in background but no lock-screen presence
+### Now Playing artwork (spec §16)
+`MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` are wired (play/pause/toggle, next/prev in setlists, song title + BPM artist line). Still backlog: `MPMediaItemPropertyArtwork` so the lock-screen card has an icon, real-device verification of AirPods double-tap + Control Center transport.
 
 ### Accent pattern library (spec §3.2)
 - Save accent patterns as named presets, scoped to time signature

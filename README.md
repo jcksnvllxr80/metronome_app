@@ -8,7 +8,7 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 
 ## Status
 
-**Phase 1 + Phase 2 features shipped.** Audio, MIDI, persistence, library, setlist playback, and the accent pattern editor all work end-to-end.
+**Phase 1 shipped; Phase 2 mostly shipped.** Audio, MIDI, persistence, library, setlist playback, accent pattern editor, tempo automation (gradual ramp), and lock-screen / AirPods control all work end-to-end.
 
 | Layer | State |
 |---|---|
@@ -20,7 +20,9 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 | Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate |
 | MIDI Clock send + receive (slave mode) | ✓ Virtual source "meter-gnome"; follows external Clock + Start/Stop |
 | Background mode + interruption + route-change handling | ✓ Pauses cleanly on phone calls + headphone unplug |
-| Real percussion samples, haptics, practice stats, polyrhythm, multi-section songs, tempo automation | Backlog — see [TODO.md](TODO.md) |
+| Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title; play/pause from AirPods + Control Center; setlist prev/next |
+| Tempo automation — gradual ramp (accel / rit) | ✓ Per-song over N measures or N seconds, Stage indicator while active |
+| Real percussion samples, haptics, practice stats, polyrhythm, multi-section songs, speed trainer, step + ramp-loop automation | Backlog — see [TODO.md](TODO.md) |
 | Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
 
 ## Development
