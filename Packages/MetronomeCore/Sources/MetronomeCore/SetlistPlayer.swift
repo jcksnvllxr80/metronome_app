@@ -238,9 +238,17 @@ public actor SetlistPlayer {
         switch mode {
         case .pause:
             // Stop the engine, load next song settings, wait for user.
+            // Multi-section: apply the FIRST SECTION's materialized song
+            // so the Stage hero shows section 0's tempo while waiting,
+            // not the multi-section song's top-level fallback BPM.
             await engine?.stop()
             if let song = currentSong {
-                await engine?.apply(song)
+                if song.isMultiSection,
+                   let first = song.sections?.first {
+                    await engine?.apply(Self.materializeFirstSection(first, parent: song))
+                } else {
+                    await engine?.apply(song)
+                }
             }
             isWaitingForResume = true
             songStartTime = 0
@@ -249,5 +257,47 @@ public actor SetlistPlayer {
         case .immediate:
             await startCurrentSong(countInMeasures: 0)
         }
+    }
+
+    /// Resume after a `.pause`-mode advance. Routes through the section
+    /// player when the current song is multi-section so section auto-
+    /// advance kicks in; otherwise just starts the engine directly.
+    /// View-model `togglePlay` calls this whenever `isWaitingForResume`
+    /// is true at the moment of press-Play.
+    public func resumeAfterPause() async {
+        guard isActive, isWaitingForResume, let song = currentSong else {
+            return
+        }
+        isWaitingForResume = false
+        songStartTime = clock.now
+        if song.isMultiSection, let sectionPlayer {
+            await sectionPlayer.play(song) { [weak self] in
+                guard let self else { return }
+                await self.handleSectionsExhausted()
+            }
+        } else {
+            await engine?.start()
+        }
+        lastEngineRunning = await engine?.isRunning ?? false
+    }
+
+    /// Mirrors `SongSectionPlayer.materialize` — copies a section's
+    /// per-section settings onto a single-section Song so `engine.apply`
+    /// can re-use its setBPM / setTimeSig / etc. chain. Static to avoid
+    /// tangling lifetimes; no parent-song mutation.
+    private static func materializeFirstSection(_ section: SongSection, parent: Song) -> Song {
+        return Song(
+            id: parent.id,
+            title: parent.title,
+            bpm: section.bpm,
+            timeSignature: section.timeSignature,
+            subdivision: section.subdivision,
+            accentPattern: section.accentPattern,
+            soundPreset: section.soundPreset ?? parent.soundPreset,
+            notes: parent.notes,
+            duration: nil,
+            automation: nil,
+            sections: nil
+        ) ?? parent
     }
 }

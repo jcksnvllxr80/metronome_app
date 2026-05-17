@@ -322,6 +322,101 @@ private func makeMultiSectionSong(_ title: String, sections: [(Double, Int)]) ->
     #expect(engineBPM == BPM(150), "Engine BPM follows the new flat song")
 }
 
+@Test func pauseModeOnMultiSectionAppliesFirstSectionBPM() async {
+    // When .pause mode advances onto a multi-section song, the engine
+    // should pause WITH section 0's settings loaded (not the multi-
+    // section song's fallback top-level BPM) so the Stage indicator
+    // shows the right tempo while the user is reading the next song.
+    let clock = FakeClock()
+    let engine = MetronomeEngine(clock: clock)
+    let sectionPlayer = SongSectionPlayer(engine: engine, clock: clock)
+    let setlistPlayer = SetlistPlayer(engine: engine, sectionPlayer: sectionPlayer, clock: clock)
+
+    let flat = makeSong("FlatA", bpm: 60, duration: .seconds(5))
+    // Multi-section with section 0 at 200 BPM but song-level fallback 100.
+    let multi = Song(
+        title: "MultiB",
+        bpm: BPM(100),
+        sections: [
+            SongSection(bpm: BPM(200), measureCount: 2)!,
+            SongSection(bpm: BPM(80),  measureCount: 2)!,
+        ]
+    )!
+    let setlist = Setlist(name: "Set", songs: [flat, multi], advanceMode: .pause)
+
+    await setlistPlayer.play(setlist)
+    clock.advance(by: 6)
+    await setlistPlayer.tick() // .pause: flat ends, multi loaded, waiting
+
+    let bpm = await engine.bpm
+    let waiting = await setlistPlayer.isWaitingForResume
+    let running = await engine.isRunning
+    #expect(bpm == BPM(200), "engine BPM follows multi-section's section 0, not its top-level 100")
+    #expect(waiting == true)
+    #expect(running == false)
+}
+
+@Test func resumeAfterPauseRoutesMultiSectionThroughSectionPlayer() async {
+    // After a .pause-mode advance lands on a multi-section song,
+    // calling resumeAfterPause must engage the SongSectionPlayer so
+    // sections auto-advance — not just start the engine flat.
+    let clock = FakeClock()
+    let engine = MetronomeEngine(clock: clock)
+    let sectionPlayer = SongSectionPlayer(engine: engine, clock: clock)
+    let setlistPlayer = SetlistPlayer(engine: engine, sectionPlayer: sectionPlayer, clock: clock)
+
+    let flat = makeSong("FlatA", bpm: 60, duration: .seconds(5))
+    let multi = Song(
+        title: "MultiB", bpm: BPM(100),
+        sections: [
+            SongSection(bpm: BPM(200), measureCount: 2)!,
+            SongSection(bpm: BPM(80),  measureCount: 2)!,
+        ]
+    )!
+    let setlist = Setlist(name: "Set", songs: [flat, multi], advanceMode: .pause)
+
+    await setlistPlayer.play(setlist)
+    clock.advance(by: 6)
+    await setlistPlayer.tick() // .pause: now waiting on multi
+
+    await setlistPlayer.resumeAfterPause()
+
+    let sectionActive = await sectionPlayer.isActive
+    let engineBPM = await engine.bpm
+    let engineRunning = await engine.isRunning
+    let waiting = await setlistPlayer.isWaitingForResume
+    #expect(sectionActive, "section player engaged on resume")
+    #expect(engineBPM == BPM(200), "section 0's tempo is playing")
+    #expect(engineRunning)
+    #expect(waiting == false, "isWaitingForResume cleared")
+}
+
+@Test func resumeAfterPauseOnFlatSongStartsEngineDirectly() async {
+    // Resume path also handles plain flat songs — should NOT engage the
+    // section player (there are no sections to advance through).
+    let clock = FakeClock()
+    let engine = MetronomeEngine(clock: clock)
+    let sectionPlayer = SongSectionPlayer(engine: engine, clock: clock)
+    let setlistPlayer = SetlistPlayer(engine: engine, sectionPlayer: sectionPlayer, clock: clock)
+
+    let a = makeSong("A", bpm: 60, duration: .seconds(5))
+    let b = makeSong("B", bpm: 140)
+    await setlistPlayer.play(
+        Setlist(name: "Set", songs: [a, b], advanceMode: .pause)
+    )
+    clock.advance(by: 6)
+    await setlistPlayer.tick() // .pause: waiting on B
+
+    await setlistPlayer.resumeAfterPause()
+
+    let sectionActive = await sectionPlayer.isActive
+    let engineRunning = await engine.isRunning
+    let bpm = await engine.bpm
+    #expect(sectionActive == false, "section player stays idle for flat songs")
+    #expect(engineRunning, "engine running normally")
+    #expect(bpm == BPM(140))
+}
+
 @Test func setlistStopAlsoStopsSectionPlayer() async {
     // When the user stops the setlist while a multi-section song is
     // playing, the section player must be torn down too — otherwise its

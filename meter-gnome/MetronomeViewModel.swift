@@ -348,12 +348,19 @@ final class MetronomeViewModel {
                     await engine.stop()
                 }
             } else {
-                // Route through the section player when a multi-section
-                // song is loaded — that auto-advances measure by
-                // measure. Otherwise just start the engine.
-                if loadedSongHasSections,
-                   let player = songSectionPlayer,
-                   let song = await currentLoadedSong() {
+                // Setlist resume from .pause — route through SetlistPlayer
+                // which internally picks the section-player path when the
+                // current song is multi-section. Has to come before the
+                // standalone-multi-section branch because that one keys
+                // off `loadedSongHasSections` (cleared in setlist mode).
+                if let setlist = setlistPlayer,
+                   await setlist.isWaitingForResume {
+                    await setlist.resumeAfterPause()
+                } else if loadedSongHasSections,
+                          let player = songSectionPlayer,
+                          let song = await currentLoadedSong() {
+                    // Standalone multi-section song — section player
+                    // owns auto-advance.
                     await player.play(song)
                 } else {
                     await engine.start()
