@@ -11,6 +11,7 @@
 //
 
 import SwiftUI
+import UIKit
 import MetronomeCore
 
 struct ContentView: View {
@@ -24,8 +25,18 @@ struct ContentView: View {
     /// active) to open.
     @State private var showTempoAutomation = false
     @State private var showTempoPresets = false
+    /// Last BPM announced via UIAccessibility — used to debounce so a
+    /// running ramp doesn't spam VoiceOver. We only announce when
+    /// |Δ| ≥ announceBPMThreshold AND no announcement has fired in
+    /// the last announceMinIntervalSeconds. Spec §15 mandates that
+    /// BPM changes are announced.
+    @State private var lastAnnouncedBPMDisplay: Int = -1
+    @State private var lastAnnounceAt: TimeInterval = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    private static let announceBPMThreshold = 5
+    private static let announceMinIntervalSeconds: TimeInterval = 0.5
 
     /// Stage BPM hero font size. Four-way table on
     /// (size class × large-display setting). Large-display mode (spec
@@ -70,6 +81,9 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onChange(of: viewModel.bpm) { _, newBPM in
+            announceBPMIfNeeded(newBPM)
+        }
         .sheet(isPresented: $showTimeSigPicker) {
             TimeSignaturePickerView(current: viewModel.timeSignature) { selected in
                 viewModel.setTimeSignature(selected)
@@ -142,6 +156,23 @@ struct ContentView: View {
     /// alongside the rampIndicator below the BPM hero. Tapping the
     /// rampIndicator opens the same sheet; this button is the
     /// primary entry when no automation is configured yet.
+    /// Post a VoiceOver announcement when BPM crosses the change
+    /// threshold and the debounce interval has elapsed. Spec §15
+    /// mandates BPM-change announcements; debouncing keeps active
+    /// ramps from spamming the assistive output.
+    private func announceBPMIfNeeded(_ newBPM: BPM) {
+        guard UIAccessibility.isVoiceOverRunning else { return }
+        let display = newBPM.displayInt
+        let now = SystemClock().now
+        let delta = abs(display - lastAnnouncedBPMDisplay)
+        guard delta >= Self.announceBPMThreshold,
+              now - lastAnnounceAt >= Self.announceMinIntervalSeconds
+        else { return }
+        lastAnnouncedBPMDisplay = display
+        lastAnnounceAt = now
+        UIAccessibility.post(notification: .announcement, argument: "\(display) BPM")
+    }
+
     private var tempoAutomationButton: some View {
         Button {
             showTempoAutomation = true
