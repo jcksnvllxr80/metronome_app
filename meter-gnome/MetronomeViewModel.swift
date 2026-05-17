@@ -536,6 +536,32 @@ final class MetronomeViewModel {
         refreshLibrary()
     }
 
+    /// Save a copy of the given song under a new UUID with a "(copy)"
+    /// suffix on the title. Lets users branch a song — e.g. clone the
+    /// 120 BPM original to make a 90 BPM practice variant — without
+    /// having to re-create every field. All section/automation/pattern
+    /// metadata carries over verbatim via Song's value semantics.
+    @discardableResult
+    func duplicateSong(_ source: Song) -> Song? {
+        guard let store = libraryStore else { return nil }
+        guard let copy = Song(
+            id: UUID(),
+            title: "\(source.title) (copy)",
+            bpm: source.bpm,
+            timeSignature: source.timeSignature,
+            subdivision: source.subdivision,
+            accentPattern: source.accentPattern,
+            soundPreset: source.soundPreset,
+            notes: source.notes,
+            duration: source.duration,
+            automation: source.automation,
+            sections: source.sections
+        ) else { return nil }
+        store.save(copy)
+        refreshLibrary()
+        return copy
+    }
+
     /// Create an empty setlist with the given name. Returns the new
     /// setlist on success, or `nil` if the name was blank or no
     /// LibraryStore is attached. The caller can use the returned setlist

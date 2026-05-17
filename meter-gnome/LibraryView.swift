@@ -140,6 +140,14 @@ struct LibraryView: View {
                             Label("Delete", systemImage: "trash")
                         }
                     }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        Button {
+                            viewModel.duplicateSong(song)
+                        } label: {
+                            Label("Duplicate", systemImage: "plus.square.on.square")
+                        }
+                        .tint(DS.DSColor.accentTempo)
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
