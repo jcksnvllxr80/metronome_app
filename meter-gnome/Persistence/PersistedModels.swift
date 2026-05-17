@@ -64,6 +64,18 @@ final class PersistedEngineSettings {
     var startOnLaunch: Bool = false
     /// Daily practice goal in minutes (spec §11). 0 = no goal.
     var dailyPracticeGoalMinutes: Int = 0
+    /// JSON-encoded `[Subdivision: SubdivisionConfig]` (spec §2.3,
+    /// shipped v0.16.0). Stored as Data so SwiftData lightweight
+    /// migration adds the column with a nil default — existing rows
+    /// see an empty config map and fall through to legacy per-level
+    /// behavior, identical to pre-feature behavior. Encoded using
+    /// `[String: SubdivisionConfig]` because JSONEncoder only allows
+    /// string keys; decoder maps back to the enum-keyed dictionary.
+    var subdivisionConfigsData: Data? = nil
+    /// "Large Display" Stage hero mode (spec §10.3, shipped v0.16.2).
+    /// Defaults `false` so existing rows boot with the original Stage
+    /// hero size.
+    var largeDisplayMode: Bool = false
 
     init(
         masterVolume: Double = 1.0,
@@ -85,7 +97,9 @@ final class PersistedEngineSettings {
         hapticIntensityAccent: Double = 1.0,
         keepScreenAwakeDuringPlayback: Bool = true,
         startOnLaunch: Bool = false,
-        dailyPracticeGoalMinutes: Int = 0
+        dailyPracticeGoalMinutes: Int = 0,
+        subdivisionConfigsData: Data? = nil,
+        largeDisplayMode: Bool = false
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -107,6 +121,30 @@ final class PersistedEngineSettings {
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
         self.startOnLaunch = startOnLaunch
         self.dailyPracticeGoalMinutes = dailyPracticeGoalMinutes
+        self.subdivisionConfigsData = subdivisionConfigsData
+        self.largeDisplayMode = largeDisplayMode
+    }
+
+    /// JSON shape for `subdivisionConfigsData`. String-keyed because
+    /// JSONEncoder only accepts string keys; the receiver maps back to
+    /// the `Subdivision` enum.
+    private static func encode(_ configs: [Subdivision: SubdivisionConfig]) -> Data? {
+        guard !configs.isEmpty else { return nil }
+        let stringKeyed = configs.reduce(into: [String: SubdivisionConfig]()) { acc, kv in
+            acc[kv.key.rawValue] = kv.value
+        }
+        return try? JSONEncoder().encode(stringKeyed)
+    }
+
+    private static func decodeSubdivisionConfigs(_ data: Data?) -> [Subdivision: SubdivisionConfig] {
+        guard let data,
+              let stringKeyed = try? JSONDecoder().decode([String: SubdivisionConfig].self, from: data)
+        else { return [:] }
+        return stringKeyed.reduce(into: [Subdivision: SubdivisionConfig]()) { acc, kv in
+            if let key = Subdivision(rawValue: kv.key) {
+                acc[key] = kv.value
+            }
+        }
     }
 
     convenience init(from settings: EngineSettings) {
@@ -130,7 +168,9 @@ final class PersistedEngineSettings {
             hapticIntensityAccent: settings.hapticIntensity.accent,
             keepScreenAwakeDuringPlayback: settings.keepScreenAwakeDuringPlayback,
             startOnLaunch: settings.startOnLaunch,
-            dailyPracticeGoalMinutes: settings.dailyPracticeGoalMinutes
+            dailyPracticeGoalMinutes: settings.dailyPracticeGoalMinutes,
+            subdivisionConfigsData: Self.encode(settings.subdivisionConfigs),
+            largeDisplayMode: settings.largeDisplayMode
         )
     }
 
@@ -157,7 +197,9 @@ final class PersistedEngineSettings {
             ),
             keepScreenAwakeDuringPlayback: keepScreenAwakeDuringPlayback,
             startOnLaunch: startOnLaunch,
-            dailyPracticeGoalMinutes: dailyPracticeGoalMinutes
+            dailyPracticeGoalMinutes: dailyPracticeGoalMinutes,
+            subdivisionConfigs: Self.decodeSubdivisionConfigs(subdivisionConfigsData),
+            largeDisplayMode: largeDisplayMode
         )
     }
 
@@ -182,6 +224,8 @@ final class PersistedEngineSettings {
         keepScreenAwakeDuringPlayback = settings.keepScreenAwakeDuringPlayback
         startOnLaunch = settings.startOnLaunch
         dailyPracticeGoalMinutes = settings.dailyPracticeGoalMinutes
+        subdivisionConfigsData = Self.encode(settings.subdivisionConfigs)
+        largeDisplayMode = settings.largeDisplayMode
     }
 }
 
