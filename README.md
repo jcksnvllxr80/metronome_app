@@ -8,29 +8,9 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 
 ## Status
 
-**Phases 1 + 2 shipped, most of Phase 3 shipped.** Audio, MIDI send + receive, persistence, library + setlists, accent-pattern editor with preset library, tempo automation (gradual + step + loop), speed trainer (random mute + step with stop/reverse-on-ceiling), practice stats with charts + daily goal + CSV export, haptics with per-accent intensity, lock-screen / AirPods control, multi-section songs (with D.C. al Fine, repeats, per-section settings, setlist integration across all advance modes), per-subdivision-level click config, and Large Display mode all work end-to-end. Real-device-verified bug fixes through v0.14.8 (cold-launch downbeat, tempo-change dropout, haptic buzz, haptic mode-change, multi-section transition double-click, Stage BPM display lag during section transitions).
+**v1.0.0** — feature-complete and real-device verified. Engine math + audio + MIDI + persistence + library + multi-section songs + tempo automation + speed trainer + practice stats + haptics + lock-screen integration + accessibility — all shipped per spec, except items explicitly dropped (Apple Watch, iCloud sync, BLE pedals, Ableton Link, bundled audio samples).
 
-Latest tag: **v0.31.0**.
-
-| Layer | State |
-|---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 383 tests passing, drift < 1 ms/min verified in math |
-| Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
-| Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
-| Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
-| Library: songs, setlists, patterns, song detail, accent-pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides, swipe-to-duplicate songs, accent-pattern preset library (dedicated Patterns tab — browse / rename / edit / delete standalone) with starter set |
-| Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate — all three modes work for both flat and multi-section songs |
-| Multi-section songs (§7.3) | ✓ Per-section name + BPM + meter + subdivision + measures + accent pattern + sound + repeat count + end-action + Fine + Segno + Coda markers. Auto-advance with D.C./D.S. al Fine + D.C./D.S. al Coda. Drag-to-reorder + duplicate. Per-section custom time signatures. Sections auto-advance inside a setlist across all advance modes. |
-| MIDI Clock send + receive (slave mode) | ✓ Virtual source "meter-gnome"; follows external Clock + Start/Stop. Settings → MIDI source picker isolates one master when multiple are connected. Song Position Pointer (0xF2) honored — DAW "play from bar 3" lands meter-gnome's indexing at the same position. |
-| Background mode + interruption + route-change handling | ✓ Pauses cleanly on phone calls + headphone unplug |
-| Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title + app-icon artwork; play/pause from AirPods + Control Center; setlist prev/next |
-| Tempo automation — gradual + step + loop | ✓ Per-song picker covering all 3 §6.3 modes — gradual accel/rit, step with optional ceiling (Stop / Reverse behavior), multi-stage loop cycling indefinitely |
-| Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling. Engine auto-stops at ceiling (Stop), or counts back down to start as a triangle-wave ramp (Reverse). |
-| Per-subdivision-level config (§2.3) | ✓ Independent volume + optional sound override per level (eighths, triplets, sixteenths, …, nonuplets). Settings → Subdivisions. |
-| Practice stats / session log | ✓ Library → Stats: today/week/month totals + per-song breakdown + 14-day daily + 8-week weekly charts + BPM-progression chart per top song + daily / weekly / monthly goal progress bars + CSV export. 30-sec minimum, pause-aware. |
-| Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Per-accent intensity sliders. Real device only. |
-| Remaining items (drift verification on hardware, resizable iPad splitter) | See [docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md) and [docs/TODO.md](docs/TODO.md) |
-| Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
+Per-feature breakdown: see **[docs/FEATURE_STATUS.md](docs/FEATURE_STATUS.md)**.
 
 ## Development
 
@@ -80,7 +60,7 @@ cd Packages/MetronomeCore
 swift test
 ```
 
-339 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, MIDI SPP parsing + position offset, practice-session aggregations (daily / weekly / BPM history), goal-clamping rules, Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
+394 tests at the v1.0 ship — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, polyrhythm timing, MIDI SPP parsing + position offset, practice-session aggregations (daily / weekly / BPM history), goal-clamping rules, Codable round-trips, automation-ceiling auto-stop, tap-tempo median + min-interval debounce, user-imported-sound value type. Runs in ~600ms cold / ~20ms warm; no audio or UI is exercised.
 
 ### Run package tests inside Xcode
 
@@ -118,16 +98,9 @@ APP=$(find ~/Library/Developer/Xcode/DerivedData -name "meter-gnome.app" 2>/dev/
 2. Settings → MIDI Sync → **Listen for MIDI Clock** on.
 3. Press Play in your DAW; meter-gnome's BPM follows + transport syncs.
 
-### Real-device drift test (not yet automated)
+### Real-device drift test
 
-The spec's < 1 ms/min drift budget applies to the full audio output path. Math-level drift is unit-tested; the audio path isn't yet. To verify on hardware:
-
-1. Run on a real device at a fixed BPM (e.g. 120) for ≥ 5 minutes.
-2. Record both meter-gnome and a hardware metronome at the same tempo.
-3. Align the recordings; measure spacing between detected click onsets.
-4. Variance should stay under 1 ms across the 5-minute window.
-
-Listed as the remaining priority item in [docs/TODO.md](docs/TODO.md).
+The spec's < 1 ms/min drift budget applies to the full audio output path. Math-level drift is unit-tested, and the audio path is verifiable in-app from **Settings → Diagnostics → Drift Self-Test** (60-second test taps `mainMixerNode`, detects click onsets via RMS energy, regresses for measured period, reports drift in ms/min with an IOI scatter plot). No external recording equipment required.
 
 ## Layout
 
@@ -140,7 +113,7 @@ meter-gnome/                          iOS app target (SwiftUI)
 
 Packages/MetronomeCore/               Swift package — engine + data types + tests
   Sources/MetronomeCore/              Engine, schedule math, value types, audio/MIDI/haptic schedulers, multi-section + setlist players
-  Tests/MetronomeCoreTests/           316 tests, FakeClock-driven
+  Tests/MetronomeCoreTests/           394 tests, FakeClock-driven
 
 meter-gnome.xcodeproj/                Xcode project (objectVersion 77, synchronized groups)
 ```

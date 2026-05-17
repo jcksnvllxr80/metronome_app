@@ -1,6 +1,6 @@
 # Feature Status
 
-Spec-coverage snapshot as of **v0.32.6**. Section numbers reference [`FUNCTIONAL_SPEC.md`](FUNCTIONAL_SPEC.md). Shipping history per-feature is captured inline in [`TODO.md`](TODO.md); this doc is the at-a-glance roll-up.
+Spec-coverage snapshot as of **v1.0.0**. Section numbers reference [`FUNCTIONAL_SPEC.md`](FUNCTIONAL_SPEC.md). Shipping history per-feature is captured inline in [`TODO.md`](TODO.md); this doc is the at-a-glance roll-up.
 
 ## Shipped + verified
 
