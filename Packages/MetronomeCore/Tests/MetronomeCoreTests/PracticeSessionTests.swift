@@ -164,6 +164,53 @@ import Foundation
     #expect(nonZeroCount == 2)
 }
 
+@Test func weeklyTotalsReturnsDenseSequence() {
+    // 8-week window with no sessions → 8 entries, all zero.
+    let totals = ([] as [PracticeSession]).weeklyTotals(forLast: 8)
+    #expect(totals.count == 8)
+    #expect(totals.allSatisfy { $0.total == 0 })
+}
+
+@Test func weeklyTotalsBucketsSessionsByWeek() {
+    // Anchor in mid-week so sessions across day boundaries within the
+    // same week aggregate correctly. Use a fixed Gregorian calendar so
+    // the test is locale-independent.
+    var cal = Calendar(identifier: .gregorian)
+    cal.firstWeekday = 1 // Sunday
+    let today = cal.date(from: DateComponents(year: 2026, month: 5, day: 14))! // a Thursday
+    let yesterday = cal.date(byAdding: .day, value: -1, to: today)!
+    let tenDaysAgo = cal.date(byAdding: .day, value: -10, to: today)!
+    let outsideWindow = cal.date(byAdding: .weekOfYear, value: -8, to: today)!
+    let sessions = [
+        PracticeSession(startedAt: today, endedAt: today.addingTimeInterval(300),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+        PracticeSession(startedAt: yesterday, endedAt: yesterday.addingTimeInterval(600),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+        PracticeSession(startedAt: tenDaysAgo, endedAt: tenDaysAgo.addingTimeInterval(900),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+        PracticeSession(startedAt: outsideWindow, endedAt: outsideWindow.addingTimeInterval(60),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120)),
+    ]
+    let totals = sessions.weeklyTotals(forLast: 4, ending: today, calendar: cal)
+    #expect(totals.count == 4)
+    // The two same-week sessions (today + yesterday) aggregate to 900s
+    // in the most-recent bucket.
+    #expect(totals.last?.total == 900)
+    // tenDaysAgo lands in an earlier week — should be a non-zero bucket.
+    let nonZeroCount = totals.filter { $0.total > 0 }.count
+    #expect(nonZeroCount == 2, "Two distinct weeks have practice")
+    // Outside-window session dropped.
+    let total = totals.reduce(0) { $0 + $1.total }
+    #expect(total == 900 + 900, "Only sessions inside the 4-week window aggregate")
+}
+
+@Test func weeklyTotalsReturnedInChronologicalOrder() {
+    let cal = Calendar(identifier: .gregorian)
+    let totals = ([] as [PracticeSession]).weeklyTotals(forLast: 5, ending: Date(), calendar: cal)
+    let dates = totals.map { $0.date }
+    #expect(dates == dates.sorted(), "Buckets returned oldest → newest")
+}
+
 @Test func explicitMinMaxAreRespected() {
     let now = Date()
     let session = PracticeSession(

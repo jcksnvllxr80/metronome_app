@@ -10,8 +10,8 @@ Items the user has explicitly decided NOT to pursue for the foreseeable future: 
 Spec §1.1 mandates < 1 ms/minute drift. Engine math is verified via `FakeClock` unit tests, but the spec's budget applies to the full audio output path on real hardware. Load the app onto an iPhone, run for 5 minutes at 120 BPM against a hardware metronome (or a Logic Pro session set to the same tempo), record both, FFT-detect click onsets, measure spacing variance.
 
 ### Practice stats — remaining sub-features (spec §11)
-Practice-session log shipped end-to-end: PracticeSession value type, SwiftData store, view-model instrumentation (records on engine stopped→running→stopped transitions, 30-sec minimum, pause/resume keeps a session continuous, captures min/max BPM across the session), Stats tab in Library with today/week/month cards + per-song breakdown + CSV export + clear-history. Still backlog:
-- Richer charts beyond the 14-day daily-totals bar chart (cumulative trend, BPM-over-time across sessions, per-song progress)
+Practice-session log shipped end-to-end: PracticeSession value type, SwiftData store, view-model instrumentation (records on engine stopped→running→stopped transitions, 30-sec minimum, pause/resume keeps a session continuous, captures min/max BPM across the session), Stats tab in Library with today/week/month cards + 14-day daily + 8-week weekly bar charts + per-song breakdown + CSV export + clear-history. Still backlog:
+- BPM-over-time across sessions / per-song progress charts (using PracticeSession.bpmMin/bpmMax history)
 - Weekly / monthly goals (currently only daily)
 
 ### Tempo automation — remaining sub-features (spec §6.3)

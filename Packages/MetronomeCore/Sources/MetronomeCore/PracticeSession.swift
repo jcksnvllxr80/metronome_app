@@ -110,6 +110,38 @@ public extension Sequence where Element == PracticeSession {
             .sorted { $0.date < $1.date }
     }
 
+    /// Weekly total durations for the most recent `weeks` weeks, ending
+    /// at the calendar week that contains `today`. Returned in
+    /// chronological order (oldest first) with one entry per week —
+    /// including zeros for empty weeks so the chart axis stays
+    /// continuous. Week start is determined by the supplied calendar
+    /// (`Calendar.current` defaults to the user's locale: typically
+    /// Sunday in the US, Monday elsewhere). Date in each tuple is the
+    /// start-of-week.
+    func weeklyTotals(forLast weeks: Int, ending today: Date = Date(), calendar: Calendar = .current) -> [(date: Date, total: TimeInterval)] {
+        precondition(weeks > 0, "weeks must be positive")
+        // Anchor the most recent bucket at the start of today's week.
+        let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        guard let endWeekStart = calendar.date(from: comps) else { return [] }
+        // Window start: weeks-1 weeks before that.
+        guard let windowStart = calendar.date(byAdding: .weekOfYear, value: -(weeks - 1), to: endWeekStart) else { return [] }
+        var bucketsByWeekStart: [Date: TimeInterval] = [:]
+        for offset in 0..<weeks {
+            if let weekStart = calendar.date(byAdding: .weekOfYear, value: offset, to: windowStart) {
+                bucketsByWeekStart[weekStart] = 0
+            }
+        }
+        for session in self where session.startedAt >= windowStart {
+            let sessionComps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: session.startedAt)
+            guard let sessionWeekStart = calendar.date(from: sessionComps) else { continue }
+            guard bucketsByWeekStart[sessionWeekStart] != nil else { continue }
+            bucketsByWeekStart[sessionWeekStart, default: 0] += session.duration
+        }
+        return bucketsByWeekStart
+            .map { (date: $0.key, total: $0.value) }
+            .sorted { $0.date < $1.date }
+    }
+
     /// Group by `songID`, returning aggregated stats per song sorted
     /// by total duration descending. Sessions with no `songID`
     /// aggregate under a sentinel UUID (`.zero`) so freestyle practice

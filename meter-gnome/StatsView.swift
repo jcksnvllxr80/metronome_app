@@ -72,6 +72,7 @@ struct StatsView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.lg) {
                 summaryCards
                 dailyChart
+                weeklyChart
                 bySongSection
                 actionsSection
             }
@@ -99,6 +100,50 @@ struct StatsView: View {
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day, count: 2)) { value in
                     AxisValueLabel(format: .dateTime.day(.defaultDigits))
+                        .foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+            .chartYAxis {
+                AxisMarks { _ in
+                    AxisGridLine().foregroundStyle(DS.DSColor.textDim.opacity(0.3))
+                    AxisValueLabel()
+                        .foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+            .frame(height: 120)
+            .padding(DS.Spacing.md)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .fill(DS.DSColor.bgElevated)
+            )
+        }
+    }
+
+    // MARK: - Weekly totals chart (last 8 weeks)
+
+    /// Long-horizon companion to the 14-day daily chart. Surfaces
+    /// week-over-week consistency — daily totals can hide a "huge
+    /// week 1, nothing week 3" pattern that weekly bars make obvious.
+    /// Week boundaries come from `Calendar.current` (locale-aware:
+    /// typically Sunday-start in the US, Monday-start elsewhere).
+    private var weeklyChart: some View {
+        let totals = sessions.weeklyTotals(forLast: 8)
+        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            Text("LAST 8 WEEKS")
+                .font(DS.Font.label)
+                .tracking(2)
+                .foregroundStyle(DS.DSColor.textMuted)
+            Chart(totals, id: \.date) { week in
+                BarMark(
+                    x: .value("Week", week.date, unit: .weekOfYear),
+                    y: .value("Minutes", week.total / 60)
+                )
+                .foregroundStyle(DS.DSColor.accentTempo)
+                .cornerRadius(DS.Radius.sm)
+            }
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .weekOfYear, count: 1)) { _ in
+                    AxisValueLabel(format: .dateTime.day(.defaultDigits).month(.abbreviated))
                         .foregroundStyle(DS.DSColor.textMuted)
                 }
             }
