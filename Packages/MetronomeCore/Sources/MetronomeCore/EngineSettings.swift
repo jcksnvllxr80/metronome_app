@@ -166,7 +166,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     public init(
         masterVolume: Double = 1.0,
         latencyOffsetSeconds: TimeInterval = 0.0,
-        mixWithOthers: Bool = true,
+        mixWithOthers: Bool = false,
         countIn: CountIn = .off,
         bpmPrecisionMode: Bool = false,
         autoResumeAfterInterruption: Bool = false,
@@ -252,7 +252,7 @@ extension EngineSettings {
         self.init(
             masterVolume: try c.decodeIfPresent(Double.self, forKey: .masterVolume) ?? 1.0,
             latencyOffsetSeconds: try c.decodeIfPresent(TimeInterval.self, forKey: .latencyOffsetSeconds) ?? 0,
-            mixWithOthers: try c.decodeIfPresent(Bool.self, forKey: .mixWithOthers) ?? true,
+            mixWithOthers: try c.decodeIfPresent(Bool.self, forKey: .mixWithOthers) ?? false,
             countIn: try c.decodeIfPresent(CountIn.self, forKey: .countIn) ?? .off,
             bpmPrecisionMode: try c.decodeIfPresent(Bool.self, forKey: .bpmPrecisionMode) ?? false,
             autoResumeAfterInterruption: try c.decodeIfPresent(Bool.self, forKey: .autoResumeAfterInterruption) ?? false,

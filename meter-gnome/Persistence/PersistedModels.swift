@@ -95,7 +95,7 @@ final class PersistedEngineSettings {
     init(
         masterVolume: Double = 1.0,
         latencyOffsetSeconds: Double = 0.0,
-        mixWithOthers: Bool = true,
+        mixWithOthers: Bool = false,
         countInRaw: Int = CountIn.off.rawValue,
         bpmPrecisionMode: Bool = false,
         autoResumeAfterInterruption: Bool = false,

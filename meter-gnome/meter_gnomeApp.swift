@@ -42,7 +42,9 @@ struct meter_gnomeApp: App {
         let userSoundStore = UserSoundStore(context: context)
 
         // Audio
-        AudioSessionCoordinator.shared.configure()
+        AudioSessionCoordinator.shared.configure(
+            mixWithOthers: settingsStore.current.mixWithOthers
+        )
         let engine = MetronomeEngine(settings: settingsStore.current)
         let scheduler = AudioScheduler()
         Task {

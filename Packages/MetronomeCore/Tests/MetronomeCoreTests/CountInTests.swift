@@ -27,7 +27,10 @@ import Testing
     let s = EngineSettings()
     #expect(s.masterVolume == 1.0)
     #expect(s.latencyOffsetSeconds == 0)
-    #expect(s.mixWithOthers == true)
+    // Default flipped to false in v0.32.5 so fresh installs claim
+    // Now Playing (lock-screen / Control Center card). User can flip
+    // it back on in Settings → Playback Behavior for tuner coexistence.
+    #expect(s.mixWithOthers == false)
     #expect(s.countIn == .off)
     #expect(s.bpmPrecisionMode == false)
 }

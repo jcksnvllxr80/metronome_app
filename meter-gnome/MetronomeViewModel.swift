@@ -475,6 +475,14 @@ final class MetronomeViewModel {
         // switch takes effect immediately (attach KVO + hidden
         // MPVolumeView on enable; detach both on disable).
         volumeKeyMonitor?.setEnabled(newSettings.useVolumeKeysForStartStop)
+        // Hot-toggle the audio session category so the user flipping
+        // "coexist with other audio" in Settings re-configures the
+        // session immediately. AudioSessionCoordinator's configure
+        // is a no-op when the value hasn't changed, so this is safe
+        // to call from every setSettings path.
+        AudioSessionCoordinator.shared.configure(
+            mixWithOthers: newSettings.mixWithOthers
+        )
         Task {
             await engine.setSettings(newSettings)
             await refresh()

@@ -25,7 +25,14 @@ import MetronomeCore
 final class AudioSessionCoordinator {
     static let shared = AudioSessionCoordinator()
 
+    /// Tracks whether the category has been set at least once. The
+    /// initial `configure(...)` flips this so subsequent calls can
+    /// detect that they're a reconfiguration (mixWithOthers toggled
+    /// at runtime) rather than a fresh install.
     private var configured = false
+    /// Last mixWithOthers value applied to the session, so a
+    /// no-op reconfigure (same value) doesn't bounce the category.
+    private var lastMixWithOthers: Bool?
     private var observing = false
     private weak var engine: MetronomeEngine?
 
@@ -38,11 +45,22 @@ final class AudioSessionCoordinator {
         startObserving()
     }
 
-    /// Set the session category. Safe to call multiple times — only the
-    /// first call configures; subsequent calls no-op. Errors are logged
-    /// (the app still functions silently if configuration fails).
-    func configure(mixWithOthers: Bool = true) {
-        guard !configured else { return }
+    /// Set the session category. Safe to call multiple times — calls
+    /// after the first one re-set the category if (and only if)
+    /// `mixWithOthers` has changed, so the user toggling it in
+    /// Settings takes effect mid-session without a relaunch. Errors
+    /// are logged (the app still functions silently if configuration
+    /// fails).
+    ///
+    /// When `mixWithOthers` is true, our session coexists with the
+    /// Music app, podcast players, tuners, etc. — we never displace
+    /// their Now Playing slot, which means iOS won't surface our
+    /// lock-screen card either. Set to false to claim primary audio
+    /// (and Now Playing), at the cost of pausing whatever else was
+    /// playing when meter-gnome starts.
+    func configure(mixWithOthers: Bool) {
+        guard mixWithOthers != lastMixWithOthers else { return }
+        lastMixWithOthers = mixWithOthers
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(
