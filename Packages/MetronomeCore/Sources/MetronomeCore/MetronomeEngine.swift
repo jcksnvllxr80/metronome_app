@@ -280,30 +280,44 @@ public actor MetronomeEngine {
         let oldVoiceCount = settings.voiceCountMode
         settings = newSettings
         // Hot-apply settings changes that affect rendered audio so the
-        // user toggling them mid-run rebuilds the schedule and the
-        // audio path picks them up at the next refill. Without the
-        // reanchor, the audio scheduler's lookahead queue (4–48 clicks
-        // ahead) keeps playing buffers built from the old config until
-        // it drains — typically 2–24 seconds depending on tempo + the
-        // lookahead clamp.
+        // user toggling them mid-run flushes the audio scheduler's
+        // lookahead queue (4–48 clicks ahead) and picks up the new
+        // config at the next refill. Without intervention, the
+        // queued buffers would keep playing the stale config for
+        // 2–24 seconds depending on tempo + the lookahead clamp.
         //
-        // What needs a reanchor:
-        //   - polyrhythm: changes the secondary stream entirely
-        //   - subdivision-config for the active level: changes the
-        //     sub-beat sound + accent
-        //   - clickSound: changes the engine-default sound
-        //   - voiceCountMode: voice tones substitute for the main click
+        // Two flavors of "hot-apply":
+        //
+        //   reanchorIfRunning — rebuilds the schedule with a new
+        //     startTime, so click 0 of the new schedule is at
+        //     clock.now + leadIn. Used when the new config CHANGES
+        //     the click sequence itself (polyrhythm timing,
+        //     subdivision-config alters sub-beat accents/sounds in
+        //     the schedule). The downside: beat / measure indexing
+        //     resets to 0, visibly bumping back to "beat 1."
+        //
+        //   refreshAudioForOutputChange — flushes the audio queue
+        //     but keeps the existing schedule, so the next click
+        //     continues at the same beat index the rhythm was on.
+        //     Used for output-only changes: which sound plays.
+        //
+        // clickSound + voiceCountMode are pure output changes — they
+        // affect WHICH buffer the audio scheduler picks at refill
+        // but not the click sequence the schedule produces. Sending
+        // them through the lighter path preserves phase.
         //
         // Comparison for poly uses `effectivePolyrhythm` (override-aware)
         // so editing the engine default while a song override is
         // active doesn't reanchor needlessly.
         let newSubdivConfig = newSettings.subdivisionConfigs[subdivision]
-        let needsReanchor = oldEffectivePoly != effectivePolyrhythm
+        let scheduleNeedsRebuild = oldEffectivePoly != effectivePolyrhythm
             || oldSubdivConfig != newSubdivConfig
-            || oldClickSound != newSettings.clickSound
+        let outputOnlyChanged = oldClickSound != newSettings.clickSound
             || oldVoiceCount != newSettings.voiceCountMode
-        if needsReanchor {
+        if scheduleNeedsRebuild {
             reanchorIfRunning()
+        } else if outputOnlyChanged {
+            refreshAudioForOutputChange()
         }
         // Hot-apply midiClockEnabled so the user toggling it in the
         // Settings sheet takes effect immediately (no need to stop and
@@ -341,15 +355,16 @@ public actor MetronomeEngine {
     /// `apply(_:Song)`; the audio scheduler reads this each refill and
     /// uses it (when it resolves to a known `ClickSound`) instead of
     /// `settings.clickSound`. Pass `nil` to revert to the global default.
-    /// Re-anchors when the preset actually changes so the player
-    /// node's lookahead queue flushes its now-stale buffers and the
-    /// new sound becomes audible within one refill pass (~50 ms),
-    /// not after the queue drains (which could take seconds).
+    /// Flushes the audio scheduler's lookahead queue when the preset
+    /// actually changes so the new sound becomes audible within one
+    /// refill pass (~50 ms), not after the queue drains. Uses the
+    /// phase-preserving flush rather than a full reanchor — the
+    /// click sequence is unchanged, only the rendering sound is.
     public func setSoundPreset(_ preset: String?) {
         let changed = currentSoundPreset != preset
         currentSoundPreset = preset
         if changed {
-            reanchorIfRunning()
+            refreshAudioForOutputChange()
         }
     }
 
@@ -545,6 +560,34 @@ public actor MetronomeEngine {
             // the engine-level default applies.
             polyrhythm: effectivePolyrhythm
         )
+    }
+
+    /// Lighter alternative to `reanchorIfRunning` for changes that
+    /// affect what each click SOUNDS LIKE but not when each click
+    /// FIRES — sound preset, voice count mode, engine click sound.
+    /// Skips the schedule rebuild (so beat / measure indexing
+    /// continues from where the rhythm is) and just asks the audio
+    /// scheduler to drop its lookahead queue and refill from the
+    /// existing schedule's future clicks.
+    ///
+    /// Without this, output-only changes were going through
+    /// `reanchorIfRunning` which rebuilds the schedule with
+    /// `startTime = clock.now + leadIn` and resets click 0 to
+    /// "now" — visibly resetting to beat 1 of measure 0 on every
+    /// sound flip. User report after v0.34.3: "when i change the
+    /// sound it starts a new click from the first beat. i just
+    /// want the sound replaced but the current beat tempo to keep
+    /// play as it was before changing the sound..."
+    ///
+    /// MIDI + haptic schedulers are NOT touched here — output
+    /// changes (sound, voice tones) don't affect either stream.
+    private func refreshAudioForOutputChange() {
+        guard isRunning else { return }
+        if let scheduler {
+            Task { [scheduler] in
+                await scheduler.flushQueueKeepingSchedule()
+            }
+        }
     }
 
     private func reanchorIfRunning() {

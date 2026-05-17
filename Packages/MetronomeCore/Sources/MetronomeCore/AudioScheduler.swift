@@ -249,6 +249,37 @@ public actor AudioScheduler {
         await refillOnce(interruptsFirst: true)
     }
 
+    /// Flush the player node queues but DO NOT rebuild the engine's
+    /// schedule. Used for changes that affect buffer CONTENTS (which
+    /// sound, which sample) but not buffer TIMING (when each click
+    /// fires). Sound changes are the canonical case: post-flip the
+    /// next click should still land where the rhythm was, not reset
+    /// to beat 1. Engine state machinery (no rebuildSchedule call)
+    /// preserves the click index sequence; this method only clears
+    /// the audio-side queues and refills them from clicks strictly
+    /// after `clock.now` so we don't re-queue any click that's
+    /// already in the past.
+    ///
+    /// Uses `playerNode.stop() + .play()` rather than relying on the
+    /// `.interrupts` flag — testing showed `.interrupts` only
+    /// preempts the currently-rendering buffer on some iOS versions
+    /// while future-queued buffers survive (same observation that
+    /// motivated `scheduleResetWithFlush`). The stop+play pattern is
+    /// the only reliable way to drop every queued buffer.
+    public func flushQueueKeepingSchedule() async {
+        guard playerNode.isPlaying else { return }
+        playerNode.stop()
+        polyPlayerNode.stop()
+        playerNode.play()
+        polyPlayerNode.play()
+        let now = clock.now
+        lastScheduledTime = now
+        lastPolyScheduledTime = now
+        // No interrupts needed — the queues are already empty after
+        // the stop+play.
+        await refillOnce(interruptsFirst: false)
+    }
+
     /// Set the hard upper bound on click times this scheduler will
     /// queue. Pass `nil` to clear (standalone playback). Section
     /// playback sets this to each section's boundary so the OLD
