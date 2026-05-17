@@ -68,12 +68,18 @@ struct meter_gnomeApp: App {
         // song transitions per the active setlist's advance mode.
         let setlistPlayer = SetlistPlayer(engine: engine)
 
-        _viewModel = State(wrappedValue: MetronomeViewModel(
+        let viewModel = MetronomeViewModel(
             engine: engine,
             settingsStore: settingsStore,
             libraryStore: libraryStore,
             setlistPlayer: setlistPlayer
-        ))
+        )
+
+        // Lock-screen + Control Center + AirPods integration. The
+        // coordinator reads from the view model's mirrored engine state.
+        NowPlayingCoordinator.shared.attach(viewModel: viewModel)
+
+        _viewModel = State(wrappedValue: viewModel)
     }
 
     var body: some Scene {
