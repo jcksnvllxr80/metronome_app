@@ -4,7 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-This repo contains the `meter-gnome` iOS app (SwiftUI, `meter-gnome.xcodeproj`) and the `MetronomeCore` Swift package at `Packages/MetronomeCore` (engine math + data types — no audio yet). Engine math and Stage UI are complete; audio integration is planned but not wired. See `README.md` for current build status and `AUDIO_INTEGRATION_PLAN.md` for the audio approach. The original functional specification lives at `FUNCTIONAL_SPEC.md` for deep reference (sound library list, voice count modes, MIDI sync details, etc.). CLAUDE.md is the source of truth for non-obvious architectural constraints — read it before changing engine code, audio code, or anything that affects timing.
+This repo contains the `meter-gnome` iOS app target (SwiftUI, `meter-gnome.xcodeproj`) and the local `MetronomeCore` Swift package at `Packages/MetronomeCore/` (engine math, schedulers, value types). **Phase 1 + most of Phase 2 are shipped:** synthesized click audio via `AudioScheduler`, MIDI Clock send + receive, SwiftData persistence, library/setlist UI, accent pattern editor, background + interruption handling. Remaining work is tracked in `TODO.md`. The original spec lives at `FUNCTIONAL_SPEC.md`; `AUDIO_INTEGRATION_PLAN.md` is the original audio plan (largely executed, kept for reference). CLAUDE.md is the source of truth for non-obvious architectural constraints — read it before changing engine code, audio code, or anything that affects timing.
+
+## Build & test
+
+```sh
+# Run engine tests (fast, no audio, no UI — ~10ms, 194 tests)
+cd Packages/MetronomeCore && swift test
+
+# Run a single test
+cd Packages/MetronomeCore && swift test --filter ClickScheduleTests
+
+# Build the iOS app from CLI
+xcodebuild -project meter-gnome.xcodeproj -scheme meter-gnome \
+           -sdk iphonesimulator \
+           -destination 'generic/platform=iOS Simulator' build
+```
+
+Audio timing, MIDI virtual sources, haptics, and background audio require a **real device** — simulator is unreliable for any timing claim. See README "Run on a real iPhone" for signing + trust steps.
 
 ## Target platform
 
@@ -28,12 +45,12 @@ The spec is unusually prescriptive about the audio path because casual choices h
 ## Architecture (spec §17)
 
 - **MVVM with the iOS 17 Observation framework** (`@Observable`), not legacy `ObservableObject`.
-- A central `MetronomeEngine` owns the `AVAudioEngine`; view models read from it.
-- The audio engine runs on a **dedicated audio actor or serial dispatch queue** — explicitly **not** `@MainActor`.
-- Persistence: **SwiftData** models for `Song`, `Setlist`, `SoundPreset`, `AccentPattern`, `PracticeSession`. Core Data only as fallback.
-- iCloud sync (if built) goes through CloudKit via SwiftData's CloudKit integration; last-write-wins is acceptable.
-- Suggested split into Swift Packages: `MetronomeCore` (engine), `MetronomeUI` (views), `MetronomePersistence` (data). Splitting early makes the timing engine unit-testable in isolation.
-- **Testing strategy**: unit-test the timing engine against a **fake clock**; verify scheduled-event accuracy without producing audio.
+- `MetronomeEngine` is an `actor` (NOT `@MainActor`); it owns mutable state + the attached `AudioScheduler` / `MIDIScheduler` / `MIDIReceiver`. View models read from it on the main actor via `await`.
+- The scheduling math lives in `ClickSchedule` — pure, no AVFoundation, no time source of its own — so it's fully testable against `FakeClock` (`EngineClock` protocol). This is what enables the 194 fast unit tests.
+- `AudioScheduler` is a **separate** `actor` that owns the `AVAudioEngine` + a single `AVAudioPlayerNode` and runs the refill loop. The engine pushes "schedule changed" events via `scheduleReset()`; the scheduler flushes pending buffers and refills from the new schedule. Keeping it separate from the engine means `MetronomeCore` stays buildable in environments without AVFoundation (and audio code can be swapped/mocked).
+- `MIDIScheduler` (send) and `MIDIReceiver` (slave) are separate actors with the same attach-and-push pattern. Both are optional; engine works silently without them.
+- **Persistence**: SwiftData `@Model` classes in the app target (`meter-gnome/Persistence/PersistedModels.swift`), with `SettingsStore` and `LibraryStore` as the read/write surfaces. The spec's "suggested" three-package split (Core / UI / Persistence) was **not** adopted — one package + app target was sufficient.
+- **Testing strategy**: unit-test against `FakeClock` in `Tests/MetronomeCoreTests/`. No audio output is exercised in tests; drift verification at the math level only. Real-device drift test is still a manual procedure (see TODO.md).
 
 ## Spec details that drive modeling (easy to miss)
 
@@ -73,12 +90,12 @@ The spec is unusually prescriptive about the audio path because casual choices h
 
 ## Implementation phasing (spec §21)
 
-Build Phase 1 first; don't try to land the full spec in one pass.
+Status as of 2026-05. Don't re-do shipped work; check TODO.md before starting a Phase 2/3 item.
 
-- **Phase 1 (MVP):** §1 engine, §2.1–2.3 meter/subdivision, §3 accents, §4.1 built-in sounds, §6.1–6.2 tap tempo + Italian presets, basic §8 visual pulse, §10.1–10.3 settings, §16 background/lifecycle.
-- **Phase 2 (practice tools):** §5 voice count, §6.3–6.4 tempo automation + speed trainer, §7.1–7.2 songs/setlists, §9 haptics, §11 stats (CSV export).
-- **Phase 3 (pro):** §2.4 polyrhythm, §7.3 multi-section songs / DC al fine, §12 MIDI/Link/BLE pedals, §13 Apple Watch, §14 iCloud.
-- **Phase 4 (polish):** §15 accessibility audit, latency tuning, edge cases.
+- **Phase 1 (MVP) — ✓ shipped:** §1 engine, §2.1–2.3 meter/subdivision, §3 accents, §4.1 synthesized sounds (real samples still pending), §6.1–6.2 tap tempo + Italian preset *data* (no UI surface yet), §8 visual pulse, §10.1–10.3 settings, §16 background/interruption/route-change (Now Playing + Remote Command Center still pending).
+- **Phase 2 (practice tools) — partial:** §5 voice count *scaffold + .beats mode* ✓, full language/gender sample matrix ✗; §7.1–7.2 songs/setlists ✓ (incl. accent pattern editor, setlist auto-advance); §6.3 tempo automation ✗; §6.4 speed trainer ✗; §9 haptics ✗; §11 practice stats ✗.
+- **Phase 3 (pro) — partial:** §12.2 MIDI Clock send + receive ✓; §2.4 polyrhythm ✗; §7.3 multi-section songs ✗; §12.1 BLE pedals, §12.3 Ableton Link, §13 Apple Watch, §14 iCloud — **user has explicitly dropped these** (TODO.md).
+- **Phase 4 (polish):** §15 accessibility audit, latency tuning, edge cases — partially in place (Reduce Motion respected; full audit pending).
 
 ## Frameworks in play
 
@@ -86,7 +103,9 @@ SwiftUI, AVFoundation/AVFAudio, CoreHaptics, CoreMIDI, MediaPlayer (Now Playing 
 
 ## Explicitly out of scope (spec §20)
 
-Visual/aesthetic design, marketing assets, monetization, server-side components, audio recording / DAW features, social/sharing. Don't invent these.
+Visual/aesthetic design (separate from `DESIGN.md`'s system), marketing assets, monetization, server-side components, audio recording / DAW features, social/sharing. Don't invent these.
+
+**User has also explicitly dropped** (TODO.md, "for the foreseeable future"): iCloud sync (§14), Apple Watch (§13), Ableton Link (§12.3), BLE foot pedals (§12.1). Don't suggest re-adding them without checking first.
 
 ## Design System
 
