@@ -33,10 +33,9 @@ Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tem
 - UI: secondary BPM/meter pair, visual indicator showing both pulse streams
 
 ### Multi-section songs — remaining (spec §7.3)
-Core feature shipped: SongSection value type + Song.sections field + persistence + SongSectionPlayer for auto-advance + section editor in SongDetailView + Stage indicator showing current section name + position + drag-to-reorder + per-section accent pattern editor (NavigationLink in each section row that opens the standard AccentPatternEditView scoped to the section's time signature). Still backlog:
+Core feature shipped: SongSection value type + Song.sections field + persistence + SongSectionPlayer for auto-advance + section editor in SongDetailView + Stage indicator showing current section name + position + drag-to-reorder + per-section accent pattern editor + per-section sound preset picker. Still backlog:
 - Repeat markers / DC al fine logic — repeat N times, "go back to section X" jumps
 - Per-section time-signature + subdivision editing (currently sections inherit from the song at create time; no per-section TS picker yet)
-- Per-section sound preset (already in the value type, just no UI surface)
 - Setlist integration — setlists currently treat multi-section songs as flat at the song's top-level BPM; auto-advance through sections inside a setlist is a follow-up
 
 ### Haptic feedback — remaining sub-features (spec §9)

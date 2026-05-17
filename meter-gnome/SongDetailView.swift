@@ -825,6 +825,19 @@ struct SongDetailView: View {
                             : DS.DSColor.accentTempo)
                 }
             }
+            Picker("Sound", selection: Binding<String?>(
+                get: { section.soundPreset },
+                set: { newValue in
+                    updateSection(at: index) { $0.soundPreset = newValue }
+                }
+            )) {
+                Text("Inherit from song").tag(String?.none)
+                ForEach(ClickSound.allCases, id: \.self) { sound in
+                    Text(sound.displayName).tag(String?.some(sound.rawValue))
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(DS.DSColor.accentTempo)
         }
         .padding(.vertical, DS.Spacing.xs)
         .listRowBackground(DS.DSColor.bgElevated)
