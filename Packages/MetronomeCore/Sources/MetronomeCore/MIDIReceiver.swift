@@ -63,6 +63,34 @@ public actor MIDIReceiver {
         }
     }
 
+    /// Restrict the receiver to a single named external source, or
+    /// `nil` to listen to all of them (legacy behavior). The receiver
+    /// reconnects in place when enabled; when disabled, the new filter
+    /// is remembered and takes effect next time `setEnabled(true)` is
+    /// called. Tick-window state is cleared so the BPM estimator
+    /// doesn't carry stale inter-tick deltas across sources.
+    public func setSelectedSource(name: String?) {
+        helper.selectedSourceName = name
+        if isEnabled {
+            // Bounce the connection so the new filter applies. Reusing
+            // the toggle path keeps connect/disconnect bookkeeping in
+            // one place.
+            helper.isConnected = false
+            helper.isConnected = true
+        }
+        tickTimes.removeAll(keepingCapacity: true)
+        lastPushedBPM = nil
+    }
+
+    /// Snapshot of currently-available external MIDI source display
+    /// names, in CoreMIDI enumeration order, with the meter-gnome send
+    /// source filtered out. Returned for the Settings picker UI; the
+    /// caller can refresh by calling again. Empty when CoreMIDI reports
+    /// no external sources (common on simulator).
+    public func availableSources() -> [String] {
+        helper.availableSourceNames()
+    }
+
     // MARK: - Byte processing
 
     private func processByte(_ byte: UInt8, at time: TimeInterval) async {
@@ -155,10 +183,17 @@ private final class MIDIInputHelper {
     /// our own "meter-gnome" send output). When false, disconnects.
     var isConnected: Bool = false {
         didSet {
-            if isConnected && !oldValue { connectAllSources() }
+            if isConnected && !oldValue { connectMatchingSources() }
             if !isConnected && oldValue { disconnectAllSources() }
         }
     }
+
+    /// Optional source-name filter. `nil` = connect to every external
+    /// source (legacy behavior). A name = connect only to sources whose
+    /// CoreMIDI `kMIDIPropertyName` matches exactly. Mutated by the
+    /// owning `MIDIReceiver` via `setSelectedSource(name:)`; the
+    /// receiver bounces `isConnected` to re-evaluate the filter.
+    var selectedSourceName: String? = nil
 
     private var connectedSources: [MIDIEndpointRef] = []
     private let clock = SystemClock()
@@ -198,13 +233,20 @@ private final class MIDIInputHelper {
 
     // MARK: - Source management
 
-    private func connectAllSources() {
+    /// Connect to external sources, honoring `selectedSourceName`. When
+    /// it's nil, connects to every source except our own "meter-gnome"
+    /// send output (legacy behavior). When it's a name, connects only
+    /// to sources whose CoreMIDI name matches exactly — used by the
+    /// Settings → MIDI source picker to isolate one master out of many.
+    private func connectMatchingSources() {
         let count = MIDIGetNumberOfSources()
         for i in 0..<count {
             let src = MIDIGetSource(i)
+            let name = sourceName(src)
             // Skip our own output endpoint to avoid feedback when both
             // send + receive are enabled.
-            guard !isOwnSource(src) else { continue }
+            guard name != "meter-gnome" else { continue }
+            if let selected = selectedSourceName, name != selected { continue }
             if MIDIPortConnectSource(port, src, nil) == noErr {
                 connectedSources.append(src)
             }
@@ -218,12 +260,30 @@ private final class MIDIInputHelper {
         connectedSources.removeAll(keepingCapacity: true)
     }
 
-    private func isOwnSource(_ source: MIDIEndpointRef) -> Bool {
+    /// CoreMIDI display name for an endpoint, or empty string if it
+    /// has no name property (shouldn't happen for real devices). Used
+    /// for both the own-source guard and the picker source listing.
+    private func sourceName(_ source: MIDIEndpointRef) -> String {
         var nameProp: Unmanaged<CFString>?
         guard MIDIObjectGetStringProperty(source, kMIDIPropertyName, &nameProp) == noErr
-        else { return false }
-        let name = nameProp?.takeRetainedValue() as String? ?? ""
-        return name == "meter-gnome"
+        else { return "" }
+        return nameProp?.takeRetainedValue() as String? ?? ""
+    }
+
+    /// All external source names CoreMIDI currently reports, minus our
+    /// own "meter-gnome" send output. Duplicates are deliberately kept
+    /// (two sources with the same name are real — e.g., USB MIDI cable
+    /// + network session both publishing the same device).
+    func availableSourceNames() -> [String] {
+        let count = MIDIGetNumberOfSources()
+        var names: [String] = []
+        for i in 0..<count {
+            let src = MIDIGetSource(i)
+            let name = sourceName(src)
+            guard !name.isEmpty, name != "meter-gnome" else { continue }
+            names.append(name)
+        }
+        return names
     }
 
     // MARK: - Packet decoding

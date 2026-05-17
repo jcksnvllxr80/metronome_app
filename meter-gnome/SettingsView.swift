@@ -16,12 +16,25 @@ import MetronomeCore
 struct SettingsView: View {
     let initial: EngineSettings
     let onChange: (EngineSettings) -> Void
+    /// Async closure that returns the current set of external MIDI
+    /// source names (deduped, "meter-gnome" filtered out). Surfaces in
+    /// the MIDI section's "Source" picker so users can isolate one
+    /// master out of many. Empty list = "no sources visible" which
+    /// the picker labels accordingly. Defaults to `{ [] }` for
+    /// previews + call sites that don't have a receiver wired up.
+    let loadMIDISources: () async -> [String]
 
     @Environment(\.dismiss) private var dismiss
     @State private var settings: EngineSettings
+    @State private var midiSources: [String] = []
 
-    init(initial: EngineSettings, onChange: @escaping (EngineSettings) -> Void) {
+    init(
+        initial: EngineSettings,
+        loadMIDISources: @escaping () async -> [String] = { [] },
+        onChange: @escaping (EngineSettings) -> Void
+    ) {
         self.initial = initial
+        self.loadMIDISources = loadMIDISources
         self.onChange = onChange
         self._settings = State(initialValue: initial)
     }
@@ -257,12 +270,47 @@ struct SettingsView: View {
             Toggle("Listen for MIDI Clock", isOn: $settings.midiClockReceiveEnabled)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
+            if settings.midiClockReceiveEnabled {
+                midiSourcePicker
+            }
         } header: {
             Text("MIDI Sync").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Send: publish a virtual MIDI source named \"meter-gnome\" that emits MIDI Clock (24 PPQ) + Start/Stop. Listen: follow incoming MIDI Clock from connected sources — DAW transport drives play/stop, DAW tempo drives BPM.")
+            Text("Send: publish a virtual MIDI source named \"meter-gnome\" that emits MIDI Clock (24 PPQ) + Start/Stop. Listen: follow incoming MIDI Clock from connected sources — DAW transport drives play/stop, DAW tempo drives BPM. Source: pick a specific master when more than one is on the bus (DAW + drum machine); All Sources merges every external source.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
+        .task(id: settings.midiClockReceiveEnabled) {
+            // Refresh when the sheet opens or when slave mode is just
+            // turned on. CoreMIDI source enumeration is cheap; no need
+            // to cache between sessions.
+            if settings.midiClockReceiveEnabled {
+                midiSources = await loadMIDISources()
+            }
+        }
+    }
+
+    /// Source picker row — shown only when "Listen for MIDI Clock" is
+    /// on. The selection is `EngineSettings.midiReceiveSourceName?`;
+    /// `nil` displays as "All Sources" and means "merge every external
+    /// source" (legacy receiver behavior).
+    private var midiSourcePicker: some View {
+        Picker("Source", selection: $settings.midiReceiveSourceName) {
+            Text("All Sources").tag(String?.none)
+            ForEach(midiSources, id: \.self) { name in
+                Text(name).tag(String?.some(name))
+            }
+            // If the persisted selection no longer matches any visible
+            // source (e.g., DAW disconnected), still display it as a
+            // disabled-looking row tagged with that name — picking it
+            // again resumes filtering once the source comes back.
+            if let selected = settings.midiReceiveSourceName,
+               !midiSources.contains(selected) {
+                Text("\(selected) (offline)").tag(String?.some(selected))
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(DS.DSColor.accentTempo)
+        .listRowBackground(DS.DSColor.bgElevated)
     }
 
     // MARK: - Daily practice goal (spec §11)

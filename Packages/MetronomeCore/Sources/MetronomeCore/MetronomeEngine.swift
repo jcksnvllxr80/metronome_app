@@ -241,6 +241,7 @@ public actor MetronomeEngine {
     public func setSettings(_ newSettings: EngineSettings) {
         let oldMidi = settings.midiClockEnabled
         let oldMidiRx = settings.midiClockReceiveEnabled
+        let oldMidiRxSource = settings.midiReceiveSourceName
         settings = newSettings
         // Hot-apply midiClockEnabled so the user toggling it in the
         // Settings sheet takes effect immediately (no need to stop and
@@ -262,6 +263,14 @@ public actor MetronomeEngine {
         if let midiReceiver, oldMidiRx != newSettings.midiClockReceiveEnabled {
             Task { [midiReceiver, newSettings] in
                 await midiReceiver.setEnabled(newSettings.midiClockReceiveEnabled)
+            }
+        }
+        // Hot-apply source-name selection so changing the picker in
+        // Settings re-routes the receiver mid-session without a toggle
+        // off/on dance.
+        if let midiReceiver, oldMidiRxSource != newSettings.midiReceiveSourceName {
+            Task { [midiReceiver, newSettings] in
+                await midiReceiver.setSelectedSource(name: newSettings.midiReceiveSourceName)
             }
         }
     }

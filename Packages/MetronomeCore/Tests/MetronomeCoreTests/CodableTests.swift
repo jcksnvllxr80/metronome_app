@@ -224,6 +224,35 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
     #expect(EngineSettings().midiClockReceiveEnabled == false)
 }
 
+@Test func engineSettingsDefaultsMidiSourceNameNil() {
+    // Default: nil = "all sources" (legacy receiver behavior).
+    #expect(EngineSettings().midiReceiveSourceName == nil)
+}
+
+@Test func engineSettingsRoundTripPreservesMidiSourceName() throws {
+    let s = EngineSettings(
+        midiClockReceiveEnabled: true,
+        midiReceiveSourceName: "Network Session 1"
+    )
+    let back = try roundTrip(s)
+    #expect(back.midiReceiveSourceName == "Network Session 1")
+    #expect(back == s)
+}
+
+@Test func engineSettingsLegacyJSONHasNilMidiSourceName() throws {
+    // Pre-picker payloads omit the field — decode must fall back to nil
+    // so existing users keep "listen to all sources" behavior.
+    let json = """
+    {
+      "masterVolume": 1.0,
+      "midiClockReceiveEnabled": true
+    }
+    """.data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(EngineSettings.self, from: json)
+    #expect(decoded.midiClockReceiveEnabled == true)
+    #expect(decoded.midiReceiveSourceName == nil)
+}
+
 @Test func engineSettingsDefaultsVoiceCountOff() {
     #expect(EngineSettings().voiceCountMode == .off)
 }

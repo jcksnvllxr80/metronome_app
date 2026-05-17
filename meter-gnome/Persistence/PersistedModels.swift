@@ -35,6 +35,11 @@ final class PersistedEngineSettings {
     var midiClockEnabled: Bool
     /// Whether MIDI Clock slave mode is enabled (spec §12.2).
     var midiClockReceiveEnabled: Bool
+    /// Name of the MIDI source the receiver listens to (spec §12.2
+    /// source picker). nil = all sources (legacy behavior). Optional
+    /// String — SwiftData lightweight migration covers the new column
+    /// with a nil default for existing rows.
+    var midiReceiveSourceName: String? = nil
     /// `VoiceCountMode.rawValue`. Spec §5.
     var voiceCountModeRaw: String
     /// Random-mute percentage 0–50 (spec §6.4). 0 = off. New in v2 of the
@@ -70,6 +75,7 @@ final class PersistedEngineSettings {
         clickSoundRaw: String = ClickSound.digitalBeep.rawValue,
         midiClockEnabled: Bool = false,
         midiClockReceiveEnabled: Bool = false,
+        midiReceiveSourceName: String? = nil,
         voiceCountModeRaw: String = VoiceCountMode.off.rawValue,
         randomMutePercentage: Int = 0,
         hapticModeRaw: String = HapticMode.off.rawValue,
@@ -90,6 +96,7 @@ final class PersistedEngineSettings {
         self.clickSoundRaw = clickSoundRaw
         self.midiClockEnabled = midiClockEnabled
         self.midiClockReceiveEnabled = midiClockReceiveEnabled
+        self.midiReceiveSourceName = midiReceiveSourceName
         self.voiceCountModeRaw = voiceCountModeRaw
         self.randomMutePercentage = randomMutePercentage
         self.hapticModeRaw = hapticModeRaw
@@ -113,6 +120,7 @@ final class PersistedEngineSettings {
             clickSoundRaw: settings.clickSound.rawValue,
             midiClockEnabled: settings.midiClockEnabled,
             midiClockReceiveEnabled: settings.midiClockReceiveEnabled,
+            midiReceiveSourceName: settings.midiReceiveSourceName,
             voiceCountModeRaw: settings.voiceCountMode.rawValue,
             randomMutePercentage: settings.randomMutePercentage,
             hapticModeRaw: settings.hapticMode.rawValue,
@@ -137,6 +145,7 @@ final class PersistedEngineSettings {
             clickSound: ClickSound(rawValue: clickSoundRaw) ?? .digitalBeep,
             midiClockEnabled: midiClockEnabled,
             midiClockReceiveEnabled: midiClockReceiveEnabled,
+            midiReceiveSourceName: midiReceiveSourceName,
             voiceCountMode: VoiceCountMode(rawValue: voiceCountModeRaw) ?? .off,
             randomMutePercentage: randomMutePercentage,
             hapticMode: HapticMode(rawValue: hapticModeRaw) ?? .off,
@@ -162,6 +171,7 @@ final class PersistedEngineSettings {
         clickSoundRaw = settings.clickSound.rawValue
         midiClockEnabled = settings.midiClockEnabled
         midiClockReceiveEnabled = settings.midiClockReceiveEnabled
+        midiReceiveSourceName = settings.midiReceiveSourceName
         voiceCountModeRaw = settings.voiceCountMode.rawValue
         randomMutePercentage = settings.randomMutePercentage
         hapticModeRaw = settings.hapticMode.rawValue

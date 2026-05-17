@@ -78,7 +78,10 @@ struct ContentView: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(initial: viewModel.settings) { updated in
+            SettingsView(
+                initial: viewModel.settings,
+                loadMIDISources: { await viewModel.availableMIDISources() }
+            ) { updated in
                 viewModel.setSettings(updated)
             }
             .presentationDetents([.large])

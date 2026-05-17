@@ -457,6 +457,18 @@ final class MetronomeViewModel {
         practiceSessions = practiceSessionStore?.all() ?? []
     }
 
+    // MARK: - MIDI source picker (spec §12.2)
+
+    /// Snapshot of the names CoreMIDI is currently exposing as external
+    /// sources, with the meter-gnome send source filtered out. Empty
+    /// when no receiver is attached or no sources are present (common
+    /// on simulator). Refreshed by callers — there's no observation
+    /// path; the picker view fetches on appear.
+    func availableMIDISources() async -> [String] {
+        guard let receiver = await engine.midiReceiver else { return [] }
+        return await receiver.availableSources()
+    }
+
     // MARK: - Accent pattern preset library (spec §3.2)
 
     func refreshAccentPatternPresets() {

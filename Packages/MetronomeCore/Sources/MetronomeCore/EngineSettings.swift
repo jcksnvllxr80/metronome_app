@@ -82,6 +82,14 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// both be on, though feedback is avoided by name-filtering our own
     /// source).
     public var midiClockReceiveEnabled: Bool
+    /// Name of the MIDI source the receiver listens to. `nil` means
+    /// "all available sources" (the legacy behavior — receiver merges
+    /// every external source into one input stream). A non-nil name
+    /// restricts the receiver to ports whose CoreMIDI `kMIDIPropertyName`
+    /// matches exactly. Useful when more than one master (DAW + drum
+    /// machine) is on the bus and only one is the intended tempo source.
+    /// Spec §12.2 (MIDI source picker).
+    public var midiReceiveSourceName: String?
     /// Voice-count mode (spec §5). Phase 1 supports `.off` and `.beats`;
     /// other cases are reserved enum values that currently behave like
     /// `.off`. See `VoiceCountMode.isImplemented`.
@@ -143,6 +151,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         clickSound: ClickSound = .digitalBeep,
         midiClockEnabled: Bool = false,
         midiClockReceiveEnabled: Bool = false,
+        midiReceiveSourceName: String? = nil,
         voiceCountMode: VoiceCountMode = .off,
         randomMutePercentage: Int = 0,
         hapticMode: HapticMode = .off,
@@ -165,6 +174,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.clickSound = clickSound
         self.midiClockEnabled = midiClockEnabled
         self.midiClockReceiveEnabled = midiClockReceiveEnabled
+        self.midiReceiveSourceName = midiReceiveSourceName
         self.voiceCountMode = voiceCountMode
         // 0 stays 0 (off). Anything else clamps to the active range.
         if randomMutePercentage <= 0 {
@@ -192,7 +202,8 @@ extension EngineSettings {
     private enum CodingKeys: String, CodingKey {
         case masterVolume, latencyOffsetSeconds, mixWithOthers, countIn
         case bpmPrecisionMode, autoResumeAfterInterruption, clickSound
-        case midiClockEnabled, midiClockReceiveEnabled, voiceCountMode
+        case midiClockEnabled, midiClockReceiveEnabled, midiReceiveSourceName
+        case voiceCountMode
         case randomMutePercentage, hapticMode, hapticIntensity
         case keepScreenAwakeDuringPlayback, startOnLaunch
         case dailyPracticeGoalMinutes, subdivisionConfigs, largeDisplayMode
@@ -215,6 +226,7 @@ extension EngineSettings {
             clickSound: try c.decodeIfPresent(ClickSound.self, forKey: .clickSound) ?? .digitalBeep,
             midiClockEnabled: try c.decodeIfPresent(Bool.self, forKey: .midiClockEnabled) ?? false,
             midiClockReceiveEnabled: try c.decodeIfPresent(Bool.self, forKey: .midiClockReceiveEnabled) ?? false,
+            midiReceiveSourceName: try c.decodeIfPresent(String.self, forKey: .midiReceiveSourceName),
             voiceCountMode: try c.decodeIfPresent(VoiceCountMode.self, forKey: .voiceCountMode) ?? .off,
             randomMutePercentage: try c.decodeIfPresent(Int.self, forKey: .randomMutePercentage) ?? 0,
             hapticMode: try c.decodeIfPresent(HapticMode.self, forKey: .hapticMode) ?? .off,
@@ -248,6 +260,7 @@ extension EngineSettings {
         try c.encode(clickSound, forKey: .clickSound)
         try c.encode(midiClockEnabled, forKey: .midiClockEnabled)
         try c.encode(midiClockReceiveEnabled, forKey: .midiClockReceiveEnabled)
+        try c.encodeIfPresent(midiReceiveSourceName, forKey: .midiReceiveSourceName)
         try c.encode(voiceCountMode, forKey: .voiceCountMode)
         try c.encode(randomMutePercentage, forKey: .randomMutePercentage)
         try c.encode(hapticMode, forKey: .hapticMode)
