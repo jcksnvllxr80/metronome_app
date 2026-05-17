@@ -23,6 +23,11 @@ struct SongDetailView: View {
     let onLoad: (Song) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    /// Index of the section whose custom time-signature picker is
+    /// currently presented. Non-nil drives the sheet; tapping a row's
+    /// "Custom…" menu item sets this, the sheet's onSelect commits the
+    /// new time signature back into that section. Spec §7.3.
+    @State private var customTimeSigSectionIndex: Int?
 
     var body: some View {
         ZStack {
@@ -67,6 +72,27 @@ struct SongDetailView: View {
         .onChange(of: song) { _, newValue in
             onSave(newValue)
         }
+        .sheet(item: Binding(
+            get: { customTimeSigSectionIndex.map { CustomTimeSigSheetID(index: $0) } },
+            set: { newValue in customTimeSigSectionIndex = newValue?.index }
+        )) { box in
+            let current = song.sections?.indices.contains(box.index) == true
+                ? song.sections![box.index].timeSignature
+                : song.timeSignature
+            TimeSignaturePickerView(current: current) { ts in
+                updateSection(at: box.index) { $0.setTimeSignature(ts) }
+            }
+            .preferredColorScheme(.dark)
+        }
+    }
+
+    /// Sheet-identifier wrapper. `sheet(item:)` needs an Identifiable;
+    /// plain Int doesn't qualify and we'd lose dismiss-when-nil
+    /// semantics with a Bool. Carries the index of the section the
+    /// custom-time-sig picker is targeting.
+    private struct CustomTimeSigSheetID: Identifiable {
+        let index: Int
+        var id: Int { index }
     }
 
     // MARK: - Title
@@ -913,12 +939,12 @@ struct SongDetailView: View {
         .listRowBackground(DS.DSColor.bgElevated)
     }
 
-    /// Inline Menu listing the 8 most common time signatures. Full
-    /// 1–32-numerator × 6-denominator picker exists in
-    /// TimeSignaturePickerView but is overkill for a per-row control —
-    /// sheets-per-row would also be awkward in a Form. If the user
-    /// needs an exotic TS for a section, they can change the song's
-    /// flat TS first and then enable multi-section.
+    /// Inline Menu listing the 8 most common time signatures, with a
+    /// "Custom…" option that opens the full TimeSignaturePickerView
+    /// for exotic meters (11/8, 13/16, 9/4, etc — spec §2.1). The
+    /// picker preserves the section's current time signature when
+    /// entering the custom editor, so the user can tweak the numerator
+    /// from a known starting point.
     private static let commonSectionTimeSignatures: [TimeSignature] = [
         .twoFour, .threeFour, .fourFour, .fiveFour,
         .sixEight, .sevenEight, .nineEight, .twelveEight,
@@ -930,6 +956,12 @@ struct SongDetailView: View {
                 Button("\(ts.numerator)/\(ts.denominator.rawValue)") {
                     updateSection(at: index) { $0.setTimeSignature(ts) }
                 }
+            }
+            Divider()
+            Button {
+                customTimeSigSectionIndex = index
+            } label: {
+                Label("Custom…", systemImage: "slider.horizontal.3")
             }
         } label: {
             HStack {
