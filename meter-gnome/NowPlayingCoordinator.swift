@@ -64,6 +64,15 @@ final class NowPlayingCoordinator {
         commandsRegistered = true
         let center = MPRemoteCommandCenter.shared()
 
+        // Explicitly enable the transport commands. addTarget enables
+        // them implicitly per Apple docs, but in practice (esp. on
+        // iOS 17+) being explicit ensures the lock-screen render
+        // path picks them up; without this some users see a card
+        // with greyed-out buttons.
+        center.playCommand.isEnabled = true
+        center.pauseCommand.isEnabled = true
+        center.togglePlayPauseCommand.isEnabled = true
+
         center.playCommand.addTarget { [weak self] _ in
             guard let vm = self?.viewModel else { return .commandFailed }
             if !vm.isRunning { vm.togglePlay() }
@@ -137,6 +146,17 @@ final class NowPlayingCoordinator {
         info[MPMediaItemPropertyTitle] = title
         info[MPMediaItemPropertyArtist] = artist
         info[MPNowPlayingInfoPropertyPlaybackRate] = snapshot.isRunning ? 1.0 : 0.0
+        info[MPNowPlayingInfoPropertyDefaultPlaybackRate] = 1.0
+        // Mark this as a live audio stream — metronome output has no
+        // defined duration, so iOS shouldn't draw scrubber UI or
+        // expect elapsed/total time fields. Without this flag iOS 17+
+        // will sometimes suppress the lock-screen card entirely when
+        // the app uses `.mixWithOthers` (which we do — spec §10.1).
+        info[MPNowPlayingInfoPropertyIsLiveStream] = true
+        info[MPNowPlayingInfoPropertyMediaType] = MPNowPlayingInfoMediaType.audio.rawValue
+        // Some iOS builds still expect elapsed time to be present even
+        // on a live stream; 0 is the canonical "no offset" value.
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = 0.0
         if let artwork {
             info[MPMediaItemPropertyArtwork] = artwork
         }
