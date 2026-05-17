@@ -596,6 +596,24 @@ final class MetronomeViewModel {
         }
     }
 
+    /// Apply a tempo automation directly to the engine — used by the
+    /// Stage quick-ramp sheet (spec §6.3 stage-quick-sheet variant) so
+    /// the user can ramp tempo without first saving a song. Pass nil
+    /// to clear any active automation. Optimistically mirrors then
+    /// refreshes; engine.setAutomation already re-anchors the
+    /// schedule if running.
+    func setAutomation(_ auto: TempoAutomation?) {
+        automation = auto
+        if let auto {
+            // Engine forces BPM to start when automation is non-nil.
+            bpm = auto.startBPM
+        }
+        Task {
+            await engine.setAutomation(auto)
+            await refresh()
+        }
+    }
+
     /// Forget the currently-loaded song (Stage indicator disappears).
     /// The engine's BPM / meter / subdivision are left alone — this is
     /// only about the displayed metadata, not playback state.

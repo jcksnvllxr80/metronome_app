@@ -14,8 +14,7 @@ Practice-session log shipped end-to-end: PracticeSession value type, SwiftData s
 - ~~Weekly / monthly goals~~ — shipped in v0.23.0 (Settings stepper rows; Stats progress bars stack per non-zero goal)
 
 ### Tempo automation — remaining sub-features (spec §6.3)
-All three §6.3 modes shipped: gradual, step, and ramp-loop. SongDetail's picker selects between them; loop mode edits a list of (BPM, measures) stages that cycle forever. Drag-to-reorder via the Edit button in the toolbar. Stage indicator renders the active mode. Still backlog:
-- Stage-quick-sheet variant (current UI is per-song only)
+All three §6.3 modes shipped: gradual, step, and ramp-loop. SongDetail's picker selects between them; loop mode edits a list of (BPM, measures) stages that cycle forever. Drag-to-reorder via the Edit button in the toolbar. Stage indicator renders the active mode. v0.25.0 adds a Stage quick-sheet for gradual ramps — tap the waveform icon in the top overlay (or tap the ramp indicator under the BPM hero) to set start / end BPM + duration without saving a song. Step + loop modes still live in SongDetailView; they're typically song-attached.
 
 ### Speed trainer — remaining sub-features (spec §6.4)
 Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tempo Automation → Step: start BPM, increment per step, measures per step, optional ceiling, and (when a ceiling is set) a Stop / Reverse picker. Stop = default spec §6.4 behavior (engine halts at the ceiling). Reverse = triangle-wave ramp that counts back down to `startBPM` and stops at the valley. Engine auto-stops via `engine.hasReachedAutomationCeiling`, which fires at the ceiling step in .stop mode and at the valley in .reverse mode. Still backlog:

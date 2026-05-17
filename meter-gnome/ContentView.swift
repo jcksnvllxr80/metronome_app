@@ -19,6 +19,10 @@ struct ContentView: View {
     @State private var showSubdivisionPicker = false
     @State private var showSettings = false
     @State private var showLibrary = false
+    /// Stage-quick-action sheet for tempo automation (spec §6.3). Tap
+    /// the rampIndicator (or the long-press hint when no automation is
+    /// active) to open.
+    @State private var showTempoAutomation = false
     @State private var showTempoPresets = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -54,13 +58,14 @@ struct ContentView: View {
                 content(at: now)
             }
 
-            // Top overlay row — Library (leading) and Settings (trailing),
-            // balanced around the centered time signature in the content
-            // stack. Both icons are small + muted so they recede during
+            // Top overlay row — Library (leading), Settings (trailing),
+            // and a small Ramp (tempo automation quick-sheet) button next
+            // to Settings. Icons stay small + muted so they recede during
             // performance and DESIGN.md's 5-element rule applies in spirit.
             HStack {
                 libraryButton
                 Spacer()
+                tempoAutomationButton
                 settingsButton
             }
         }
@@ -76,6 +81,10 @@ struct ContentView: View {
                 viewModel.setSubdivision(selected)
             }
             .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showTempoAutomation) {
+            TempoAutomationQuickView(viewModel: viewModel)
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(
@@ -125,6 +134,26 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Settings")
+    }
+
+    /// Stage-quick-action entry to the tempo-automation sheet (spec
+    /// §6.3 stage-quick-sheet variant). Icon goes vermillion when a
+    /// ramp is active so the user gets a glanceable status indicator
+    /// alongside the rampIndicator below the BPM hero. Tapping the
+    /// rampIndicator opens the same sheet; this button is the
+    /// primary entry when no automation is configured yet.
+    private var tempoAutomationButton: some View {
+        Button {
+            showTempoAutomation = true
+        } label: {
+            Image(systemName: "waveform.path.ecg")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(viewModel.automation != nil ? DS.DSColor.accentTempo : DS.DSColor.textMuted)
+                .padding(DS.Spacing.lg)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(viewModel.automation != nil ? "Edit tempo ramp" : "Tempo ramp")
     }
 
     @ViewBuilder
@@ -309,13 +338,19 @@ struct ContentView: View {
     @ViewBuilder
     private var rampIndicator: some View {
         if let auto = viewModel.automation {
-            Text(rampIndicatorText(for: auto))
-                .font(DS.Font.label)
-                .monospacedDigit()
-                .foregroundStyle(DS.DSColor.accentTempo)
-                .textCase(.uppercase)
-                .tracking(2)
-                .accessibilityLabel(rampIndicatorAccessibility(for: auto))
+            Button {
+                showTempoAutomation = true
+            } label: {
+                Text(rampIndicatorText(for: auto))
+                    .font(DS.Font.label)
+                    .monospacedDigit()
+                    .foregroundStyle(DS.DSColor.accentTempo)
+                    .textCase(.uppercase)
+                    .tracking(2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(rampIndicatorAccessibility(for: auto))
+            .accessibilityHint("Edit tempo ramp")
         }
     }
 
