@@ -72,6 +72,10 @@ struct meter_gnomeApp: App {
         // song transitions per the active setlist's advance mode.
         let setlistPlayer = SetlistPlayer(engine: engine)
 
+        // Section playback coordinator — for multi-section songs (spec
+        // §7.3), advances section-by-section on measure boundaries.
+        let songSectionPlayer = SongSectionPlayer(engine: engine)
+
         // Haptic feedback (spec §9). Falls through to a no-op on
         // devices without CoreHaptics or in the simulator.
         let hapticScheduler = HapticScheduler()
@@ -85,7 +89,8 @@ struct meter_gnomeApp: App {
             libraryStore: libraryStore,
             setlistPlayer: setlistPlayer,
             practiceSessionStore: practiceSessionStore,
-            accentPatternPresetStore: accentPatternPresetStore
+            accentPatternPresetStore: accentPatternPresetStore,
+            songSectionPlayer: songSectionPlayer
         )
 
         // Lock-screen + Control Center + AirPods integration. The

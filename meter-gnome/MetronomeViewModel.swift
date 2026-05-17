@@ -24,6 +24,10 @@ final class MetronomeViewModel {
     /// Setlist playback coordinator. Optional so previews work without
     /// the full app stack.
     @ObservationIgnored let setlistPlayer: SetlistPlayer?
+    /// Section-by-section playback for multi-section songs (spec §7.3).
+    /// Owned and started by the view model when a multi-section song
+    /// is loaded + the user presses play.
+    @ObservationIgnored let songSectionPlayer: SongSectionPlayer?
     /// Practice-session log store. Optional so previews + tests still
     /// construct the view model without a SwiftData container.
     @ObservationIgnored let practiceSessionStore: PracticeSessionStore?
@@ -89,6 +93,15 @@ final class MetronomeViewModel {
     /// ramp indicator. `nil` when no ramp is configured (the common case).
     var automation: TempoAutomation? = nil
 
+    /// Currently-playing section info for a multi-section song. Set by
+    /// the polling refresh loop while `songSectionPlayer` is active;
+    /// nil otherwise. Used by the Stage indicator to show "Verse · 2/3".
+    var currentSectionName: String? = nil
+    var currentSectionIndex: Int = -1
+    var currentSectionCount: Int = 0
+    /// Whether a multi-section song is loaded — drives togglePlay routing.
+    var loadedSongHasSections: Bool = false
+
     /// Title of the song most recently loaded via `loadSong(_:)`. Used by
     /// the Stage "loaded song" indicator and the Now Playing card so the
     /// user can tell which song is active without opening the Library.
@@ -121,7 +134,8 @@ final class MetronomeViewModel {
         libraryStore: LibraryStore? = nil,
         setlistPlayer: SetlistPlayer? = nil,
         practiceSessionStore: PracticeSessionStore? = nil,
-        accentPatternPresetStore: AccentPatternPresetStore? = nil
+        accentPatternPresetStore: AccentPatternPresetStore? = nil,
+        songSectionPlayer: SongSectionPlayer? = nil
     ) {
         self.engine = engine
         self.settingsStore = settingsStore
@@ -129,6 +143,7 @@ final class MetronomeViewModel {
         self.setlistPlayer = setlistPlayer
         self.practiceSessionStore = practiceSessionStore
         self.accentPatternPresetStore = accentPatternPresetStore
+        self.songSectionPlayer = songSectionPlayer
         // Seed `settings` synchronously from the store if available so
         // the SettingsView opens with the persisted values, not defaults.
         if let initial = settingsStore?.current {
@@ -137,11 +152,12 @@ final class MetronomeViewModel {
         Task { await self.refresh() }
         // 100 ms tick so the setlist indicator reflects internal advances
         // driven by the player's own poll task. Cheap (one actor hop).
-        if setlistPlayer != nil {
+        if setlistPlayer != nil || songSectionPlayer != nil {
             Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 100_000_000)
                     await self?.refreshSetlistPlaybackState()
+                    await self?.refreshSectionPlaybackState()
                 }
             }
         }
@@ -274,12 +290,60 @@ final class MetronomeViewModel {
 
     func togglePlay() {
         Task {
-            if await engine.isRunning {
-                await engine.stop()
+            let isRunning = await engine.isRunning
+            if isRunning {
+                // Stop via section player if it's active (so its state
+                // clears too); otherwise stop the engine directly.
+                if loadedSongHasSections, let player = songSectionPlayer {
+                    await player.stop()
+                } else {
+                    await engine.stop()
+                }
             } else {
-                await engine.start()
+                // Route through the section player when a multi-section
+                // song is loaded — that auto-advances measure by
+                // measure. Otherwise just start the engine.
+                if loadedSongHasSections,
+                   let player = songSectionPlayer,
+                   let song = await currentLoadedSong() {
+                    await player.play(song)
+                } else {
+                    await engine.start()
+                }
             }
             await refresh()
+            await refreshSectionPlaybackState()
+        }
+    }
+
+    /// Look up the loaded song fresh from the library by title — the
+    /// view model only retains the title for indicator purposes, so we
+    /// re-resolve when starting section playback. Returns nil if there's
+    /// no LibraryStore or the song's been deleted.
+    private func currentLoadedSong() async -> Song? {
+        guard let title = loadedSongTitle else { return nil }
+        return librarySongs.first { $0.title == title }
+    }
+
+    /// Mirror section-playback state from `SongSectionPlayer` so the
+    /// Stage indicator updates. Called from refresh() and on transitions.
+    func refreshSectionPlaybackState() async {
+        guard let player = songSectionPlayer else { return }
+        let active = await player.isActive
+        if active {
+            let section = await player.currentSection
+            let idx = await player.currentIndex
+            let count = await player.totalSections
+            currentSectionName = section?.name
+            currentSectionIndex = idx
+            currentSectionCount = count
+        } else {
+            // Keep loaded-state metadata even when not playing; only
+            // clear once the user actively unloads the song.
+            if !loadedSongHasSections {
+                currentSectionName = nil
+                currentSectionIndex = -1
+            }
         }
     }
 
@@ -407,11 +471,38 @@ final class MetronomeViewModel {
     }
 
     /// Load a song's settings into the engine. Doesn't auto-start —
-    /// keeps the user in control of when audio begins.
+    /// keeps the user in control of when audio begins. Multi-section
+    /// songs apply their first section's state to the engine here so
+    /// Stage shows the right tempo before the user presses play; the
+    /// SongSectionPlayer takes over once playback starts via
+    /// togglePlay.
     func loadSong(_ song: Song) {
         loadedSongTitle = song.title
+        loadedSongHasSections = song.isMultiSection
+        currentSectionCount = song.sections?.count ?? 0
         Task {
-            await engine.apply(song)
+            if song.isMultiSection, let first = song.sections?.first {
+                // Show first section's settings on Stage without
+                // engaging the player (player starts on play).
+                let materialized = Song(
+                    id: song.id,
+                    title: song.title,
+                    bpm: first.bpm,
+                    timeSignature: first.timeSignature,
+                    subdivision: first.subdivision,
+                    accentPattern: first.accentPattern,
+                    soundPreset: first.soundPreset ?? song.soundPreset
+                )
+                if let m = materialized {
+                    await engine.apply(m)
+                }
+                self.currentSectionName = first.name
+                self.currentSectionIndex = 0
+            } else {
+                await engine.apply(song)
+                self.currentSectionName = nil
+                self.currentSectionIndex = -1
+            }
             await refresh()
         }
     }
@@ -421,6 +512,10 @@ final class MetronomeViewModel {
     /// only about the displayed metadata, not playback state.
     func clearLoadedSong() {
         loadedSongTitle = nil
+        loadedSongHasSections = false
+        currentSectionName = nil
+        currentSectionIndex = -1
+        currentSectionCount = 0
     }
 
     /// Delete a song from the library.

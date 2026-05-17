@@ -213,22 +213,50 @@ struct ContentView: View {
             Button {
                 viewModel.clearLoadedSong()
             } label: {
-                HStack(spacing: DS.Spacing.xs) {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(title)
+                VStack(spacing: DS.Spacing.xxs) {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(title)
+                    }
+                    .font(DS.Font.label)
+                    .foregroundStyle(DS.DSColor.textMuted)
+                    .textCase(.uppercase)
+                    .tracking(2)
+                    if let sectionLine = sectionIndicatorText {
+                        Text(sectionLine)
+                            .font(DS.Font.label)
+                            .foregroundStyle(DS.DSColor.accentTempo)
+                            .textCase(.uppercase)
+                            .tracking(2)
+                    }
                 }
-                .font(DS.Font.label)
-                .foregroundStyle(DS.DSColor.textMuted)
-                .textCase(.uppercase)
-                .tracking(2)
                 .padding(.horizontal, DS.Spacing.sm)
                 .padding(.vertical, DS.Spacing.xxs)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Loaded song: \(title). Tap to clear.")
+            .accessibilityLabel(sectionAccessibilityLabel(title: title))
         }
+    }
+
+    /// "INTRO · 1/3" when a sectioned song is loaded; nil otherwise.
+    /// Falls through gracefully when section name is missing (uses
+    /// "Section N" instead).
+    private var sectionIndicatorText: String? {
+        guard viewModel.loadedSongHasSections,
+              viewModel.currentSectionIndex >= 0,
+              viewModel.currentSectionCount > 0
+        else { return nil }
+        let label = viewModel.currentSectionName ?? "Section \(viewModel.currentSectionIndex + 1)"
+        return "\(label) · \(viewModel.currentSectionIndex + 1)/\(viewModel.currentSectionCount)"
+    }
+
+    private func sectionAccessibilityLabel(title: String) -> String {
+        if let section = sectionIndicatorText {
+            return "Loaded song: \(title), playing \(section). Tap to clear."
+        }
+        return "Loaded song: \(title). Tap to clear."
     }
 
     // MARK: - Ramp indicator (tempo automation, spec §6.3)

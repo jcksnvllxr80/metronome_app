@@ -33,6 +33,7 @@ struct SongDetailView: View {
                 matchStageSection
                 accentPatternSection
                 automationSection
+                sectionsSection
                 soundSection
                 durationSection
                 notesSection
@@ -667,6 +668,158 @@ struct SongDetailView: View {
             let stageDesc = l.stages.map { "\($0.bpm.displayInt)·\($0.measures)m" }.joined(separator: " → ")
             return "Cycle through \(l.stages.count) stage\(l.stages.count == 1 ? "" : "s") indefinitely: \(stageDesc). Each stage holds at the given BPM for the given number of measures, then advances to the next."
         }
+    }
+
+    // MARK: - Sections (spec §7.3 multi-section songs)
+
+    private var sectionsSection: some View {
+        Section {
+            Toggle("Multi-section song", isOn: sectionsEnabledBinding)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+
+            if let sections = song.sections {
+                ForEach(Array(sections.enumerated()), id: \.element.id) { idx, section in
+                    sectionRow(index: idx, section: section, total: sections.count)
+                }
+                Button {
+                    addSection()
+                } label: {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                        Text("Add section")
+                    }
+                    .foregroundStyle(DS.DSColor.accentTempo)
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            }
+        } header: {
+            Text("Sections").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text(sectionsFooter).foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var sectionsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { song.isMultiSection },
+            set: { isOn in
+                if isOn {
+                    // Seed with one section cloned from the song's
+                    // current flat tempo + meter so the user sees a
+                    // sensible starting point.
+                    if let first = SongSection(
+                        name: "Intro",
+                        bpm: song.bpm,
+                        timeSignature: song.timeSignature,
+                        subdivision: song.subdivision,
+                        measureCount: 16
+                    ) {
+                        song.sections = [first]
+                    }
+                } else {
+                    song.sections = nil
+                }
+            }
+        )
+    }
+
+    private func sectionRow(index: Int, section: SongSection, total: Int) -> some View {
+        let canDelete = total > 1
+        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack {
+                Text("Section \(index + 1)")
+                    .font(DS.Font.label)
+                    .tracking(2)
+                    .foregroundStyle(DS.DSColor.textMuted)
+                Spacer()
+                if canDelete {
+                    Button(role: .destructive) {
+                        deleteSection(at: index)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(DS.DSColor.accentTempo)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Delete section \(index + 1)")
+                }
+            }
+            TextField(
+                "Name (optional)",
+                text: Binding(
+                    get: { section.name ?? "" },
+                    set: { newValue in
+                        updateSection(at: index) { s in
+                            s.name = newValue.isEmpty ? nil : newValue
+                        }
+                    }
+                )
+            )
+            .textInputAutocapitalization(.words)
+            Stepper(
+                value: Binding(
+                    get: { section.bpm.value },
+                    set: { v in
+                        updateSection(at: index) { $0.bpm = BPM(v) }
+                    }
+                ),
+                in: BPM.minimum...BPM.maximum, step: 1
+            ) {
+                bpmRow(label: "BPM", value: section.bpm)
+            }
+            Stepper(
+                value: Binding(
+                    get: { section.measureCount },
+                    set: { v in
+                        updateSection(at: index) { $0.measureCount = max(1, v) }
+                    }
+                ),
+                in: 1...512, step: 1
+            ) {
+                intRow(label: "Measures", value: section.measureCount)
+            }
+        }
+        .padding(.vertical, DS.Spacing.xs)
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func updateSection(at index: Int, mutate: (inout SongSection) -> Void) {
+        guard var sections = song.sections, sections.indices.contains(index) else { return }
+        var copy = sections[index]
+        mutate(&copy)
+        sections[index] = copy
+        song.sections = sections
+    }
+
+    private func addSection() {
+        var sections = song.sections ?? []
+        // Default new section: clones the last section's settings + 16 measures
+        // so the user has a sensible starting point.
+        let template = sections.last
+        if let s = SongSection(
+            name: nil,
+            bpm: template?.bpm ?? song.bpm,
+            timeSignature: template?.timeSignature ?? song.timeSignature,
+            subdivision: template?.subdivision ?? song.subdivision,
+            measureCount: 16
+        ) {
+            sections.append(s)
+            song.sections = sections
+        }
+    }
+
+    private func deleteSection(at index: Int) {
+        guard var sections = song.sections, sections.indices.contains(index) else { return }
+        sections.remove(at: index)
+        song.sections = sections.isEmpty ? nil : sections
+    }
+
+    private var sectionsFooter: String {
+        if !song.isMultiSection {
+            return "Multi-section songs play through a sequence of named sections (intro, verse, bridge…) each with their own BPM and measure count. The metronome auto-advances at the end of each section."
+        }
+        let total = song.sections?.reduce(0) { $0 + $1.measureCount } ?? 0
+        return "\(song.sections?.count ?? 0) section\(song.sections?.count == 1 ? "" : "s"), \(total) measure\(total == 1 ? "" : "s") total. Plays in order from top to bottom, then stops."
     }
 
     // MARK: - Sound

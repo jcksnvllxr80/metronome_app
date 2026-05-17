@@ -33,11 +33,12 @@ Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tem
 - Architecturally: two `ClickSchedule` instances, two `AVAudioPlayerNode`s in the audio scheduler
 - UI: secondary BPM/meter pair, visual indicator showing both pulse streams
 
-### Multi-section songs (spec §7.3)
-- Each section: own tempo / meter / measure count (e.g. intro 16 bars @ 90, verse 32 bars @ 120)
-- Optional repeat markers / DC al fine logic
-- Data model: extend `Song` with optional `sections: [SongSection]?` or add `SectionedSong` peer type
-- `SetlistPlayer` already handles song-to-song transitions; section-to-section would parallel that
+### Multi-section songs — remaining (spec §7.3)
+Core feature shipped: SongSection value type + Song.sections field + persistence + SongSectionPlayer for auto-advance + section editor in SongDetailView + Stage indicator showing current section name + position. Still backlog:
+- Repeat markers / DC al fine logic — repeat N times, "go back to section X" jumps
+- Per-section accent pattern editing in the section editor (currently only name/BPM/measures are editable inline; accent pattern + per-section sound preset still require the song's flat pattern)
+- Section reorder via drag (currently append at end + delete by index)
+- Setlist integration — setlists currently treat multi-section songs as flat at the song's top-level BPM; auto-advance through sections inside a setlist is a follow-up
 
 ### Haptic feedback — remaining sub-features (spec §9)
 All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `AudioScheduler`'s shape — same engine click stream, same refill cadence. Sharpness curve still hardcoded (it's a tactile quality, not user-facing loudness). Real device only — Simulator has no haptic engine. Still backlog:
