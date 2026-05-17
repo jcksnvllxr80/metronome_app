@@ -110,6 +110,11 @@ final class MetronomeViewModel {
     /// player has taken a D.C. al Fine jump and is scanning for a
     /// Fine-marked section. Stage indicator badges this with "AL FINE".
     var isAlFineMode: Bool = false
+    /// Mirror of `SongSectionPlayer.isAlCodaMode` — true once a coda
+    /// jump trigger has fired and the player is in the second pass,
+    /// waiting to land on the coda destination. Stage indicator
+    /// badges this with "AL CODA". Spec §7.3.
+    var isAlCodaMode: Bool = false
     /// Whether a multi-section song is loaded — drives togglePlay routing.
     var loadedSongHasSections: Bool = false
 
@@ -391,12 +396,14 @@ final class MetronomeViewModel {
             let count = await player.totalSections
             let rep = await player.currentRepetition
             let alFine = await player.isAlFineMode
+            let alCoda = await player.isAlCodaMode
             currentSectionName = section?.name
             currentSectionIndex = idx
             currentSectionCount = count
             currentSectionRepetition = rep + 1
             currentSectionRepeatTotal = section?.repeatCount ?? 1
             isAlFineMode = alFine
+            isAlCodaMode = alCoda
         } else {
             if !loadedSongHasSections {
                 currentSectionName = nil
@@ -405,6 +412,7 @@ final class MetronomeViewModel {
             currentSectionRepetition = 1
             currentSectionRepeatTotal = 1
             isAlFineMode = false
+            isAlCodaMode = false
         }
     }
 

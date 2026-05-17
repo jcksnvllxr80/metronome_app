@@ -347,14 +347,21 @@ struct ContentView: View {
         else { return nil }
         let label = viewModel.currentSectionName ?? "Section \(viewModel.currentSectionIndex + 1)"
         let position = "\(viewModel.currentSectionIndex + 1)/\(viewModel.currentSectionCount)"
-        let alFineBadge = viewModel.isAlFineMode ? " · AL FINE" : ""
+        let modeBadge: String
+        if viewModel.isAlCodaMode {
+            modeBadge = " · AL CODA"
+        } else if viewModel.isAlFineMode {
+            modeBadge = " · AL FINE"
+        } else {
+            modeBadge = ""
+        }
         // Only show repetition counter when the section actually has
         // repeats configured — most sections play once, no need to
         // clutter Stage with "1/1" everywhere.
         if viewModel.currentSectionRepeatTotal > 1 {
-            return "\(label) · \(position) · \(viewModel.currentSectionRepetition)/\(viewModel.currentSectionRepeatTotal)\(alFineBadge)"
+            return "\(label) · \(position) · \(viewModel.currentSectionRepetition)/\(viewModel.currentSectionRepeatTotal)\(modeBadge)"
         }
-        return "\(label) · \(position)\(alFineBadge)"
+        return "\(label) · \(position)\(modeBadge)"
     }
 
     private func sectionAccessibilityLabel(title: String) -> String {
