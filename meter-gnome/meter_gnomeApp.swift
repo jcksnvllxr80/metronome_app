@@ -70,6 +70,13 @@ struct meter_gnomeApp: App {
         // song transitions per the active setlist's advance mode.
         let setlistPlayer = SetlistPlayer(engine: engine)
 
+        // Haptic feedback (spec §9). Falls through to a no-op on
+        // devices without CoreHaptics or in the simulator.
+        let hapticScheduler = HapticScheduler()
+        Task {
+            await engine.attach(haptic: hapticScheduler)
+        }
+
         let viewModel = MetronomeViewModel(
             engine: engine,
             settingsStore: settingsStore,

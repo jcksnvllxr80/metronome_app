@@ -43,6 +43,12 @@ public actor MetronomeEngine {
     /// somewhere and the hot-toggle in setSettings can find it.
     public private(set) var midiReceiver: MIDIReceiver?
 
+    /// Haptic feedback sink (spec §9). `nil` when not attached or when
+    /// the device doesn't support haptics. The scheduler reads
+    /// `settings.hapticMode` each refill, so mode toggling takes
+    /// effect within ~50 ms — no engine restart needed.
+    public private(set) var hapticScheduler: HapticScheduler?
+
     /// Sound preset string from the currently-loaded `Song`. Set by
     /// `apply(_:)`, cleared by `stop()`. The audio scheduler resolves this
     /// to a `ClickSound` at refill time; when it's `nil` or unrecognized,
@@ -105,6 +111,9 @@ public actor MetronomeEngine {
             await midiScheduler.setEnabled(settings.midiClockEnabled)
             await midiScheduler.start(engine: self)
         }
+        if let hapticScheduler {
+            await hapticScheduler.start(engine: self)
+        }
     }
 
     /// Stop emitting clicks. The schedule is cleared; audio (if attached)
@@ -122,6 +131,9 @@ public actor MetronomeEngine {
         }
         if let midiScheduler {
             await midiScheduler.stop()
+        }
+        if let hapticScheduler {
+            await hapticScheduler.stop()
         }
     }
 
@@ -145,6 +157,9 @@ public actor MetronomeEngine {
         if let midiScheduler {
             await midiScheduler.stop()
         }
+        if let hapticScheduler {
+            await hapticScheduler.stop()
+        }
     }
 
     /// Resume after a `pause()`. Re-anchors the click sequence at `clock.now`
@@ -164,6 +179,9 @@ public actor MetronomeEngine {
         if let midiScheduler {
             await midiScheduler.setEnabled(settings.midiClockEnabled)
             await midiScheduler.start(engine: self)
+        }
+        if let hapticScheduler {
+            await hapticScheduler.start(engine: self)
         }
     }
 
@@ -272,6 +290,13 @@ public actor MetronomeEngine {
         self.midiReceiver = midiReceiver
     }
 
+    /// Attach a `HapticScheduler` for haptic feedback. The scheduler
+    /// reads `settings.hapticMode` each refill, so toggling mode on a
+    /// running engine takes effect immediately. Pass `nil` to detach.
+    public func attach(haptic: HapticScheduler?) {
+        self.hapticScheduler = haptic
+    }
+
     /// Next `count` clicks starting at or after `clock.now`. Returns `[]`
     /// when the engine is stopped. The UI uses this to drive the visual
     /// pulse + active beat indicator.
@@ -324,6 +349,11 @@ public actor MetronomeEngine {
         if let midiScheduler {
             Task { [midiScheduler] in
                 await midiScheduler.scheduleReset()
+            }
+        }
+        if let hapticScheduler {
+            Task { [hapticScheduler] in
+                await hapticScheduler.scheduleReset()
             }
         }
     }

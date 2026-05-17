@@ -57,6 +57,10 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// snaps to whole percentages. Clamped to `randomMuteRange` on init
     /// (values 1–9 round up to 10; 51+ round down to 50).
     public var randomMutePercentage: Int
+    /// Haptic feedback mode (spec §9). Default `.off` — many users
+    /// want audio without buzz. The `HapticScheduler` reads this each
+    /// refill pass so toggling in Settings takes effect immediately.
+    public var hapticMode: HapticMode
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -74,7 +78,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         midiClockEnabled: Bool = false,
         midiClockReceiveEnabled: Bool = false,
         voiceCountMode: VoiceCountMode = .off,
-        randomMutePercentage: Int = 0
+        randomMutePercentage: Int = 0,
+        hapticMode: HapticMode = .off
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -98,5 +103,6 @@ public struct EngineSettings: Hashable, Sendable, Codable {
                 min(Self.randomMuteRange.upperBound, randomMutePercentage)
             )
         }
+        self.hapticMode = hapticMode
     }
 }

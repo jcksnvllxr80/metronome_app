@@ -41,6 +41,9 @@ final class PersistedEngineSettings {
     /// schema; old rows decode as 0 via SwiftData's nullable-column
     /// migration with a default value.
     var randomMutePercentage: Int = 0
+    /// `HapticMode.rawValue` (spec §9). Defaults to `.off` so existing
+    /// users don't suddenly start feeling buzz on every beat.
+    var hapticModeRaw: String = HapticMode.off.rawValue
 
     init(
         masterVolume: Double = 1.0,
@@ -53,7 +56,8 @@ final class PersistedEngineSettings {
         midiClockEnabled: Bool = false,
         midiClockReceiveEnabled: Bool = false,
         voiceCountModeRaw: String = VoiceCountMode.off.rawValue,
-        randomMutePercentage: Int = 0
+        randomMutePercentage: Int = 0,
+        hapticModeRaw: String = HapticMode.off.rawValue
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -66,6 +70,7 @@ final class PersistedEngineSettings {
         self.midiClockReceiveEnabled = midiClockReceiveEnabled
         self.voiceCountModeRaw = voiceCountModeRaw
         self.randomMutePercentage = randomMutePercentage
+        self.hapticModeRaw = hapticModeRaw
     }
 
     convenience init(from settings: EngineSettings) {
@@ -80,7 +85,8 @@ final class PersistedEngineSettings {
             midiClockEnabled: settings.midiClockEnabled,
             midiClockReceiveEnabled: settings.midiClockReceiveEnabled,
             voiceCountModeRaw: settings.voiceCountMode.rawValue,
-            randomMutePercentage: settings.randomMutePercentage
+            randomMutePercentage: settings.randomMutePercentage,
+            hapticModeRaw: settings.hapticMode.rawValue
         )
     }
 
@@ -96,7 +102,8 @@ final class PersistedEngineSettings {
             midiClockEnabled: midiClockEnabled,
             midiClockReceiveEnabled: midiClockReceiveEnabled,
             voiceCountMode: VoiceCountMode(rawValue: voiceCountModeRaw) ?? .off,
-            randomMutePercentage: randomMutePercentage
+            randomMutePercentage: randomMutePercentage,
+            hapticMode: HapticMode(rawValue: hapticModeRaw) ?? .off
         )
     }
 
@@ -112,6 +119,7 @@ final class PersistedEngineSettings {
         midiClockReceiveEnabled = settings.midiClockReceiveEnabled
         voiceCountModeRaw = settings.voiceCountMode.rawValue
         randomMutePercentage = settings.randomMutePercentage
+        hapticModeRaw = settings.hapticMode.rawValue
     }
 }
 

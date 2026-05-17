@@ -8,7 +8,7 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 
 ## Status
 
-**Phase 1 shipped; Phase 2 mostly shipped.** Audio, MIDI, persistence, library, setlist playback, accent pattern editor, tempo automation (gradual ramp), and lock-screen / AirPods control all work end-to-end.
+**Phase 1 + Phase 2 shipped.** Audio, MIDI, persistence, library, setlist playback, accent pattern editor, tempo automation (gradual ramp + step BPM), speed trainer (random mute + step), practice stats with CSV export, haptics, and lock-screen / AirPods control all work end-to-end.
 
 | Layer | State |
 |---|---|
@@ -24,7 +24,8 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 | Tempo automation — gradual + step | ✓ Per-song picker; gradual accel/rit over measures or seconds, step BPM ±N every M bars with optional ceiling |
 | Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling |
 | Practice stats / session log | ✓ Library → Stats tab: today/week/month totals + per-song breakdown + CSV export. 30-sec minimum, pause-aware. |
-| Real percussion samples, haptics, polyrhythm, multi-section songs, ramp-loop automation, daily goal | Backlog — see [TODO.md](TODO.md) |
+| Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Driven off the same clock as audio. Real device only. |
+| Real percussion samples, polyrhythm, multi-section songs, ramp-loop automation, daily goal | Backlog — see [TODO.md](TODO.md) |
 | Apple Watch, iCloud sync, BLE pedals, Ableton Link | Out of scope |
 
 ## Development

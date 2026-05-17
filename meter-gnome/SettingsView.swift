@@ -37,6 +37,7 @@ struct SettingsView: View {
                 autoResumeSection
                 midiSection
                 randomMuteSection
+                hapticSection
             }
             .scrollContentBackground(.hidden)
             .background(DS.DSColor.bgBase)
@@ -193,6 +194,26 @@ struct SettingsView: View {
             Text("MIDI Sync").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
             Text("Send: publish a virtual MIDI source named \"meter-gnome\" that emits MIDI Clock (24 PPQ) + Start/Stop. Listen: follow incoming MIDI Clock from connected sources — DAW transport drives play/stop, DAW tempo drives BPM.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    // MARK: - Haptics (spec §9)
+
+    private var hapticSection: some View {
+        Section {
+            Picker("Mode", selection: $settings.hapticMode) {
+                ForEach(HapticMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(DS.DSColor.accentTempo)
+            .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Haptics").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Vibrate on selected clicks. Useful for silent practice or wrist-feel reinforcement. Real device only — Simulator has no haptic engine.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }
