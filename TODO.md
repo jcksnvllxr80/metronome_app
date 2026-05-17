@@ -88,10 +88,8 @@ A small "🔊 Cowbell" row now sits under the loaded-song title (and under any s
 - Receiver currently listens to ALL external sources except our own "meter-gnome" output
 - For users with multiple potential masters (DAW + drum machine), need a picker
 
-### Subdivision config (spec §2.3)
-- "Each subdivision level has independent volume AND optional independent sound" — not implemented
-- Today: all subdivisions are `.soft` accent with the parent beat's sound
-- Future: `SubdivisionConfig` per subdivision level
+### ~~Subdivision config~~ (spec §2.3) — shipped in v0.16.0
+`SubdivisionConfig` (accent + optional `soundOverride`) lives on `EngineSettings.subdivisionConfigs: [Subdivision: SubdivisionConfig]`. Each level keeps its own choice, so flipping between .eighth and .triplet preserves per-level config. ClickSchedule pulls the entry for the active subdivision at rebuild time and applies it to non-zero-index sub clicks; missing entries fall through to the legacy `.soft` + parent-beat-sound behavior, so existing users see no change until they touch Settings → Subdivisions. Count-in subdivisions always stay on the legacy default. UI: Settings → Subdivisions → drill-in list with volume + sound pickers per level, plus a "Reset to Default" action that removes the entry from the map.
 
 ## UI gaps
 

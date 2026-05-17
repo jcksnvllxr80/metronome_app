@@ -35,6 +35,12 @@ public struct ClickSchedule: Hashable, Sendable {
     public let accentPattern: AccentPattern?
     public let countInMeasures: Int
     public let automation: TempoAutomation?
+    /// Configuration for non-zero-index subdivision clicks (the "ands"
+    /// and "trip-lets"). When nil, falls back to the legacy hardcoded
+    /// behavior (`.soft` accent, parent-beat sound) so callers built
+    /// before spec §2.3 keep working unchanged. The engine pulls this
+    /// from `settings.subdivisionConfigs[subdivision]` when rebuilding.
+    public let subdivisionConfig: SubdivisionConfig?
 
     /// Precondition: if `accentPattern` is non-nil, its `timeSignature` must
     /// equal `timeSignature`. The caller (engine) clears mismatched patterns
@@ -49,7 +55,8 @@ public struct ClickSchedule: Hashable, Sendable {
         startTime: TimeInterval,
         accentPattern: AccentPattern? = nil,
         countInMeasures: Int = 0,
-        automation: TempoAutomation? = nil
+        automation: TempoAutomation? = nil,
+        subdivisionConfig: SubdivisionConfig? = nil
     ) {
         if let pattern = accentPattern {
             precondition(
@@ -71,6 +78,7 @@ public struct ClickSchedule: Hashable, Sendable {
         self.accentPattern = accentPattern
         self.countInMeasures = countInMeasures
         self.automation = automation
+        self.subdivisionConfig = subdivisionConfig
     }
 
     /// Seconds between consecutive clicks (including subdivision clicks).
@@ -137,13 +145,22 @@ public struct ClickSchedule: Hashable, Sendable {
                 isCountIn: isCountIn
             )
         } else {
+            // Subdivision click (the "and", "trip-let", etc.). Spec §2.3:
+            // each subdivision level can carry its own accent + sound.
+            // When no config is plumbed in, fall back to the pre-spec-§2.3
+            // hardcoded behavior (`.soft`, no override) so existing tests
+            // and callers stay correct. Count-in subdivisions never
+            // consult the config — count-in is a clean, predictable
+            // preamble independent of the user's main-playback choices.
+            let sub = isCountIn ? SubdivisionConfig.legacy
+                                : (subdivisionConfig ?? .legacy)
             return Click(
                 beatIndex: beatIndex,
                 subdivisionIndex: subdivisionIndex,
                 measureIndex: measureIndex,
                 time: time,
-                accent: .soft,
-                soundOverride: nil,
+                accent: sub.accent,
+                soundOverride: sub.soundOverride,
                 pitchShift: .unison,
                 isCountIn: isCountIn
             )

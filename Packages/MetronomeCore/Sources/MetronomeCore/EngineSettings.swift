@@ -114,6 +114,13 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// it's > 0. Stored as Int to match the slider's snap-to-whole
     /// behavior.
     public var dailyPracticeGoalMinutes: Int
+    /// Per-subdivision-level click config (spec §2.3). When a level
+    /// isn't present in the map, `SubdivisionConfig.legacy` applies —
+    /// `.soft` accent, no sound override, identical to pre-feature
+    /// behavior. Keyed by `Subdivision` so each level keeps its own
+    /// settings (eighth-note config is preserved when the user switches
+    /// to triplets and back).
+    public var subdivisionConfigs: [Subdivision: SubdivisionConfig]
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -136,7 +143,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         hapticIntensity: HapticIntensity = HapticIntensity(),
         keepScreenAwakeDuringPlayback: Bool = true,
         startOnLaunch: Bool = false,
-        dailyPracticeGoalMinutes: Int = 0
+        dailyPracticeGoalMinutes: Int = 0,
+        subdivisionConfigs: [Subdivision: SubdivisionConfig] = [:]
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -165,10 +173,23 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
         self.startOnLaunch = startOnLaunch
         self.dailyPracticeGoalMinutes = max(0, dailyPracticeGoalMinutes)
+        self.subdivisionConfigs = subdivisionConfigs
     }
 }
 
 extension EngineSettings {
+    /// Explicit CodingKeys — both `init(from:)` and `encode(to:)` are
+    /// custom, so synthesis is off. Property names match field names so
+    /// nothing has to change at the call site / persisted-JSON level.
+    private enum CodingKeys: String, CodingKey {
+        case masterVolume, latencyOffsetSeconds, mixWithOthers, countIn
+        case bpmPrecisionMode, autoResumeAfterInterruption, clickSound
+        case midiClockEnabled, midiClockReceiveEnabled, voiceCountMode
+        case randomMutePercentage, hapticMode, hapticIntensity
+        case keepScreenAwakeDuringPlayback, startOnLaunch
+        case dailyPracticeGoalMinutes, subdivisionConfigs
+    }
+
     /// Custom Codable to provide a default for `hapticIntensity` when
     /// decoding pre-v0.8.2 payloads that don't carry the field. SwiftData
     /// handles this via its nullable-column migration, but JSON Codable
@@ -192,7 +213,46 @@ extension EngineSettings {
             hapticIntensity: try c.decodeIfPresent(HapticIntensity.self, forKey: .hapticIntensity) ?? HapticIntensity(),
             keepScreenAwakeDuringPlayback: try c.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeDuringPlayback) ?? true,
             startOnLaunch: try c.decodeIfPresent(Bool.self, forKey: .startOnLaunch) ?? false,
-            dailyPracticeGoalMinutes: try c.decodeIfPresent(Int.self, forKey: .dailyPracticeGoalMinutes) ?? 0
+            dailyPracticeGoalMinutes: try c.decodeIfPresent(Int.self, forKey: .dailyPracticeGoalMinutes) ?? 0,
+            // Decoder uses [String: SubdivisionConfig] because Swift's
+            // JSONEncoder only allows string-keyed dictionaries; map
+            // back to [Subdivision: ...] here. Missing field → empty
+            // map → legacy behavior at every level (no behavior change
+            // on upgrade until the user touches the new settings UI).
+            subdivisionConfigs: (try c.decodeIfPresent(
+                [String: SubdivisionConfig].self,
+                forKey: .subdivisionConfigs
+            ) ?? [:]).reduce(into: [Subdivision: SubdivisionConfig]()) { acc, kv in
+                if let sub = Subdivision(rawValue: kv.key) { acc[sub] = kv.value }
+            }
         )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(masterVolume, forKey: .masterVolume)
+        try c.encode(latencyOffsetSeconds, forKey: .latencyOffsetSeconds)
+        try c.encode(mixWithOthers, forKey: .mixWithOthers)
+        try c.encode(countIn, forKey: .countIn)
+        try c.encode(bpmPrecisionMode, forKey: .bpmPrecisionMode)
+        try c.encode(autoResumeAfterInterruption, forKey: .autoResumeAfterInterruption)
+        try c.encode(clickSound, forKey: .clickSound)
+        try c.encode(midiClockEnabled, forKey: .midiClockEnabled)
+        try c.encode(midiClockReceiveEnabled, forKey: .midiClockReceiveEnabled)
+        try c.encode(voiceCountMode, forKey: .voiceCountMode)
+        try c.encode(randomMutePercentage, forKey: .randomMutePercentage)
+        try c.encode(hapticMode, forKey: .hapticMode)
+        try c.encode(hapticIntensity, forKey: .hapticIntensity)
+        try c.encode(keepScreenAwakeDuringPlayback, forKey: .keepScreenAwakeDuringPlayback)
+        try c.encode(startOnLaunch, forKey: .startOnLaunch)
+        try c.encode(dailyPracticeGoalMinutes, forKey: .dailyPracticeGoalMinutes)
+        // Skip the field when no user customization exists — keeps JSON
+        // for pre-feature payloads clean and avoids round-trip noise.
+        if !subdivisionConfigs.isEmpty {
+            let stringKeyed = subdivisionConfigs.reduce(into: [String: SubdivisionConfig]()) {
+                $0[$1.key.rawValue] = $1.value
+            }
+            try c.encode(stringKeyed, forKey: .subdivisionConfigs)
+        }
     }
 }

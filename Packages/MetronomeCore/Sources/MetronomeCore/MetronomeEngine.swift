@@ -411,7 +411,12 @@ public actor MetronomeEngine {
             startTime: clock.now + leadIn,
             accentPattern: accentPattern,
             countInMeasures: countIn.measures,
-            automation: automation
+            automation: automation,
+            // Per spec §2.3: each subdivision level carries its own
+            // accent + sound config. The engine looks up the active
+            // subdivision's entry; missing entries fall through to
+            // ClickSchedule's legacy default (`.soft`, no override).
+            subdivisionConfig: settings.subdivisionConfigs[subdivision]
         )
     }
 

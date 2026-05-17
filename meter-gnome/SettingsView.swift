@@ -30,6 +30,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 soundSection
+                subdivisionSection
                 voiceCountSection
                 countInSection
                 masterVolumeSection
@@ -77,6 +78,42 @@ struct SettingsView: View {
             Text("Default click sound. Individual songs can override this in their detail view.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
+    }
+
+    /// Per-subdivision-level click config (spec §2.3). Each level
+    /// (.eighth / .triplet / …) carries its own accent + sound override
+    /// for the non-zero-index sub clicks. NavigationLink into a detail
+    /// view keeps the Settings list scannable — most users won't dig
+    /// into this and shouldn't have to scroll past 9 levels worth of
+    /// pickers.
+    private var subdivisionSection: some View {
+        Section {
+            NavigationLink {
+                SubdivisionConfigList(settings: $settings)
+            } label: {
+                HStack {
+                    Text("Subdivisions")
+                    Spacer()
+                    Text(subdivisionsSummaryText)
+                        .font(DS.Font.monoData)
+                        .foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+            .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Subdivisions")
+                .foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Adjust the volume and sound of subdivision clicks (the \"and-a\" between main beats) per level. Defaults to soft, parent-beat sound.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    /// Compact summary for the navigation-link row — "Default" when no
+    /// level has been customized, otherwise count of customized levels.
+    private var subdivisionsSummaryText: String {
+        let n = settings.subdivisionConfigs.count
+        return n == 0 ? "Default" : "\(n) custom"
     }
 
     private var countInSection: some View {
@@ -328,6 +365,99 @@ struct SettingsView: View {
             Text("Randomly mutes the chosen percentage of beats during playback. Trains you to feel where the missing beat would be. Count-in beats are always audible. Range: 10–50%.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
+    }
+}
+
+// MARK: - Subdivision config detail (spec §2.3)
+
+/// Drill-in view that lists every subdivision level and lets the user
+/// customize its accent + sound. Only levels actually represented in
+/// `settings.subdivisionConfigs` differ from the legacy default —
+/// everything else renders the placeholder ("Soft · Inherit") and
+/// touching its sub-pickers materializes a real entry.
+private struct SubdivisionConfigList: View {
+    @Binding var settings: EngineSettings
+
+    /// `.none` (quarters) has no sub clicks — skip it from the list.
+    private static let editableLevels: [Subdivision] =
+        Subdivision.allCases.filter { $0 != .none }
+
+    var body: some View {
+        Form {
+            ForEach(Self.editableLevels, id: \.self) { level in
+                Section {
+                    accentPicker(for: level)
+                    soundPicker(for: level)
+                    if settings.subdivisionConfigs[level] != nil {
+                        Button(role: .destructive) {
+                            settings.subdivisionConfigs.removeValue(forKey: level)
+                        } label: {
+                            Text("Reset to Default")
+                        }
+                        .listRowBackground(DS.DSColor.bgElevated)
+                    }
+                } header: {
+                    Text(level.displayName)
+                        .foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .background(DS.DSColor.bgBase)
+        .navigationTitle("Subdivisions")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+    }
+
+    private func accentPicker(for level: Subdivision) -> some View {
+        Picker("Volume", selection: Binding(
+            get: { settings.subdivisionConfigs[level]?.accent ?? .soft },
+            set: { newAccent in
+                var cfg = settings.subdivisionConfigs[level] ?? .legacy
+                cfg.accent = newAccent
+                // Don't materialize a row that equals the legacy default —
+                // keeps the JSON map small and the "X custom" summary
+                // honest.
+                if cfg == .legacy {
+                    settings.subdivisionConfigs.removeValue(forKey: level)
+                } else {
+                    settings.subdivisionConfigs[level] = cfg
+                }
+            }
+        )) {
+            Text("Mute").tag(AccentLevel.mute)
+            Text("Soft").tag(AccentLevel.soft)
+            Text("Normal").tag(AccentLevel.normal)
+            Text("Loud").tag(AccentLevel.loud)
+            Text("Accent").tag(AccentLevel.accent)
+        }
+        .pickerStyle(.menu)
+        .tint(DS.DSColor.accentTempo)
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func soundPicker(for level: Subdivision) -> some View {
+        Picker("Sound", selection: Binding<String?>(
+            get: { settings.subdivisionConfigs[level]?.soundOverride },
+            set: { newOverride in
+                var cfg = settings.subdivisionConfigs[level] ?? .legacy
+                cfg.soundOverride = newOverride
+                if cfg == .legacy {
+                    settings.subdivisionConfigs.removeValue(forKey: level)
+                } else {
+                    settings.subdivisionConfigs[level] = cfg
+                }
+            }
+        )) {
+            Text("Inherit").tag(String?.none)
+            ForEach(ClickSound.allCases, id: \.self) { sound in
+                Text(sound.displayName).tag(String?(sound.rawValue))
+            }
+        }
+        .pickerStyle(.menu)
+        .tint(DS.DSColor.accentTempo)
+        .listRowBackground(DS.DSColor.bgElevated)
     }
 }
 

@@ -33,4 +33,47 @@ public enum Subdivision: String, Hashable, Sendable, Codable, CaseIterable {
         case .nonuplet:   9
         }
     }
+
+    /// Display label for the level (used in pickers + Stage indicator).
+    public var displayName: String {
+        switch self {
+        case .none:       "Quarters"
+        case .eighth:     "Eighths"
+        case .triplet:    "Triplets"
+        case .sixteenth:  "Sixteenths"
+        case .quintuplet: "Quintuplets"
+        case .sextuplet:  "Sextuplets"
+        case .septuplet:  "Septuplets"
+        case .octuplet:   "Octuplets"
+        case .nonuplet:   "Nonuplets"
+        }
+    }
+}
+
+/// Per-subdivision-level configuration (spec §2.3). Lets users dial in
+/// how loud and what sound the "and-a" clicks fire at, independent of
+/// the parent beat's pattern. Stored in `EngineSettings` keyed by
+/// `Subdivision` so each level (.eighth / .triplet / .sixteenth / …)
+/// keeps its own choice across runs.
+///
+/// `accent` defaults to `.soft` (the hardcoded behavior before this
+/// feature landed — guarantees no behavior change on upgrade until the
+/// user touches the settings). `soundOverride` is `nil` by default,
+/// meaning subdivisions inherit the parent beat's sound; setting it to
+/// a `ClickSound.rawValue` (or an imported-sound name when §4.2 lands)
+/// makes subdivisions play that sound instead.
+public struct SubdivisionConfig: Hashable, Sendable, Codable {
+    public var accent: AccentLevel
+    public var soundOverride: String?
+
+    public init(accent: AccentLevel = .soft, soundOverride: String? = nil) {
+        self.accent = accent
+        self.soundOverride = soundOverride
+    }
+
+    /// The legacy/default config that matches behavior prior to spec
+    /// §2.3 — `.soft` accent, no sound override. Use this for any
+    /// subdivision level that hasn't been explicitly configured by the
+    /// user, so the click sequence is identical until they opt in.
+    public static let legacy = SubdivisionConfig(accent: .soft, soundOverride: nil)
 }
