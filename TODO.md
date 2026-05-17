@@ -119,8 +119,8 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
-### ~~Audio dropout / "old tempo stays" on tempo change while running~~ — attempted fix in v0.12.5
-v0.12.3 (reset + inline refill) had dropouts. v0.12.4 (no reset, queue-after-tail) made the old tempo stick around because lookahead buffers played for too long. v0.12.5 combines both approaches with a new key piece: `MetronomeEngine.reanchorLeadInSeconds` (60 ms). On any mid-playback re-anchor, the rebuilt schedule's startTime gets shifted by 60 ms — giving the audio path runway to recover after `playerNode.reset()` flushes the queue. The 60 ms is invisible to the ear but enough for the round-trip between reset + inline refillOnce + the audio engine rendering the first new buffer. Verify on device.
+### ~~Audio dropout on tempo change while running~~ — attempted fix in v0.12.6
+v0.12.3 (reset + inline refill) dropped audio. v0.12.4 (no reset, queue-after-tail) made old tempo persist. v0.12.5 (reset + 60 ms lead-in) still dropped — `playerNode.reset()` apparently needs much more than 60 ms to render the next buffer cleanly. v0.12.6 drops `playerNode.reset()` entirely and instead schedules the first new-schedule buffer with `AVAudioPlayerNodeBufferOptions.interrupts` — the documented way to make a new buffer preempt the in-flight queue. The engine's 60 ms `reanchorLeadInSeconds` stays so visual / audio / haptics share the same anchor. Verify on device.
 
 ### ~~First downbeat dropped on initial play~~ — fix expanded in v0.12.5
 v0.12.2 set `startupLeadInSeconds` to 120 ms; that handled warm starts but real-device QA found the very first launch of the app (cold audio session) still dropped the first downbeat intermittently. v0.12.5 bumps the lead-in to 250 ms — covers the larger cold-launch audio activation window. Verify on device. If the perceived Play-tap delay feels too long, can tune back down once we have a way to detect "first activation since launch" vs subsequent.

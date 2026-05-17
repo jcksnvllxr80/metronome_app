@@ -167,32 +167,39 @@ public actor AudioScheduler {
     }
 
     /// Engine calls this when it rebuilds its schedule (BPM change, time
-    /// signature change, etc.). Flushes the player node's queue and
-    /// immediately re-queues from the new schedule. The engine pairs
-    /// this with a small `reanchorLeadInSeconds` on the rebuilt
-    /// schedule so the first new-tempo click lands a few ms in the
-    /// future — covering the round-trip between `reset()`, `refillOnce()`,
-    /// and the audio path's wake-up.
+    /// signature change, etc.). Uses `.interrupts` on the first newly-
+    /// scheduled buffer so the player node preempts the stale-tempo
+    /// queue without calling `playerNode.reset()` — which had been
+    /// causing an audible dropout that no amount of post-reset lead-in
+    /// could fully close.
     public func scheduleReset() async {
         guard playerNode.isPlaying else { return }
-        playerNode.reset()
-        playerNode.play()
+        // Drop our tracking high-water mark so refill pulls clicks
+        // from the new schedule's beginning. The `.interrupts` flag
+        // on the first scheduled buffer in the same pass tells the
+        // player node to abandon its in-flight queue and play this
+        // one instead.
         lastScheduledTime = -.infinity
-        // Refill inline so new buffers are queued before this returns
-        // — don't wait for the next 50ms loop tick to fill the gap.
-        await refillOnce()
+        await refillOnce(interruptsFirst: true)
     }
 
     // MARK: - Refill loop
 
     private func refillLoop() async {
         while !Task.isCancelled {
-            await refillOnce()
+            await refillOnce(interruptsFirst: false)
             try? await Task.sleep(nanoseconds: Self.refillIntervalMs * 1_000_000)
         }
     }
 
-    private func refillOnce() async {
+    /// `interruptsFirst` adds the `.interrupts` option to the first
+    /// scheduled buffer of this pass, telling AVAudioPlayerNode to
+    /// preempt any in-flight buffer playback. Used during a schedule
+    /// reset (tempo / meter / subdivision change mid-playback) to make
+    /// the new tempo audible immediately instead of waiting for the
+    /// old queue to drain or paying the dropout cost of
+    /// `playerNode.reset()`.
+    private func refillOnce(interruptsFirst: Bool = false) async {
         guard let engine = engineRef else { return }
         let settings = await engine.settings
         let songPreset = await engine.currentSoundPreset
@@ -205,6 +212,7 @@ public actor AudioScheduler {
         playerNode.volume = Float(settings.masterVolume)
 
         let upcoming = await engine.clicks(after: lastScheduledTime, count: lookahead)
+        var didScheduleAny = false
         for click in upcoming {
             // Mute click: still advance `lastScheduledTime` so we don't
             // re-pull it next pass, but don't schedule anything audible.
@@ -264,12 +272,19 @@ public actor AudioScheduler {
             // Already clamped to ±50ms by EngineSettings.init.
             let adjustedTime = click.time + settings.latencyOffsetSeconds
             let audioTime = clock.audioTime(forEngineTime: adjustedTime)
+            // First buffer of a reset pass uses `.interrupts` so it
+            // preempts whatever the player node was about to render —
+            // that's how we drop the stale-tempo queue without calling
+            // `playerNode.reset()` (which had its own dropout problem).
+            let options: AVAudioPlayerNodeBufferOptions =
+                (interruptsFirst && !didScheduleAny) ? [.interrupts] : []
             // Explicit `completionHandler: nil` selects the legacy sync
             // overload — the 2-arg form binds to an async variant in
             // recent SDKs that we don't want (awaiting it would block
             // the refill loop until the buffer finishes playing).
-            playerNode.scheduleBuffer(buffer, at: audioTime, options: [], completionHandler: nil)
+            playerNode.scheduleBuffer(buffer, at: audioTime, options: options, completionHandler: nil)
             lastScheduledTime = click.time
+            didScheduleAny = true
         }
     }
 
