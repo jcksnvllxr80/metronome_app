@@ -1,0 +1,212 @@
+//
+//  StatsView.swift
+//  meter-gnome
+//
+//  Practice-stats screen (spec §11). Reached via the Library sheet's
+//  third segmented tab. Shows:
+//   - Three time cards: today / this week / this month total practice.
+//   - Per-song breakdown sorted by total time.
+//   - CSV export via ShareLink + a Clear History destructive action.
+//
+//  All-time totals are intentionally not shown — that's a "vanity
+//  metric" without a useful comparison frame. The three windows match
+//  what musicians actually plan around (today's session, the
+//  week's hours, the month's discipline trend).
+//
+
+import SwiftUI
+import MetronomeCore
+import UniformTypeIdentifiers
+
+struct StatsView: View {
+    @Bindable var viewModel: MetronomeViewModel
+    @State private var showClearConfirmation = false
+
+    private var sessions: [PracticeSession] { viewModel.practiceSessions }
+
+    var body: some View {
+        ZStack {
+            DS.DSColor.bgBase.ignoresSafeArea()
+            if sessions.isEmpty {
+                emptyState
+            } else {
+                scrollContent
+            }
+        }
+        .onAppear {
+            viewModel.refreshPracticeSessions()
+        }
+        .alert("Clear practice history?", isPresented: $showClearConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Clear", role: .destructive) {
+                _ = viewModel.clearPracticeHistory()
+            }
+        } message: {
+            Text("\(sessions.count) session\(sessions.count == 1 ? "" : "s") will be permanently deleted.")
+        }
+    }
+
+    // MARK: - Empty state
+
+    private var emptyState: some View {
+        VStack(spacing: DS.Spacing.md) {
+            Image(systemName: "chart.bar.xaxis")
+                .font(.system(size: 56, weight: .regular))
+                .foregroundStyle(DS.DSColor.textDim)
+            Text("No practice yet")
+                .font(DS.Font.headline)
+                .foregroundStyle(DS.DSColor.textPrimary)
+            Text("Sessions longer than 30 seconds will show up here.")
+                .font(DS.Font.body)
+                .foregroundStyle(DS.DSColor.textMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, DS.Spacing.xl)
+        }
+    }
+
+    // MARK: - Scroll content
+
+    private var scrollContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Spacing.lg) {
+                summaryCards
+                bySongSection
+                actionsSection
+            }
+            .padding(DS.Spacing.lg)
+        }
+    }
+
+    // MARK: - Time-window cards
+
+    private var summaryCards: some View {
+        let now = Date()
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        let startOfWeek = Calendar.current.date(
+            from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+        ) ?? startOfToday
+        let startOfMonth = Calendar.current.date(
+            from: Calendar.current.dateComponents([.year, .month], from: now)
+        ) ?? startOfToday
+        return HStack(spacing: DS.Spacing.sm) {
+            timeCard(label: "Today", total: sessions.started(onOrAfter: startOfToday).totalDuration)
+            timeCard(label: "Week", total: sessions.started(onOrAfter: startOfWeek).totalDuration)
+            timeCard(label: "Month", total: sessions.started(onOrAfter: startOfMonth).totalDuration)
+        }
+    }
+
+    private func timeCard(label: String, total: TimeInterval) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            Text(label.uppercased())
+                .font(DS.Font.label)
+                .tracking(2)
+                .foregroundStyle(DS.DSColor.textMuted)
+            Text(Self.formatDuration(total))
+                .font(DS.Font.monoData)
+                .foregroundStyle(DS.DSColor.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(DS.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md)
+                .fill(DS.DSColor.bgElevated)
+        )
+    }
+
+    // MARK: - Per-song breakdown
+
+    private var bySongSection: some View {
+        let groups = sessions.bySong()
+        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            Text("BY SONG")
+                .font(DS.Font.label)
+                .tracking(2)
+                .foregroundStyle(DS.DSColor.textMuted)
+            VStack(spacing: 0) {
+                ForEach(Array(groups.enumerated()), id: \.element.id) { idx, group in
+                    songRow(title: group.title, count: group.count, total: group.totalDuration)
+                    if idx < groups.count - 1 {
+                        Divider().background(DS.DSColor.textDim)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.md)
+                    .fill(DS.DSColor.bgElevated)
+            )
+        }
+    }
+
+    private func songRow(title: String, count: Int, total: TimeInterval) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
+                Text(title)
+                    .foregroundStyle(DS.DSColor.textPrimary)
+                Text("\(count) session\(count == 1 ? "" : "s")")
+                    .font(DS.Font.label)
+                    .foregroundStyle(DS.DSColor.textMuted)
+            }
+            Spacer()
+            Text(Self.formatDuration(total))
+                .font(DS.Font.monoData)
+                .foregroundStyle(DS.DSColor.textPrimary)
+        }
+        .padding(DS.Spacing.md)
+    }
+
+    // MARK: - Actions
+
+    private var actionsSection: some View {
+        VStack(spacing: DS.Spacing.sm) {
+            // ShareLink wraps the CSV string in a temporary file for the
+            // share sheet so Mail/Files/Drive can save it natively.
+            ShareLink(
+                item: csvFileURL(),
+                preview: SharePreview("Practice sessions", image: Image(systemName: "doc.text"))
+            ) {
+                Label("Export CSV", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity)
+                    .padding(DS.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .fill(DS.DSColor.bgElevated)
+                    )
+            }
+            .foregroundStyle(DS.DSColor.accentTempo)
+
+            Button(role: .destructive) {
+                showClearConfirmation = true
+            } label: {
+                Text("Clear History")
+                    .frame(maxWidth: .infinity)
+                    .padding(DS.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: DS.Radius.md)
+                            .fill(DS.DSColor.bgElevated)
+                    )
+            }
+        }
+    }
+
+    /// Write the CSV to a temporary file so ShareLink can ship it as
+    /// `practice-sessions.csv` instead of a blob of text. Same temp dir
+    /// the share sheet picks up by default.
+    private func csvFileURL() -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("practice-sessions.csv")
+        try? viewModel.practiceSessionsCSV().write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
+    // MARK: - Formatting
+
+    /// Compact duration: "1h 24m" / "37m" / "0m" — drops zero hour
+    /// components, always shows minutes for the at-a-glance read.
+    private static func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(minutes)m"
+    }
+}

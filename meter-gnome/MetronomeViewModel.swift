@@ -51,6 +51,9 @@ final class MetronomeViewModel {
     /// Cached snapshot of saved setlists. Same refresh pattern as
     /// `librarySongs`.
     var librarySetlists: [Setlist] = []
+    /// Cached snapshot of recorded practice sessions (spec §11). Refreshed
+    /// when the Stats tab appears.
+    var practiceSessions: [PracticeSession] = []
 
     // MARK: - Setlist playback state (mirrored from SetlistPlayer)
 
@@ -250,6 +253,27 @@ final class MetronomeViewModel {
     func refreshLibrary() {
         librarySongs = libraryStore?.allSongs() ?? []
         librarySetlists = libraryStore?.allSetlists() ?? []
+    }
+
+    /// Pull the practice-session log from the store. Called by the
+    /// Stats tab onAppear; cheap (no UI work, one FetchDescriptor).
+    func refreshPracticeSessions() {
+        practiceSessions = practiceSessionStore?.all() ?? []
+    }
+
+    /// Discard the entire practice-session history. Used by the Stats
+    /// tab's clear-history action. Returns the count deleted.
+    @discardableResult
+    func clearPracticeHistory() -> Int {
+        let count = practiceSessionStore?.deleteAll() ?? 0
+        practiceSessions = []
+        return count
+    }
+
+    /// CSV export of the current `practiceSessions` snapshot. Pair this
+    /// with a SwiftUI ShareLink to let the user save / send the file.
+    func practiceSessionsCSV() -> String {
+        practiceSessions.csv
     }
 
     /// Save the engine's current settings as a new Song with the given title.

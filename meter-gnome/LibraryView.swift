@@ -14,7 +14,7 @@ import SwiftUI
 import MetronomeCore
 
 private enum LibraryTab: String, Hashable {
-    case songs, setlists
+    case songs, setlists, stats
 }
 
 struct LibraryView: View {
@@ -34,6 +34,7 @@ struct LibraryView: View {
                 switch tab {
                 case .songs:    songsTab
                 case .setlists: setlistsTab
+                case .stats:    StatsView(viewModel: viewModel)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -46,25 +47,30 @@ struct LibraryView: View {
                     Picker("", selection: $tab) {
                         Text("Songs").tag(LibraryTab.songs)
                         Text("Setlists").tag(LibraryTab.setlists)
+                        Text("Stats").tag(LibraryTab.stats)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 200)
+                    .frame(width: 260)
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        switch tab {
-                        case .songs:
-                            newSongTitle = defaultSongTitle()
-                            showSaveSongAlert = true
-                        case .setlists:
-                            newSetlistName = defaultSetlistName()
-                            showNewSetlistAlert = true
+                if tab != .stats {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button {
+                            switch tab {
+                            case .songs:
+                                newSongTitle = defaultSongTitle()
+                                showSaveSongAlert = true
+                            case .setlists:
+                                newSetlistName = defaultSetlistName()
+                                showNewSetlistAlert = true
+                            case .stats:
+                                break
+                            }
+                        } label: {
+                            Image(systemName: "plus")
                         }
-                    } label: {
-                        Image(systemName: "plus")
+                        .foregroundStyle(DS.DSColor.accentTempo)
+                        .accessibilityLabel(tab == .songs ? "Save current as song" : "New setlist")
                     }
-                    .foregroundStyle(DS.DSColor.accentTempo)
-                    .accessibilityLabel(tab == .songs ? "Save current as song" : "New setlist")
                 }
             }
             .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
