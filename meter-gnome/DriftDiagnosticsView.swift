@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import Charts
 
 struct DriftDiagnosticsView: View {
     let test: DriftSelfTest
@@ -35,6 +36,7 @@ struct DriftDiagnosticsView: View {
             actionSection
             if let r = result {
                 resultSection(r)
+                intervalChartSection(r)
             }
         }
         .scrollContentBackground(.hidden)
@@ -142,10 +144,47 @@ struct DriftDiagnosticsView: View {
                 label: "Test duration",
                 value: String(format: "%.0f s", r.durationSeconds)
             )
+            statRow(
+                label: "Audio sample rate",
+                value: String(format: "%.0f Hz", r.sampleRateHz)
+            )
         } header: {
             Text("Result").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
             Text(footerText).foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    @ViewBuilder
+    private func intervalChartSection(_ r: DriftSelfTest.Result) -> some View {
+        if !r.intervalsMs.isEmpty {
+            let expectedMs = r.expectedPeriodSeconds * 1000
+            let footer = "Each dot is one inter-onset interval. Flat line at the dashed reference = no drift. Sloped trend = real drift. Scatter above/below = onset-detection jitter (room ambience, click envelope edges). Outliers off the chart top/bottom are missed or spurious detections that the median + std-dev exclude."
+            Section {
+                Chart {
+                    RuleMark(y: .value("Expected", expectedMs))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                        .foregroundStyle(DS.DSColor.textDim)
+                    ForEach(Array(r.intervalsMs.enumerated()), id: \.offset) { idx, ms in
+                        PointMark(
+                            x: .value("Click", idx + 1),
+                            y: .value("Interval", ms)
+                        )
+                        .foregroundStyle(DS.DSColor.accentTempo)
+                        .symbolSize(20)
+                    }
+                }
+                .chartYAxisLabel("Interval (ms)")
+                .chartXAxisLabel("Click index")
+                .frame(height: 220)
+                .listRowBackground(DS.DSColor.bgElevated)
+                .accessibilityLabel("Inter-onset interval plot")
+                .accessibilityValue("\(r.intervalsMs.count) intervals plotted, expected \(String(format: "%.0f", expectedMs)) ms")
+            } header: {
+                Text("Inter-onset intervals").foregroundStyle(DS.DSColor.textMuted)
+            } footer: {
+                Text(footer).foregroundStyle(DS.DSColor.textMuted)
+            }
         }
     }
 

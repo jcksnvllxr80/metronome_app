@@ -49,6 +49,15 @@ final class DriftSelfTest: @unchecked Sendable {
         /// detector hit noise rather than clean clicks and the drift
         /// number is suspect.
         let intervalStdDevMs: Double
+        /// Inter-onset intervals in milliseconds, in capture order.
+        /// Drives the IOI plot in the diagnostics view so users can
+        /// see per-click distribution rather than just the median.
+        let intervalsMs: [Double]
+        /// Sample rate the captured audio buffers actually arrived at.
+        /// Exposed for sanity-check display since a mismatch between
+        /// expected and actual sample rate was the root cause of the
+        /// first v0.34.0 false-positive drift result.
+        let sampleRateHz: Double
 
         /// Positive = the engine's measured period is longer than
         /// expected (running slow); negative = running fast.
@@ -66,19 +75,28 @@ final class DriftSelfTest: @unchecked Sendable {
 
     private weak var viewModel: MetronomeViewModel?
     private var avEngine: AVAudioEngine?
-    private var tapFormat: AVAudioFormat?
     private let captureLock = NSLock()
     private var samples: [Float] = []
+    /// Sample rate observed in the first audio buffer received from the
+    /// tap. v0.34.0 mistakenly used `scheduler.format.sampleRate` which
+    /// was captured at app-init time (before the audio session
+    /// activated) and didn't match the rate iOS actually rendered at
+    /// once the session was live — causing a stale-rate-of-44.1kHz vs
+    /// live-rate-of-48kHz mismatch and reporting clicks as if they were
+    /// 8.8% slower than scheduled. Reading the buffer's own format
+    /// inside the tap callback gets the real number.
+    private var observedSampleRate: Double = 0
     private var tapInstalled = false
 
     init() {}
 
     /// Attach to the live view model + audio scheduler. Must be called
     /// once at app startup; subsequent `run` calls reuse these refs.
+    /// The format is intentionally NOT cached here — see the
+    /// `observedSampleRate` field for why.
     func attach(viewModel: MetronomeViewModel, scheduler: AudioScheduler) async {
         self.viewModel = viewModel
         self.avEngine = await scheduler.avEngine
-        self.tapFormat = await scheduler.format
     }
 
     /// Run the test for `duration` seconds at `bpm`. The test forces a
@@ -87,18 +105,40 @@ final class DriftSelfTest: @unchecked Sendable {
     /// expected to keep the app foregrounded; backgrounded behavior
     /// (audio session interruption, etc.) is not exercised here.
     func run(bpm: Double = 120, duration: TimeInterval = 60) async -> Result? {
-        guard let avEngine, let tapFormat, let vm = viewModel else { return nil }
+        guard let avEngine, let vm = viewModel else { return nil }
 
         captureLock.lock()
         samples.removeAll(keepingCapacity: true)
+        observedSampleRate = 0
         captureLock.unlock()
 
+        // Snapshot engine settings + song-level overrides so the test
+        // can force a clean known-good config (BPM 120, 4/4, no
+        // subdivision/automation/polyrhythm/voice/random-mute) for the
+        // duration and restore the user's state afterward. Without
+        // this, a song that had polyrhythm or random-mute enabled
+        // would pollute the captured audio with extra or missing
+        // clicks and the drift number would be meaningless.
+        let originalSettings = await vm.engine.settings
+        let originalSoundPreset = await vm.engine.currentSoundPreset
+        let originalPolyOverride = await vm.engine.currentPolyrhythmOverride
+        var testSettings = originalSettings
+        testSettings.polyrhythm = nil
+        testSettings.voiceCountMode = .off
+        testSettings.randomMutePercentage = 0
+        testSettings.subdivisionConfigs = [:]
+        await vm.engine.setSettings(testSettings)
+        await vm.engine.setSoundPreset(nil)
+        await vm.engine.setPolyrhythmOverride(nil)
+
         // Install tap on the main mixer so we capture the final mix
-        // before it goes to hardware. Buffer size 4096 frames keeps
-        // callback overhead low; sample rate is whatever the audio
-        // session settled on (typically 48 kHz on modern iOS).
+        // before it goes to hardware. Passing the node's live output
+        // format (queried right now, not at app launch) ensures the
+        // tap callbacks deliver buffers at the rate iOS is actually
+        // rendering at. Buffer size 4096 keeps callback overhead low.
         let mixer = avEngine.mainMixerNode
-        mixer.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { [weak self] buffer, _ in
+        let liveFormat = mixer.outputFormat(forBus: 0)
+        mixer.installTap(onBus: 0, bufferSize: 4096, format: liveFormat) { [weak self] buffer, _ in
             self?.appendBuffer(buffer)
         }
         tapInstalled = true
@@ -109,10 +149,18 @@ final class DriftSelfTest: @unchecked Sendable {
                 mixer.removeTap(onBus: 0)
                 tapInstalled = false
             }
+            // Restore the user's engine state. Important even if the
+            // test errored out partway through — leaving the user with
+            // their polyrhythm disabled would be a worse bug than the
+            // one we're diagnosing.
+            Task { @MainActor [vm, originalSettings, originalSoundPreset, originalPolyOverride] in
+                await vm.engine.setSettings(originalSettings)
+                await vm.engine.setSoundPreset(originalSoundPreset)
+                await vm.engine.setPolyrhythmOverride(originalPolyOverride)
+            }
         }
 
-        // Force a clean known-good engine config for the test window.
-        // No state restoration after; this is a diagnostic.
+        // Force test-only engine state on top of the snapshot.
         await vm.engine.setBPM(BPM(bpm))
         await vm.engine.setTimeSignature(.fourFour)
         await vm.engine.setSubdivision(.none)
@@ -124,18 +172,19 @@ final class DriftSelfTest: @unchecked Sendable {
         try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
         await vm.engine.stop()
 
-        // Drain the lock + snapshot captured samples.
+        // Drain the lock + snapshot captured samples + the rate we
+        // saw in the first buffer (used for time-axis math).
         captureLock.lock()
         let captured = samples
+        let sampleRate = observedSampleRate > 0 ? observedSampleRate : liveFormat.sampleRate
         captureLock.unlock()
-        let sampleRate = tapFormat.sampleRate
 
         // Run analysis.
         let onsets = Self.detectOnsets(samples: captured, sampleRate: sampleRate)
         guard onsets.count >= 4 else { return nil }
 
         let expectedPeriod = 60.0 / bpm
-        let (median, stdDev) = Self.intervalStats(
+        let (median, stdDev, intervalsMs) = Self.intervalStats(
             onsets: onsets,
             expectedPeriod: expectedPeriod
         )
@@ -146,7 +195,9 @@ final class DriftSelfTest: @unchecked Sendable {
             detectedClickCount: onsets.count,
             expectedPeriodSeconds: expectedPeriod,
             measuredPeriodSeconds: median,
-            intervalStdDevMs: stdDev * 1000.0
+            intervalStdDevMs: stdDev * 1000.0,
+            intervalsMs: intervalsMs,
+            sampleRateHz: sampleRate
         )
     }
 
@@ -154,6 +205,9 @@ final class DriftSelfTest: @unchecked Sendable {
         guard let channelData = buffer.floatChannelData?[0] else { return }
         let count = Int(buffer.frameLength)
         captureLock.lock()
+        if observedSampleRate == 0 {
+            observedSampleRate = buffer.format.sampleRate
+        }
         samples.append(contentsOf: UnsafeBufferPointer(start: channelData, count: count))
         captureLock.unlock()
     }
@@ -200,21 +254,25 @@ final class DriftSelfTest: @unchecked Sendable {
     /// Compute the median inter-onset interval (the "measured period")
     /// and the standard deviation of the filtered intervals. Outliers
     /// — anything more than 50% off the expected period — are
-    /// dropped before the stats since they indicate missed or
-    /// spurious onsets, not actual drift.
+    /// dropped from the median + std-dev computation since they
+    /// indicate missed or spurious onsets, not actual drift. The
+    /// raw intervals (in milliseconds, in capture order) are also
+    /// returned so the UI can plot them — outliers included so the
+    /// user can see them visually.
     static func intervalStats(
         onsets: [TimeInterval],
         expectedPeriod: TimeInterval
-    ) -> (median: TimeInterval, stdDev: TimeInterval) {
+    ) -> (median: TimeInterval, stdDev: TimeInterval, intervalsMs: [Double]) {
         let iois = zip(onsets.dropFirst(), onsets).map { $0 - $1 }
         let valid = iois.filter { abs($0 - expectedPeriod) < expectedPeriod * 0.5 }
-        guard !valid.isEmpty else { return (expectedPeriod, 0) }
+        let intervalsMs = iois.map { $0 * 1000.0 }
+        guard !valid.isEmpty else { return (expectedPeriod, 0, intervalsMs) }
 
         let sorted = valid.sorted()
         let median = sorted[sorted.count / 2]
 
         let mean = valid.reduce(0, +) / Double(valid.count)
         let variance = valid.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(valid.count)
-        return (median, variance.squareRoot())
+        return (median, variance.squareRoot(), intervalsMs)
     }
 }
