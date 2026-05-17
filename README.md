@@ -14,7 +14,7 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 |---|---|
 | Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 194/194 tests passing, drift < 1 ms/min verified in math |
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice count placeholder |
-| Stage UI (BPM hero, beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, settings, library) | ✓ Live |
+| Stage UI (BPM hero, beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, settings, library) | ✓ Live |
 | Persistence (SwiftData) | ✓ Settings + songs + setlists survive launches |
 | Library: songs, setlists, song detail, accent pattern editor | ✓ Full CRUD with per-beat sound + pitch overrides |
 | Setlist playback (auto-advance modes) | ✓ Pause / Countdown(N) / Immediate |

@@ -192,6 +192,17 @@ final class MetronomeViewModel {
 
     // MARK: - User actions
 
+    /// Set BPM to a specific value. Used by the Italian tempo preset
+    /// picker (spec §6.2) and any other "jump to BPM" affordance.
+    /// Engine clamps and snaps via BPM.init; refresh() reconciles.
+    func setBPM(_ newBPM: BPM) {
+        bpm = newBPM // optimistic
+        Task {
+            await engine.setBPM(newBPM)
+            await refresh()
+        }
+    }
+
     func nudgeBPM(by delta: Double) {
         let newBPM = BPM(bpm.value + delta)
         bpm = newBPM // optimistic — engine clamps + snaps, refresh() reconciles

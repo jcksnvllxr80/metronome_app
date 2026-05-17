@@ -55,12 +55,6 @@ All 5 modes shipped (off / downbeats only / accents only / every beat / subdivis
 - Switch Control compatibility
 - Full audio-only operation (blind-accessible) — currently the gear/library icons + time-sig button might fail this; audit
 
-### Italian tempo preset UI
-- Data type `TempoMarking` exists with all 9 markings (Largo–Prestissimo, spec §6.2). No UI surface to use them. Could be:
-  - Chips on Stage to quick-set BPM
-  - Section in the BPM nudge area
-  - Sheet from the BPM digit
-
 ### Real percussion samples (spec §4.1)
 - Replace synthesized `ClickSound` cases with bundled `.caf` or `.wav` samples
 - Source CC0 / royalty-free wood block, cowbell, clave, hi-hat, etc.

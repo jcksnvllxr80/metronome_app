@@ -19,6 +19,7 @@ struct ContentView: View {
     @State private var showSubdivisionPicker = false
     @State private var showSettings = false
     @State private var showLibrary = false
+    @State private var showTempoPresets = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -77,6 +78,12 @@ struct ContentView: View {
         .sheet(isPresented: $showLibrary) {
             LibraryView(viewModel: viewModel)
                 .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showTempoPresets) {
+            TempoMarkingPickerView(currentBPM: viewModel.bpm) { selected in
+                viewModel.setBPM(selected)
+            }
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -338,13 +345,29 @@ struct ContentView: View {
                 .contentTransition(.numericText(value: Double(viewModel.bpm.displayInt)))
                 .animation(.snappy(duration: 0.15), value: viewModel.bpm.displayInt)
                 .accessibilityLabel("Tempo, \(viewModel.bpm.displayInt) BPM")
-            Text("BPM")
+                .accessibilityHint("Double tap for Italian tempo presets")
+                .accessibilityAddTraits(.isButton)
+            Text(tempoMarkingLabel)
                 .font(DS.Font.label)
                 .foregroundStyle(DS.DSColor.textMuted)
                 .textCase(.uppercase)
                 .tracking(2)
                 .accessibilityHidden(true)
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            showTempoPresets = true
+        }
+    }
+
+    /// "BPM" or "ALLEGRO · BPM" depending on whether the current tempo
+    /// falls within an Italian preset's range. Surfaces the marking
+    /// for free without using an extra Stage element.
+    private var tempoMarkingLabel: String {
+        if let marking = TempoMarking.primaryMarking(for: viewModel.bpm) {
+            return "\(marking.name) · BPM"
+        }
+        return "BPM"
     }
 
     // MARK: - Beat dots
