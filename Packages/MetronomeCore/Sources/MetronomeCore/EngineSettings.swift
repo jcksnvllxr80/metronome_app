@@ -52,6 +52,16 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// other cases are reserved enum values that currently behave like
     /// `.off`. See `VoiceCountMode.isImplemented`.
     public var voiceCountMode: VoiceCountMode
+    /// Random-mute mode percentage (spec §6.4 speed trainer "random mute"):
+    /// 0 = off, 10–50 = active range. Stored as Int because the slider
+    /// snaps to whole percentages. Clamped to `randomMuteRange` on init
+    /// (values 1–9 round up to 10; 51+ round down to 50).
+    public var randomMutePercentage: Int
+
+    /// Allowed range for `randomMutePercentage` when active (0 is special-
+    /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
+    /// the training effect.
+    public static let randomMuteRange: ClosedRange<Int> = 10...50
 
     public init(
         masterVolume: Double = 1.0,
@@ -63,7 +73,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         clickSound: ClickSound = .digitalBeep,
         midiClockEnabled: Bool = false,
         midiClockReceiveEnabled: Bool = false,
-        voiceCountMode: VoiceCountMode = .off
+        voiceCountMode: VoiceCountMode = .off,
+        randomMutePercentage: Int = 0
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -78,5 +89,14 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.midiClockEnabled = midiClockEnabled
         self.midiClockReceiveEnabled = midiClockReceiveEnabled
         self.voiceCountMode = voiceCountMode
+        // 0 stays 0 (off). Anything else clamps to the active range.
+        if randomMutePercentage <= 0 {
+            self.randomMutePercentage = 0
+        } else {
+            self.randomMutePercentage = max(
+                Self.randomMuteRange.lowerBound,
+                min(Self.randomMuteRange.upperBound, randomMutePercentage)
+            )
+        }
     }
 }

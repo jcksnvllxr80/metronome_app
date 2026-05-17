@@ -57,6 +57,14 @@ public actor MetronomeEngine {
     /// the schedule on change while running.
     public private(set) var automation: TempoAutomation?
 
+    /// Per-session random seed for the spec §6.4 "random mute" mode. Set
+    /// at `start()` so each practice session gets a different mute
+    /// pattern; cleared at `stop()`. The audio scheduler hashes
+    /// (measureIndex, beatIndex, seed) to decide whether to mute a beat,
+    /// which means all subdivision clicks of a muted beat share the
+    /// decision — the whole beat goes silent, not just the main click.
+    public private(set) var randomMuteSeed: UInt64 = 0
+
     public init(
         clock: any EngineClock = SystemClock(),
         bpm: BPM = BPM(120),
@@ -84,6 +92,9 @@ public actor MetronomeEngine {
     /// the engine uses its persisted setting.
     public func start(countIn: CountIn? = nil) async {
         let effective = countIn ?? settings.countIn
+        // Fresh random-mute seed per practice session so consecutive
+        // playthroughs don't share the same muted-beat pattern.
+        randomMuteSeed = UInt64.random(in: .min ... .max)
         rebuildSchedule(countIn: effective)
         isRunning = true
         isPaused = false

@@ -189,6 +189,7 @@ public actor AudioScheduler {
         guard let engine = engineRef else { return }
         let settings = await engine.settings
         let songPreset = await engine.currentSoundPreset
+        let muteSeed = await engine.randomMuteSeed
         let lookahead = await adaptiveLookahead(for: engine)
 
         // Apply master volume each pass. AVAudioPlayerNode.volume is thread-
@@ -201,6 +202,20 @@ public actor AudioScheduler {
             // Mute click: still advance `lastScheduledTime` so we don't
             // re-pull it next pass, but don't schedule anything audible.
             if click.accent == .mute {
+                lastScheduledTime = click.time
+                continue
+            }
+            // Random-mute mode (spec §6.4). Count-in beats are exempt so
+            // the musician always hears the lead-in. Subdivisions inherit
+            // the main beat's mute decision (same hash key) so the whole
+            // beat goes silent together, not just the main click.
+            if !click.isCountIn,
+               Self.shouldRandomlyMute(
+                   measure: click.measureIndex,
+                   beat: click.beatIndex,
+                   seed: muteSeed,
+                   percentage: settings.randomMutePercentage
+               ) {
                 lastScheduledTime = click.time
                 continue
             }
@@ -249,6 +264,31 @@ public actor AudioScheduler {
             playerNode.scheduleBuffer(buffer, at: audioTime, options: [], completionHandler: nil)
             lastScheduledTime = click.time
         }
+    }
+
+    /// Deterministic per-beat dice roll for random-mute mode (spec §6.4).
+    /// All clicks at the same (measure, beat) get the same result, so a
+    /// muted beat is silent across its main click + any subdivisions —
+    /// preserving the "feel where the missing beat would be" training
+    /// effect. The seed changes per `engine.start()`, so different
+    /// practice sessions see different patterns.
+    static func shouldRandomlyMute(
+        measure: Int,
+        beat: Int,
+        seed: UInt64,
+        percentage: Int
+    ) -> Bool {
+        guard percentage > 0 else { return false }
+        // Splitmix64-style finalizer: cheap, well-mixed, deterministic.
+        var x = seed
+        x ^= UInt64(bitPattern: Int64(measure)) &* 0x9E3779B97F4A7C15
+        x ^= UInt64(bitPattern: Int64(beat)) &* 0xBF58476D1CE4E5B9
+        x ^= x >> 30
+        x &*= 0xBF58476D1CE4E5B9
+        x ^= x >> 27
+        x &*= 0x94D049BB133111EB
+        x ^= x >> 31
+        return Int(x % 100) < percentage
     }
 
     /// `max(4, ceil(0.5s / clickPeriod))` clicks. At 400 BPM (period

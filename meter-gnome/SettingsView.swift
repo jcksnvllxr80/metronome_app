@@ -36,6 +36,7 @@ struct SettingsView: View {
                 latencySection
                 autoResumeSection
                 midiSection
+                randomMuteSection
             }
             .scrollContentBackground(.hidden)
             .background(DS.DSColor.bgBase)
@@ -192,6 +193,58 @@ struct SettingsView: View {
             Text("MIDI Sync").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
             Text("Send: publish a virtual MIDI source named \"meter-gnome\" that emits MIDI Clock (24 PPQ) + Start/Stop. Listen: follow incoming MIDI Clock from connected sources — DAW transport drives play/stop, DAW tempo drives BPM.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    // MARK: - Random Mute (spec §6.4 speed-trainer practice mode)
+
+    private var randomMuteEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.randomMutePercentage > 0 },
+            // Toggling on snaps to the bottom of the active range (10%);
+            // toggling off stores 0 so the slider hides cleanly.
+            set: { isOn in
+                settings.randomMutePercentage = isOn
+                    ? EngineSettings.randomMuteRange.lowerBound
+                    : 0
+            }
+        )
+    }
+
+    private var randomMuteSection: some View {
+        Section {
+            Toggle("Random Mute", isOn: randomMuteEnabledBinding)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+
+            if settings.randomMutePercentage > 0 {
+                VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                    HStack {
+                        Text("Probability").foregroundStyle(DS.DSColor.textPrimary)
+                        Spacer()
+                        Text("\(settings.randomMutePercentage)%")
+                            .font(DS.Font.monoData)
+                            .foregroundStyle(DS.DSColor.textPrimary)
+                    }
+                    let lo = Double(EngineSettings.randomMuteRange.lowerBound)
+                    let hi = Double(EngineSettings.randomMuteRange.upperBound)
+                    Slider(
+                        value: Binding(
+                            get: { Double(settings.randomMutePercentage) },
+                            set: { settings.randomMutePercentage = Int($0.rounded()) }
+                        ),
+                        in: lo...hi,
+                        step: 1
+                    )
+                    .tint(DS.DSColor.accentTempo)
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            }
+        } header: {
+            Text("Speed Trainer").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Randomly mutes the chosen percentage of beats during playback. Trains you to feel where the missing beat would be. Count-in beats are always audible. Range: 10–50%.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

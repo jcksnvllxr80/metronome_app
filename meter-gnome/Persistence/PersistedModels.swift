@@ -37,6 +37,10 @@ final class PersistedEngineSettings {
     var midiClockReceiveEnabled: Bool
     /// `VoiceCountMode.rawValue`. Spec §5.
     var voiceCountModeRaw: String
+    /// Random-mute percentage 0–50 (spec §6.4). 0 = off. New in v2 of the
+    /// schema; old rows decode as 0 via SwiftData's nullable-column
+    /// migration with a default value.
+    var randomMutePercentage: Int = 0
 
     init(
         masterVolume: Double = 1.0,
@@ -48,7 +52,8 @@ final class PersistedEngineSettings {
         clickSoundRaw: String = ClickSound.digitalBeep.rawValue,
         midiClockEnabled: Bool = false,
         midiClockReceiveEnabled: Bool = false,
-        voiceCountModeRaw: String = VoiceCountMode.off.rawValue
+        voiceCountModeRaw: String = VoiceCountMode.off.rawValue,
+        randomMutePercentage: Int = 0
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -60,6 +65,7 @@ final class PersistedEngineSettings {
         self.midiClockEnabled = midiClockEnabled
         self.midiClockReceiveEnabled = midiClockReceiveEnabled
         self.voiceCountModeRaw = voiceCountModeRaw
+        self.randomMutePercentage = randomMutePercentage
     }
 
     convenience init(from settings: EngineSettings) {
@@ -73,7 +79,8 @@ final class PersistedEngineSettings {
             clickSoundRaw: settings.clickSound.rawValue,
             midiClockEnabled: settings.midiClockEnabled,
             midiClockReceiveEnabled: settings.midiClockReceiveEnabled,
-            voiceCountModeRaw: settings.voiceCountMode.rawValue
+            voiceCountModeRaw: settings.voiceCountMode.rawValue,
+            randomMutePercentage: settings.randomMutePercentage
         )
     }
 
@@ -88,7 +95,8 @@ final class PersistedEngineSettings {
             clickSound: ClickSound(rawValue: clickSoundRaw) ?? .digitalBeep,
             midiClockEnabled: midiClockEnabled,
             midiClockReceiveEnabled: midiClockReceiveEnabled,
-            voiceCountMode: VoiceCountMode(rawValue: voiceCountModeRaw) ?? .off
+            voiceCountMode: VoiceCountMode(rawValue: voiceCountModeRaw) ?? .off,
+            randomMutePercentage: randomMutePercentage
         )
     }
 
@@ -103,6 +111,7 @@ final class PersistedEngineSettings {
         midiClockEnabled = settings.midiClockEnabled
         midiClockReceiveEnabled = settings.midiClockReceiveEnabled
         voiceCountModeRaw = settings.voiceCountMode.rawValue
+        randomMutePercentage = settings.randomMutePercentage
     }
 }
 
