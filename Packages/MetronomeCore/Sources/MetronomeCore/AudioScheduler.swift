@@ -183,6 +183,24 @@ public actor AudioScheduler {
         await refillOnce(interruptsFirst: true)
     }
 
+    /// Hard reset variant for cases where the existing queue contains
+    /// buffers we definitely DON'T want to play — e.g. section
+    /// boundaries, where the OLD section's "next-measure downbeat"
+    /// click has already been scheduled at the boundary hostTime and
+    /// would play alongside the NEW section's first click otherwise
+    /// (producing the "two downbeats" reported on device).
+    /// `.interrupts` only preempts the buffer currently rendering —
+    /// future-queued buffers survive — so we call `playerNode.stop()`
+    /// + `play()` to actually drop everything, then re-queue.
+    public func scheduleResetWithFlush() async {
+        guard playerNode.isPlaying else { return }
+        playerNode.stop()
+        playerNode.play()
+        lastScheduledTime = -.infinity
+        // No need for `.interrupts` — the queue is already empty.
+        await refillOnce(interruptsFirst: false)
+    }
+
     // MARK: - Refill loop
 
     private func refillLoop() async {
