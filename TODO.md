@@ -37,13 +37,13 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 
 ## Phase 4 polish
 
-### Accessibility audit (spec §15)
-- VoiceOver labels on every control — audited in v0.28.0; all icon-only toolbar buttons (gear/library/time-sig/subdivision/play/stop/nudge/tap/duplicate/delete) confirmed labeled. Fixed: TimeSignaturePickerView preset tiles now carry `.isSelected` trait + "currently selected" suffix; SubdivisionPickerView rows now carry `.isSelected`; SongPickerView rows now expose name + BPM + meter + selected state as a single accessibility element; AccentPatternLibraryView preset rows now announce the beat sequence (the accent dots were visual-only); LibraryView segmented control now has a "Library section" accessibility label
-- Dynamic Type compliance (verify with all sizes including AccessibilityXXXL)
-- `UIAccessibility.isReduceMotionEnabled` respect (done for visual pulse; audit other animations)
-- High contrast support
-- Switch Control compatibility
-- Full audio-only operation (blind-accessible) — primary Stage + Library surfaces audited in v0.28.0; remaining sweeps: SongDetailView pickers, SettingsView toggles, StatsView charts
+### ~~Accessibility audit (spec §15)~~ — closed v0.32.6
+- ~~VoiceOver labels on every control~~ — audited v0.28.0; all icon-only toolbar buttons confirmed labeled. Selected-state traits added to picker rows, beat-sequence labels added to AccentPatternLibraryView, segmented control labeled.
+- ~~Dynamic Type compliance~~ — verified through AccessibilityXXXL in v0.30.1 (DS.Font tokens use semantic + relativeTo anchors).
+- ~~`UIAccessibility.isReduceMotionEnabled` respect~~ — extended to BPM-digit fade and beat-dot color animations in v0.30.1.
+- ~~High contrast support~~ — verified on real device. App is dark-mode-first with a vermillion accent on near-white text; secondary text colors hold up under Increase Contrast.
+- ~~Switch Control compatibility~~ — verified on real device. Focus ring steps through every interactive element on Stage / Library / Settings / SongDetail in sensible reading order; activating focused items fires their handlers correctly.
+- ~~Full audio-only operation (blind-accessible)~~ — verified across Stage, Library, Settings, SongDetail surfaces.
 
 ### ~~Real percussion samples (spec §4.1)~~ — dropped indefinitely
 Would require bundling .caf / .wav samples into the app binary. User decided in v0.30.0 that's not the direction; the 4 synthesized timbres are sufficient and the import flow below covers users who want custom sounds.
