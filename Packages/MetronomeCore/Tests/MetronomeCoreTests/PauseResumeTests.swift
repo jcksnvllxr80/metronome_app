@@ -52,11 +52,14 @@ import Foundation
     await engine.pause()
     clock.advance(by: 10.0) // sat paused for 10 sec
     await engine.resume()
+    let leadIn = MetronomeEngine.startupLeadInSeconds
 
-    // After resume, the first upcoming click is at clock.now (15.0),
-    // not at the original startTime + N beats.
+    // After resume, the first upcoming click is at clock.now + startup
+    // lead-in (15.0 + 0.12), not at the original startTime + N beats.
+    // Lead-in applies on resume the same as on start() — same audio-
+    // path startup race.
     let next = await engine.upcomingClicks(count: 1).first!
-    #expect(next.time == 15.0)
+    #expect(next.time == 15.0 + leadIn)
     #expect(next.isDownbeat)
 }
 
@@ -86,6 +89,7 @@ import Foundation
     #expect(paused == false)
     #expect(running == true)
     let next = await engine.upcomingClicks(count: 1).first!
-    // start() always re-anchors at clock.now (3.0), not where pause was (2.0)
-    #expect(next.time == 3.0)
+    // start() always re-anchors at clock.now + startup lead-in (3.0 +
+    // 0.12), not where pause was (2.0).
+    #expect(next.time == 3.0 + MetronomeEngine.startupLeadInSeconds)
 }

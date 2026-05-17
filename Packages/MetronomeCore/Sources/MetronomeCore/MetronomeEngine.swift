@@ -101,7 +101,7 @@ public actor MetronomeEngine {
         // Fresh random-mute seed per practice session so consecutive
         // playthroughs don't share the same muted-beat pattern.
         randomMuteSeed = UInt64.random(in: .min ... .max)
-        rebuildSchedule(countIn: effective)
+        rebuildSchedule(countIn: effective, leadIn: Self.startupLeadInSeconds)
         isRunning = true
         isPaused = false
         if let scheduler {
@@ -170,7 +170,11 @@ public actor MetronomeEngine {
     /// user pressing Play.
     public func resume() async {
         guard isPaused else { return }
-        rebuildSchedule(countIn: .off)
+        // Same lead-in story as start(): the audio scheduler is being
+        // brought back up from pause() which stopped the player node;
+        // the first scheduleBuffer call after resume races the audio
+        // engine's wake-up the same way an initial start does.
+        rebuildSchedule(countIn: .off, leadIn: Self.startupLeadInSeconds)
         isRunning = true
         isPaused = false
         if let scheduler {
@@ -320,12 +324,23 @@ public actor MetronomeEngine {
 
     // MARK: - Private
 
-    private func rebuildSchedule(countIn: CountIn = .off) {
+    /// Small lead-in applied to the schedule anchor on a cold `start()`
+    /// or `resume()` (NOT on mid-playback re-anchors). The audio scheduler
+    /// + AVAudioEngine startup takes a non-trivial amount of time to
+    /// reach `scheduleBuffer(at:)`; if the first click's hostTime is
+    /// behind that wall-clock, the player node drops it — and the
+    /// audible accent ends up on what feels like the wrong beat. 120 ms
+    /// is comfortably above the typical 30–80 ms startup window.
+    /// Tradeoff: a slight delay between Play tap and first click;
+    /// preferable to a missing downbeat.
+    public static let startupLeadInSeconds: TimeInterval = 0.120
+
+    private func rebuildSchedule(countIn: CountIn = .off, leadIn: TimeInterval = 0) {
         schedule = ClickSchedule(
             bpm: bpm,
             timeSignature: timeSignature,
             subdivision: subdivision,
-            startTime: clock.now,
+            startTime: clock.now + leadIn,
             accentPattern: accentPattern,
             countInMeasures: countIn.measures,
             automation: automation

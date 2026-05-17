@@ -122,8 +122,8 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 ### Brief audio dropout on tempo change while running
 Changing tempo (or meter / subdivision) while the engine is running causes the audio to cut out for a noticeable moment before resuming. Suspect: `reanchorIfRunning` calls `AudioScheduler.scheduleReset()` which flushes pending buffers; refill on the new schedule may have a gap before the audio engine renders the new clicks. Possibly related to AVAudioPlayerNode needing the player to keep playing through the flush. Needs profiling on device with the new schedule.startTime, refill timing, and any `playerNode.stop()` calls during reset.
 
-### First downbeat dropped on initial play — accent ends up on beat 4
-On the very first press of Play after launch, the audible pattern in 4/4 reads as `normal · normal · normal · ACCENT` (perceived accent on beat 4) instead of `ACCENT · normal · normal · normal`. Subsequent measures sound correct. Suspect: the engine anchors `schedule.startTime = clock.now`, so the first click's hostTime is roughly "now." By the time `AudioScheduler.refillOnce` runs + `scheduleBuffer(at:)` is called, that hostTime is slightly in the past — `AVAudioPlayerNode` drops it. The user's ear then counts the first audible click (engine's index 1) as "1," which shifts the perceived downbeat by one beat — the next true downbeat (engine's index 4) lands where the user counts "4." Fix likely involves a small startup lead-in (~50–100 ms) on `engine.start`'s anchor so the first click lands a tick in the future.
+### ~~First downbeat dropped on initial play~~ — fixed in v0.12.2
+Engine now applies `MetronomeEngine.startupLeadInSeconds` (120 ms) to the schedule anchor on `start()` and `resume()`, so the first click lands a comfortable margin in the future of the audio path's first `scheduleBuffer(at:)` call. Mid-playback re-anchors (BPM / meter / subdivision tweaks via `setBPM` etc.) keep the lead-in at 0 — the audio engine is already running and doesn't have the startup race. Verify on device after pushing.
 
 ## Known issues / debt
 
