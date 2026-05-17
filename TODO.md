@@ -115,13 +115,14 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
-### ~~Haptic "fast double-bass-pedal buzz" regardless of mode~~ — attempted fix in v0.13.6
-Three theories tried before this one:
+### ~~Haptic "fast double-bass-pedal buzz" regardless of mode~~ — fixed in v0.13.6 (device-confirmed)
+Three theories before the actual fix landed:
 - v0.13.4: pass `max(0, click.time - clock.now)` to `start(atTime:)` instead of `CHHapticTimeImmediate`. No effect.
-- v0.13.5: retain players in an `inFlightPlayers` array until past their fire time. No effect (still useful as defensive — keep it).
-- v0.13.6 (current): `CHHapticPatternPlayer.start(atTime:)` takes an ABSOLUTE time in the haptic engine's timebase, NOT a relative offset. Anchored at `hapticEngine.currentTime + offsetFromNow` instead of passing the offset directly. The previous passing-relative-offset behavior interpreted as absolute time was always in the past and fired immediately — matching the observed buzz pattern exactly.
+- v0.13.5: retain players in an `inFlightPlayers` array until past their fire time. No effect on the buzz but defensive — kept.
+- v0.13.6 (the fix): `CHHapticPatternPlayer.start(atTime:)` takes an ABSOLUTE time in the haptic engine's timebase, not a relative offset. Anchor at `hapticEngine.currentTime + offsetFromNow` instead.
 
-Verify on device.
+### ~~Haptic mode changes don't take effect until engine restart~~ — fixed in v0.13.7
+Surfaced after v0.13.6 landed correct haptic timing. Root cause: the refill loop scheduled new haptics into the haptic engine every 50 ms, advancing `lastScheduledTime` by ~4 clicks per pass. At slow tempos and a few seconds of runtime, the engine could have dozens of haptics queued internally — and those queued events fire at their scheduled time even after a mode change. Result: mode change took effect only after the queue fully drained, which for a running session was essentially "never until you stop." Fix: cap scheduling at `schedulingHorizonSeconds` (0.5 s ahead). Refills early-return when `lastScheduledTime > now + 0.5`; mode changes propagate within that window.
 
 ### ~~Audio dropout on tempo change while running~~ — fixed in v0.12.6 (device-confirmed)
 `AVAudioPlayerNodeBufferOptions.interrupts` on the first new-schedule buffer is the documented way to preempt an in-flight queue without the recovery cost that `playerNode.reset()` was paying. No flush ceremony — the player node just switches to the new buffer. v0.12.3–v0.12.5 attempts (various combinations of reset + lead-in) all left an audible dropout; v0.12.6's .interrupts approach landed clean.

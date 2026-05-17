@@ -25,6 +25,14 @@ public actor HapticScheduler {
 
     private static let minLookaheadClicks: Int = 4
     private static let minLookaheadSeconds: TimeInterval = 0.5
+    /// Maximum amount of wall-clock time ahead of `clock.now` that
+    /// haptics are scheduled in the engine. Unlike audio, the haptic
+    /// engine has no apparent cap on how many future events it'll
+    /// queue — and once queued, they fire even if we change mode or
+    /// drop the player reference. Capping at 0.5 s means a mode
+    /// change propagates audibly within ~0.5 s instead of taking
+    /// effect only after `engine.stop`.
+    private static let schedulingHorizonSeconds: TimeInterval = 0.5
 
     private var engine: CHHapticEngine?
     private weak var engineRef: MetronomeEngine?
@@ -123,9 +131,24 @@ public actor HapticScheduler {
         // the click query.
         guard settings.hapticMode != .off else { return }
 
-        let lookahead = await adaptiveLookahead(for: engine)
-        let upcoming = await engine.clicks(after: lastScheduledTime, count: lookahead)
+        let now = clock.now
+        let horizon = now + Self.schedulingHorizonSeconds
+        // Short-circuit when we've already scheduled past the horizon —
+        // wait for time to advance before queuing more. This is what
+        // makes mode changes audibly responsive: the user's switch in
+        // Settings only has to wait for the already-queued haptics to
+        // drain (≤ horizon worth) before the new mode dominates.
+        if lastScheduledTime > horizon { return }
+
+        // Pull a generous batch — most will be past the horizon and
+        // skipped by the loop's early break. 16 is enough at any
+        // sensible tempo to cover a 0.5-second window without making
+        // the per-refill query expensive.
+        let upcoming = await engine.clicks(after: lastScheduledTime, count: 16)
         for click in upcoming {
+            // Stop the moment we cross the horizon — anything past
+            // that point waits for a future refill cycle.
+            if click.time > horizon { break }
             lastScheduledTime = click.time
             guard settings.hapticMode.shouldFire(for: click) else { continue }
             await scheduleEvent(forClick: click, intensity: settings.hapticIntensity)
