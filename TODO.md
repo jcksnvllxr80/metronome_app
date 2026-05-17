@@ -51,12 +51,8 @@ Would require bundling .caf / .wav samples into the app binary. User decided in 
 ### ~~Real voice count samples (spec §5)~~ — dropped indefinitely
 Same reason — the language × gender × phrase matrix would balloon the app binary. The synthesized voice tones stay as the only voice-count implementation; `.subdivisions` / `.measures` / `.silentCount` modes also dropped since they only made sense with real samples.
 
-### User-imported sounds (spec §4.2)
-- Files app integration
-- WAV / AIFF / CAF only
-- Enforce: < 2 s, < 1 MB
-- Per-sound volume trim
-- `Song.soundPreset: String?` already accepts arbitrary names; resolver in `AudioScheduler` falls through unknown strings to settings default — when imports land, route the same field at imported-asset URLs
+### ~~User-imported sounds (spec §4.2)~~ — shipped in v0.31.0
+Files app integration via `.fileImporter` accepting WAV / AIFF / CAF. Imports are validated (< 2 s duration, < 1 MB file size) and copied into `Documents/UserSounds/<UUID>.<ext>`. `UserSoundRegistry` actor pre-renders four per-accent buffers (soft / normal / loud / accent) with the user's volume trim baked in, so the audio refill loop pays no signal-processing cost per click. `UserSound.soundPresetKey` of the form `"user:<UUID>"` flows through the existing String-keyed `soundPreset` resolution chain in `AudioScheduler`. Sound pickers in SongDetail + AccentPatternEditView surface imports after the built-in cases; Settings → Sound → Imported Sounds is the drill-in to import / rename / retrim / delete. Engine-level `EngineSettings.clickSound` stays built-in only (it's a `ClickSound` enum) — that's a deliberate scoping decision, not a bug. Power-users who want a user sound as the engine default would do it per-song. Polyrhythm sound also stays built-in for the same reason; PolyrhythmConfig.sound is still typed `ClickSound`.
 
 ### ~~Per-song sound preset Stage indicator~~ — shipped in v0.15.3
 A small "🔊 Cowbell" row now sits under the loaded-song title (and under any section indicator) whenever a song is loaded that overrides the global default sound. Renders nothing when `engine.currentSoundPreset` is nil. Uses `ClickSound.displayName` for known presets, falls through to capitalized rawValue for arbitrary strings (forward-compatible with user-imported sounds, spec §4.2). Setlist playback shows the loaded-song title via its own setlist indicator and doesn't currently surface the preset there — follow-up if it ever matters.

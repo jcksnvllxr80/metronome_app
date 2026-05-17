@@ -1115,6 +1115,17 @@ struct SongDetailView: View {
                 ForEach(ClickSound.allCases, id: \.self) { sound in
                     Text(sound.displayName).tag(String?.some(sound.rawValue))
                 }
+                // User-imported sounds (spec §4.2). Picker rows route
+                // through `UserSound.soundPresetKey` so the audio
+                // scheduler can resolve them. Hidden when none have
+                // been imported yet.
+                if !viewModel.userSounds.isEmpty {
+                    Section("Imported") {
+                        ForEach(viewModel.userSounds) { sound in
+                            Text(sound.name).tag(String?.some(sound.soundPresetKey))
+                        }
+                    }
+                }
             }
             .pickerStyle(.menu)
             .tint(DS.DSColor.accentTempo)

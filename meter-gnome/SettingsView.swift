@@ -23,6 +23,10 @@ struct SettingsView: View {
     /// the picker labels accordingly. Defaults to `{ [] }` for
     /// previews + call sites that don't have a receiver wired up.
     let loadMIDISources: () async -> [String]
+    /// View model bridge for the Imported Sounds drill-in (spec §4.2).
+    /// Optional so previews + tests can construct without the full
+    /// app stack; the Imported Sounds row hides when nil.
+    let userSoundsViewModel: MetronomeViewModel?
 
     @Environment(\.dismiss) private var dismiss
     @State private var settings: EngineSettings
@@ -31,10 +35,12 @@ struct SettingsView: View {
     init(
         initial: EngineSettings,
         loadMIDISources: @escaping () async -> [String] = { [] },
+        userSoundsViewModel: MetronomeViewModel? = nil,
         onChange: @escaping (EngineSettings) -> Void
     ) {
         self.initial = initial
         self.loadMIDISources = loadMIDISources
+        self.userSoundsViewModel = userSoundsViewModel
         self.onChange = onChange
         self._settings = State(initialValue: initial)
     }
@@ -106,13 +112,40 @@ struct SettingsView: View {
             .pickerStyle(.menu)
             .tint(DS.DSColor.accentTempo)
             .listRowBackground(DS.DSColor.bgElevated)
+            // Drill-in to the imported-sounds manager (spec §4.2).
+            // Engine default `clickSound` stays built-in only; user
+            // imports are picked per-song. Kept here so the
+            // "where do user sounds live?" question has a single
+            // discoverable answer from Settings.
+            if let viewModel = userSoundsViewModel {
+                NavigationLink {
+                    UserSoundsView(viewModel: viewModel)
+                } label: {
+                    HStack {
+                        Text("Imported Sounds")
+                            .foregroundStyle(DS.DSColor.textPrimary)
+                        Spacer()
+                        Text(importedSoundsSummary(for: viewModel))
+                            .font(DS.Font.monoData)
+                            .foregroundStyle(DS.DSColor.textMuted)
+                    }
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            }
         } header: {
             Text("Sound")
                 .foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Default click sound. Individual songs can override this in their detail view.")
+            Text("Default click sound. Individual songs can override this in their detail view. Imported sounds (WAV, AIFF, CAF — up to 2 s and 1 MB each) are available in any song's Click Sound picker.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
+    }
+
+    /// Compact summary for the Imported Sounds nav row — "None" when
+    /// nothing has been imported, otherwise count of imports.
+    private func importedSoundsSummary(for vm: MetronomeViewModel) -> String {
+        let n = vm.userSounds.count
+        return n == 0 ? "None" : "\(n)"
     }
 
     /// Per-subdivision-level click config (spec §2.3). Each level

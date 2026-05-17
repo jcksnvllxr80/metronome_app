@@ -157,6 +157,17 @@ struct AccentPatternEditView: View {
                 ForEach(ClickSound.allCases, id: \.self) { sound in
                     Text(sound.displayName).tag(String?.some(sound.rawValue))
                 }
+                // User-imported sounds (spec §4.2). Per-beat overrides
+                // can pick any imported sound too — the audio path
+                // resolves the `user:<UUID>` key the same way it
+                // resolves the song-level preset.
+                if let vm = viewModel, !vm.userSounds.isEmpty {
+                    Section("Imported") {
+                        ForEach(vm.userSounds) { sound in
+                            Text(sound.name).tag(String?.some(sound.soundPresetKey))
+                        }
+                    }
+                }
             }
             .pickerStyle(.menu)
             .tint(beats[i].soundOverride == nil ? DS.DSColor.textPrimary : DS.DSColor.accentTempo)

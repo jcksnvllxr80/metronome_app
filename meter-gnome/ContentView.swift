@@ -149,7 +149,8 @@ struct ContentView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView(
                 initial: viewModel.settings,
-                loadMIDISources: { await viewModel.availableMIDISources() }
+                loadMIDISources: { await viewModel.availableMIDISources() },
+                userSoundsViewModel: viewModel
             ) { updated in
                 viewModel.setSettings(updated)
             }
@@ -389,15 +390,13 @@ struct ContentView: View {
     /// the song is using the global default. Shown under the loaded-
     /// song indicator so the user has a visible cue that the click
     /// they're hearing came from the song's override, not Settings.
-    /// Matching by raw rawValue against `ClickSound` so display stays
-    /// in sync if a sound is renamed; arbitrary strings (future user-
-    /// imported sounds, spec §4.2) render with first letter uppercased.
+    /// Resolves the current sound preset to its display name via the
+    /// view model — built-ins use `ClickSound.displayName`, user-
+    /// imported sounds (spec §4.2) use their stored `name`, dangling
+    /// keys fall back to "Unknown sound".
     private var soundPresetIndicatorText: String? {
         guard let raw = viewModel.currentSoundPreset, !raw.isEmpty else { return nil }
-        if let sound = ClickSound(rawValue: raw) {
-            return sound.displayName
-        }
-        return raw.prefix(1).uppercased() + raw.dropFirst()
+        return viewModel.displayName(forSoundPresetKey: raw)
     }
 
     /// "INTRO · 1/3" when a sectioned song is loaded; nil otherwise.
