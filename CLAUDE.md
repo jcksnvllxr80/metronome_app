@@ -106,7 +106,7 @@ SwiftUI, AVFoundation/AVFAudio, CoreHaptics, CoreMIDI, MediaPlayer (Now Playing 
 
 Visual/aesthetic design (separate from `DESIGN.md`'s system), marketing assets, monetization, server-side components, audio recording / DAW features, social/sharing. Don't invent these.
 
-**User has also explicitly dropped** (TODO.md, "for the foreseeable future"): iCloud sync (§14), Apple Watch (§13), Ableton Link (§12.3), BLE foot pedals (§12.1), bundled real percussion samples (§4.1), bundled real voice count samples (§5). The bundled-audio items are out because the user doesn't want pre-recorded audio baked into the app binary — user-imported sounds (§4.2) is still in since those live in the user's sandbox. Don't suggest re-adding any of these without checking first.
+**User has also explicitly dropped** (TODO.md, "for the foreseeable future"): iCloud sync (§14), Apple Watch (§13), Ableton Link (§12.3), BLE foot pedals (§12.1), bundled real percussion samples (§4.1), bundled real voice count samples (§5), speed-trainer "successful loops" trigger (§6.4). The bundled-audio items are out because the user doesn't want pre-recorded audio baked into the app binary — user-imported sounds (§4.2) is still in since those live in the user's sandbox. Successful-loops detection is out because no signal works: mic too fragile, tap-along needs a free hand most instruments don't have, manual marking breaks practice flow. Don't suggest re-adding any of these without checking first.
 
 ## Design System
 
