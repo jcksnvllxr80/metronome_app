@@ -316,19 +316,25 @@ public actor MetronomeEngine {
     /// boundary. MIDI and haptic schedulers stay attached and get
     /// their normal reanchor Tasks (they need them).
     public func applyForSectionTransition(_ song: Song, sectionMeasureCount: Int) async {
+        print("[ENGINE] applyForSectionTransition: incoming bpm=\(song.bpm.displayInt) meter=\(song.timeSignature.numerator)/\(song.timeSignature.denominator.rawValue) measures=\(sectionMeasureCount)")
         let savedScheduler = self.scheduler
         self.scheduler = nil
         apply(song)
         self.scheduler = savedScheduler
+        print("[ENGINE] post-apply engine.bpm=\(self.bpm.displayInt) schedule.bpm=\(self.schedule?.bpm.displayInt ?? -1) schedule.startTime=\(self.schedule?.startTime ?? -1)")
 
         guard isRunning,
               let scheduler = savedScheduler,
               let schedule = self.schedule
-        else { return }
+        else {
+            print("[ENGINE] applyForSectionTransition early return — isRunning=\(isRunning) scheduler=\(savedScheduler != nil) schedule=\(self.schedule != nil)")
+            return
+        }
 
         let songFirstClickIndex = schedule.countInClicks
         let boundaryClickIndex = songFirstClickIndex + sectionMeasureCount * schedule.clicksPerMeasure
         let boundaryTime = schedule.click(at: boundaryClickIndex).time
+        print("[ENGINE] calling scheduleResetWithCap(boundary=\(boundaryTime)) at clock.now=\(clock.now)")
         await scheduler.scheduleResetWithCap(boundaryTime)
     }
 

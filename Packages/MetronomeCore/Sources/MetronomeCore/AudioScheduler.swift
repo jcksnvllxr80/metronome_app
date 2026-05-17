@@ -213,10 +213,15 @@ public actor AudioScheduler {
     /// interleaving — the cap is updated first, then the refill
     /// picks it up immediately.
     public func scheduleResetWithCap(_ newCap: TimeInterval?) async {
+        print("[AUDIO] scheduleResetWithCap(newCap=\(newCap ?? -1)) isPlaying=\(playerNode.isPlaying)")
         self.schedulingEndTime = newCap
         lastScheduledTime = -.infinity
-        guard playerNode.isPlaying else { return }
+        guard playerNode.isPlaying else {
+            print("[AUDIO] scheduleResetWithCap early return — player not playing")
+            return
+        }
         await refillOnce(interruptsFirst: true)
+        print("[AUDIO] scheduleResetWithCap done. lastScheduledTime=\(lastScheduledTime)")
     }
 
     /// Hard reset variant for cases where the existing queue contains
@@ -267,6 +272,10 @@ public actor AudioScheduler {
 
         let upcoming = await engine.clicks(after: lastScheduledTime, count: lookahead)
         let endTime = schedulingEndTime
+        if interruptsFirst {
+            let bpms = upcoming.prefix(4).map { String(format: "t=%.3f", $0.time) }.joined(separator: ", ")
+            print("[AUDIO] refillOnce(interruptsFirst=true): cap=\(endTime ?? -1) lookahead=\(lookahead) firstClicks=[\(bpms)] (engine.bpm via click freq)")
+        }
         var didScheduleAny = false
         for click in upcoming {
             // Hard cap — don't queue clicks past the section boundary.
@@ -274,7 +283,10 @@ public actor AudioScheduler {
             // NEXT section's measure 0, not this section) ends up
             // in the queue and plays alongside the new section's
             // first click after the transition.
-            if let endTime = endTime, click.time >= endTime { break }
+            if let endTime = endTime, click.time >= endTime {
+                if interruptsFirst { print("[AUDIO] refill broke at cap: click.time=\(click.time) cap=\(endTime). didScheduleAny=\(didScheduleAny)") }
+                break
+            }
             // Mute click: still advance `lastScheduledTime` so we don't
             // re-pull it next pass, but don't schedule anything audible.
             if click.accent == .mute {
@@ -344,6 +356,9 @@ public actor AudioScheduler {
             // recent SDKs that we don't want (awaiting it would block
             // the refill loop until the buffer finishes playing).
             playerNode.scheduleBuffer(buffer, at: audioTime, options: options, completionHandler: nil)
+            if interruptsFirst && !didScheduleAny {
+                print("[AUDIO] scheduled FIRST new click at t=\(click.time) accent=\(click.accent) (with .interrupts)")
+            }
             lastScheduledTime = click.time
             didScheduleAny = true
         }
