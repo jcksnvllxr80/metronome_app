@@ -23,6 +23,10 @@ public actor SongSectionPlayer {
     private weak var engineRef: MetronomeEngine?
     public private(set) var song: Song?
     public private(set) var currentIndex: Int = -1
+    /// Local clock used for time-based boundary detection. Same backing
+    /// source (mach_absolute_time) as the engine's clock, so the times
+    /// we compare against `schedule.startTime` are in the same timebase.
+    private let clock = SystemClock()
     /// Zero-based count of completed passes through the current
     /// section. When this hits `section.repeatCount - 1` AND another
     /// measure-boundary fires, the player advances to the next
@@ -115,17 +119,26 @@ public actor SongSectionPlayer {
               let engine = engineRef,
               let section = currentSection
         else { return }
-        let upcoming = await engine.upcomingClicks(count: 1)
-        guard let next = upcoming.first else { return }
-        // Boundary detection mirrors `SetlistPlayer.tick` — wait until
-        // we're at the downbeat that WOULD have been measure
-        // `measureCount` (zero-indexed: measure indices 0..<measureCount
-        // are in-section; index `measureCount` is past the section).
-        // Count-in clicks have their own measure indexing; ignore them.
-        let atBoundary = !next.isCountIn
-            && next.measureIndex >= section.measureCount
-            && next.beatIndex == 0
-            && next.subdivisionIndex == 0
+        // Compute the wall-clock time at which the section's natural
+        // boundary lands (the would-be downbeat of measure
+        // `measureCount`, past the last in-section measure). Detect by
+        // time rather than by "next click is the boundary click" —
+        // the lookahead-based check fired as soon as the upcoming
+        // click WAS the boundary, which could be most of a click
+        // period away, causing the transition to land early and cut
+        // off the end of the current section.
+        guard let schedule = await engine.schedule else { return }
+        let songFirstClickIndex = schedule.countInClicks
+        let boundaryClickIndex = songFirstClickIndex + section.measureCount * schedule.clicksPerMeasure
+        let boundaryTime = schedule.click(at: boundaryClickIndex).time
+        // Trigger the advance a tick before the boundary so the new
+        // section's first click — which lands at clock.now + reanchor
+        // lead-in — fires AT the boundary time, not after it. The
+        // 100ms poll interval makes this a "fire on the first tick
+        // past advanceTime" — the worst-case is one poll interval
+        // of overshoot.
+        let advanceTime = boundaryTime - MetronomeEngine.reanchorLeadInSeconds
+        let atBoundary = clock.now >= advanceTime
         if atBoundary {
             isAdvancing = true
             // Decide: repeat the same section, jump (D.C. al fine),

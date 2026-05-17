@@ -115,6 +115,9 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
+### ~~Section transitions land mid-measure, tempos sound wrong~~ — fixed in v0.14.1
+After v0.14.0 shipped D.C. al Fine, device QA found section→section transitions firing early — the new section's tempo would come in before the current section's last measure completed. Root cause: `SongSectionPlayer.tick` detected the boundary by looking at `upcomingClicks(count: 1)` and checking whether the next click was the boundary downbeat. But the lookahead returns the SOONEST unplayed click, which could be hundreds of milliseconds in the future. The tick would fire the advance as soon as the boundary downbeat appeared in the lookahead, not when wall-clock time actually reached it. Result: the previous section got truncated by up to one click period, and the next section started early. Fix: switch boundary detection to time-based — compute the natural boundary time from `schedule.startTime + boundaryClickIndex * clickPeriod` and only advance once `clock.now >= boundaryTime - reanchorLeadInSeconds`. The new section's first click (at clock.now + lead-in) then lands AT the natural downbeat, not before.
+
 ### ~~Haptic "fast double-bass-pedal buzz" regardless of mode~~ — fixed in v0.13.6 (device-confirmed)
 Three theories before the actual fix landed:
 - v0.13.4: pass `max(0, click.time - clock.now)` to `start(atTime:)` instead of `CHHapticTimeImmediate`. No effect.
