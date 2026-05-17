@@ -154,7 +154,10 @@ import Foundation
     let song = try #require(Song(title: "Slow", bpm: BPM(60)))
     await engine.apply(song)
     let clicks = await engine.upcomingClicks(count: 2)
-    // New schedule should anchor at clock.now = 0.3, with new period = 1.0
-    #expect(clicks[0].time == 0.3)
-    #expect(clicks[1].time == 1.3)
+    let reanchorLeadIn = MetronomeEngine.reanchorLeadInSeconds
+    // New schedule anchors at clock.now + reanchor lead-in (0.3 + 0.06),
+    // with new period = 1.0. Tolerance accounts for floating-point
+    // compound-add precision at the second click.
+    #expect(abs(clicks[0].time - (0.3 + reanchorLeadIn)) < 1e-9)
+    #expect(abs(clicks[1].time - (1.3 + reanchorLeadIn)) < 1e-9)
 }

@@ -52,13 +52,14 @@ import Foundation
     await engine.start()
     _ = await engine.clicks(after: -1, count: 4)
 
-    // Advance time + change BPM → reanchor at clock.now
+    // Advance time + change BPM → reanchor at clock.now (+ reanchor lead-in)
     clock.advance(by: 0.3)
     await engine.setBPM(BPM(60))
 
     // After reanchor, `clicks(after:)` should produce the NEW schedule's
-    // clicks, starting at the new startTime (0.3).
+    // clicks, starting at the new startTime (0.3 + reanchor lead-in).
+    let reanchorLeadIn = MetronomeEngine.reanchorLeadInSeconds
     let clicks = await engine.clicks(after: -1, count: 2)
-    #expect(clicks[0].time == 0.3)
-    #expect(clicks[1].time == 1.3) // 60 BPM = 1.0 sec period
+    #expect(abs(clicks[0].time - (0.3 + reanchorLeadIn)) < 1e-9)
+    #expect(abs(clicks[1].time - (1.3 + reanchorLeadIn)) < 1e-9) // 60 BPM = 1.0 sec period
 }

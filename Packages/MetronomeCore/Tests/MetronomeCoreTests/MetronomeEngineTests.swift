@@ -105,11 +105,14 @@ import Foundation
     clock.advance(by: 0.75) // mid-beat
 
     await engine.setBPM(BPM(60))
-    // New schedule should anchor at clock.now = 0.75, with new period = 1.0
+    // New schedule anchors at clock.now + reanchorLeadInSeconds, with
+    // new period = 1.0. The reanchor lead-in gives the audio scheduler
+    // a small window to flush + refill after playerNode.reset().
+    let reanchorLeadIn = MetronomeEngine.reanchorLeadInSeconds
     let clicks = await engine.upcomingClicks(count: 3)
-    #expect(clicks[0].time == 0.75)
-    #expect(clicks[1].time == 1.75)
-    #expect(clicks[2].time == 2.75)
+    #expect(clicks[0].time == 0.75 + reanchorLeadIn)
+    #expect(clicks[1].time == 1.75 + reanchorLeadIn)
+    #expect(clicks[2].time == 2.75 + reanchorLeadIn)
 }
 
 @Test func setTimeSignatureReanchorsCorrectly() async {
@@ -120,8 +123,9 @@ import Foundation
 
     await engine.setTimeSignature(.sevenEight)
     let clicks = await engine.upcomingClicks(count: 8)
-    // First click of new schedule is a downbeat at t=0.1
-    #expect(clicks[0].time == 0.1)
+    let reanchorLeadIn = MetronomeEngine.reanchorLeadInSeconds
+    // First click of new schedule is a downbeat at t=0.1 + reanchor lead-in
+    #expect(clicks[0].time == 0.1 + reanchorLeadIn)
     #expect(clicks[0].isDownbeat)
     // 7/8 wraps after 7 clicks → click 7 is the next downbeat
     #expect(clicks[7].isDownbeat)
@@ -134,10 +138,11 @@ import Foundation
 
     await engine.setSubdivision(.eighth)
     let clicks = await engine.upcomingClicks(count: 4)
-    #expect(clicks[0].time == 0.0)
-    #expect(clicks[1].time == 0.5)
-    #expect(clicks[2].time == 1.0)
-    #expect(clicks[3].time == 1.5)
+    let reanchorLeadIn = MetronomeEngine.reanchorLeadInSeconds
+    #expect(clicks[0].time == 0.0 + reanchorLeadIn)
+    #expect(clicks[1].time == 0.5 + reanchorLeadIn)
+    #expect(clicks[2].time == 1.0 + reanchorLeadIn)
+    #expect(clicks[3].time == 1.5 + reanchorLeadIn)
     #expect(clicks[0].subdivisionIndex == 0)
     #expect(clicks[1].subdivisionIndex == 1)
 }

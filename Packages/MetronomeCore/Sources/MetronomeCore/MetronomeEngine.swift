@@ -324,16 +324,26 @@ public actor MetronomeEngine {
 
     // MARK: - Private
 
-    /// Small lead-in applied to the schedule anchor on a cold `start()`
-    /// or `resume()` (NOT on mid-playback re-anchors). The audio scheduler
-    /// + AVAudioEngine startup takes a non-trivial amount of time to
-    /// reach `scheduleBuffer(at:)`; if the first click's hostTime is
-    /// behind that wall-clock, the player node drops it — and the
-    /// audible accent ends up on what feels like the wrong beat. 120 ms
-    /// is comfortably above the typical 30–80 ms startup window.
-    /// Tradeoff: a slight delay between Play tap and first click;
+    /// Lead-in applied to the schedule anchor on a cold `start()` or
+    /// `resume()`. The audio session activation + AVAudioEngine startup
+    /// take non-trivial time to reach `scheduleBuffer(at:)`; if the
+    /// first click's hostTime is behind that wall-clock, the player
+    /// node drops it — and the audible accent ends up on what feels
+    /// like the wrong beat. 250 ms covers the typical cold-launch
+    /// window (which can run higher than 100 ms on a first activation
+    /// since the audio subsystem is being initialized for the first
+    /// time). Tradeoff: a slight delay between Play tap and first click;
     /// preferable to a missing downbeat.
-    public static let startupLeadInSeconds: TimeInterval = 0.120
+    public static let startupLeadInSeconds: TimeInterval = 0.250
+
+    /// Lead-in applied when re-anchoring the schedule mid-playback (BPM
+    /// nudge, time-signature change, subdivision change). The audio
+    /// engine is already running, so the cold-start latency doesn't
+    /// apply — but the player node still needs a moment to recover
+    /// from `playerNode.reset()` and pick up newly-scheduled buffers.
+    /// 60 ms is short enough not to feel laggy on a nudge, long enough
+    /// to cover the reset/refill round-trip.
+    public static let reanchorLeadInSeconds: TimeInterval = 0.060
 
     private func rebuildSchedule(countIn: CountIn = .off, leadIn: TimeInterval = 0) {
         schedule = ClickSchedule(
@@ -349,8 +359,11 @@ public actor MetronomeEngine {
 
     private func reanchorIfRunning() {
         guard isRunning else { return }
-        // Mid-run re-anchors never re-trigger count-in.
-        rebuildSchedule(countIn: .off)
+        // Mid-run re-anchors never re-trigger count-in. The small
+        // lead-in gives the audio path time to recover from the
+        // scheduler's queue flush (see AudioScheduler.scheduleReset)
+        // without dropping the first new-tempo click.
+        rebuildSchedule(countIn: .off, leadIn: Self.reanchorLeadInSeconds)
         // Notify the scheduler so it can flush its buffered queue and
         // refill from the new schedule. Fire-and-forget: capture the
         // scheduler reference, not self.

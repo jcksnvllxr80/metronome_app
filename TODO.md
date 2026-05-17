@@ -119,11 +119,11 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
-### ~~Brief audio dropout on tempo change while running~~ — attempted fix in v0.12.4
-v0.12.3 tried "inline `refillOnce()` after `playerNode.reset()`" — still dropped audio on device. v0.12.4 drops the `playerNode.reset()` call entirely: leaves the existing 4-click queue playing through at the OLD tempo and queues new clicks (from the now-reanchored schedule) starting AFTER the last-scheduled time. Transition is gapless; the audible BPM lags the displayed BPM by up to one lookahead's worth (~4 clicks) before the new tempo audibly kicks in. Trade-off vs. dropout: accepted. Verify on device. If user perceives the lag as objectionable, a follow-up could shrink the lookahead in the immediate vicinity of a reset.
+### ~~Audio dropout / "old tempo stays" on tempo change while running~~ — attempted fix in v0.12.5
+v0.12.3 (reset + inline refill) had dropouts. v0.12.4 (no reset, queue-after-tail) made the old tempo stick around because lookahead buffers played for too long. v0.12.5 combines both approaches with a new key piece: `MetronomeEngine.reanchorLeadInSeconds` (60 ms). On any mid-playback re-anchor, the rebuilt schedule's startTime gets shifted by 60 ms — giving the audio path runway to recover after `playerNode.reset()` flushes the queue. The 60 ms is invisible to the ear but enough for the round-trip between reset + inline refillOnce + the audio engine rendering the first new buffer. Verify on device.
 
-### ~~First downbeat dropped on initial play~~ — fixed in v0.12.2
-Engine now applies `MetronomeEngine.startupLeadInSeconds` (120 ms) to the schedule anchor on `start()` and `resume()`, so the first click lands a comfortable margin in the future of the audio path's first `scheduleBuffer(at:)` call. Mid-playback re-anchors (BPM / meter / subdivision tweaks via `setBPM` etc.) keep the lead-in at 0 — the audio engine is already running and doesn't have the startup race. Verify on device after pushing.
+### ~~First downbeat dropped on initial play~~ — fix expanded in v0.12.5
+v0.12.2 set `startupLeadInSeconds` to 120 ms; that handled warm starts but real-device QA found the very first launch of the app (cold audio session) still dropped the first downbeat intermittently. v0.12.5 bumps the lead-in to 250 ms — covers the larger cold-launch audio activation window. Verify on device. If the perceived Play-tap delay feels too long, can tune back down once we have a way to detect "first activation since launch" vs subsequent.
 
 ## Known issues / debt
 
