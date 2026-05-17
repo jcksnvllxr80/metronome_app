@@ -141,6 +141,11 @@ struct ContentView: View {
             // so `bpmFontSize` can compute a viewport-relative hero
             // size — replaces the four-way static table that didn't
             // know about iPad-split column widths or external displays.
+            // `allowsHitTesting(false)` is critical: `Color.clear` is
+            // hit-testable by default in SwiftUI, and without this
+            // line it eats every tap that falls inside the ZStack
+            // (including the play button). Caught on real-device QA
+            // when the play button stopped responding.
             GeometryReader { proxy in
                 Color.clear
                     .onAppear { stageSize = proxy.size }
@@ -148,6 +153,7 @@ struct ContentView: View {
                         stageSize = newSize
                     }
             }
+            .allowsHitTesting(false)
 
             // TimelineView re-evaluates the body at the animation frame rate
             // so the pulse + active beat dot + tap flash track the engine
