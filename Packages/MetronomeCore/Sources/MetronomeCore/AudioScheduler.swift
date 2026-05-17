@@ -162,9 +162,25 @@ public actor AudioScheduler {
         }
     }
 
-    /// Tear down audio output: cancel the refill task, stop the player and
-    /// engine, deactivate the session. Buffers still queued in the player
-    /// node are dropped.
+    /// Tear down audio output: cancel the refill task, stop the player
+    /// nodes + AVAudioEngine. Buffers still queued in the player node
+    /// are dropped. The `AVAudioSession` is intentionally NOT
+    /// deactivated here — that's important for two reasons:
+    ///
+    ///   1. The volume-key bridge (spec §10.4) KVO-observes
+    ///      `AVAudioSession.outputVolume`. iOS pauses that observation
+    ///      when the session is inactive, so deactivating on stop
+    ///      meant volume keys would fire on the first start→stop
+    ///      cycle and then go silent afterwards.
+    ///   2. The Now Playing slot (spec §16) sticks to the most
+    ///      recent active-session app. Keeping ours active means
+    ///      the lock-screen card survives a stop/start cycle and
+    ///      AirPods controls keep reaching us between sessions.
+    ///
+    /// The OS handles session deactivation automatically on app
+    /// suspension; manual deactivation is reserved for cases where
+    /// we explicitly want to yield control (none of those exist on
+    /// the meter-gnome path today).
     public func stop() async {
         refillTask?.cancel()
         refillTask = nil
@@ -177,7 +193,6 @@ public actor AudioScheduler {
         lastScheduledTime = -.infinity
         lastPolyScheduledTime = -.infinity
 
-        deactivateSession()
         engineRef = nil
     }
 
@@ -494,25 +509,16 @@ public actor AudioScheduler {
 
     // MARK: - Session activation (iOS only)
 
+    /// Activate the shared audio session. Once active, the session
+    /// stays active for the lifetime of the app — we never call
+    /// `setActive(false)` ourselves. See `stop()` for the reasoning
+    /// (volume-key KVO + Now Playing slot retention).
     private func activateSession() {
         #if os(iOS)
         do {
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("AudioScheduler: session activate failed: \(error)")
-        }
-        #endif
-    }
-
-    private func deactivateSession() {
-        #if os(iOS)
-        do {
-            try AVAudioSession.sharedInstance().setActive(
-                false,
-                options: [.notifyOthersOnDeactivation]
-            )
-        } catch {
-            // Common during transitions; not worth surfacing.
         }
         #endif
     }
