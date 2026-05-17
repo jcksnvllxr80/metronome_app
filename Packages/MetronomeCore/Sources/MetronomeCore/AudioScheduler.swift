@@ -43,6 +43,14 @@ public actor AudioScheduler {
     /// each pulse reads clearly against the primary stream.
     public let polyPlayerNode: AVAudioPlayerNode
     public let format: AVAudioFormat
+    /// User-imported sound registry (spec §4.2). Owns a per-sound
+    /// per-accent buffer cache built from files in the app sandbox.
+    /// Public so the app target's store layer can push fresh snapshots
+    /// as the user adds / removes / re-trims imports. nil-safe — if
+    /// no app-target store attaches one, the audio path simply skips
+    /// any `user:UUID` preset key and falls through to the built-in
+    /// sound at the next level of resolution.
+    public let userSoundRegistry: UserSoundRegistry
 
     private let clock = SystemClock()
     /// Hard upper bound on the click times we'll schedule. Set by
@@ -101,6 +109,7 @@ public actor AudioScheduler {
         self.playerNode = node
         self.polyPlayerNode = polyNode
         self.format = fmt
+        self.userSoundRegistry = UserSoundRegistry()
 
         // Pre-render one buffer per (sound, accent, pitch) combo.
         for sound in ClickSound.allCases {
@@ -337,33 +346,35 @@ public actor AudioScheduler {
             // pitched tone instead of the regular click. Subdivisions
             // fall through to the normal click path so users still
             // get rhythmic feedback between voiced beats.
-            let buffer: AVAudioPCMBuffer? = {
-                if settings.voiceCountMode == .beats,
-                   click.subdivisionIndex == 0 {
-                    let bucket = min(click.beatIndex, Self.voicePitchBuckets - 1)
-                    return voiceBuffers[VoiceBufferKey(beatIndex: bucket, accent: click.accent)]
-                }
-                // Sound resolution order, narrowest to broadest:
-                //   1. click.soundOverride — set per-beat in an AccentPattern
-                //   2. engine.currentSoundPreset — set per-song
-                //   3. settings.clickSound — global default
-                // Unknown rawValues fall through; final fallback always lands.
-                let effectiveSound: ClickSound = {
-                    if let s = click.soundOverride, let cs = ClickSound(rawValue: s) {
-                        return cs
-                    }
-                    if let s = songPreset, let cs = ClickSound(rawValue: s) {
-                        return cs
-                    }
-                    return settings.clickSound
-                }()
+            var buffer: AVAudioPCMBuffer? = nil
+            if settings.voiceCountMode == .beats,
+               click.subdivisionIndex == 0 {
+                let bucket = min(click.beatIndex, Self.voicePitchBuckets - 1)
+                buffer = voiceBuffers[VoiceBufferKey(beatIndex: bucket, accent: click.accent)]
+            }
+            // Sound resolution order, narrowest to broadest. At each
+            // level, a `user:<UUID>` key takes the imported-sound path
+            // (UserSoundRegistry); otherwise we map the string back to
+            // a built-in ClickSound and look up the synth buffer.
+            //   1. click.soundOverride — set per-beat in an AccentPattern
+            //   2. engine.currentSoundPreset — set per-song
+            //   3. settings.clickSound — global default (built-in only;
+            //      Settings picker still exposes user sounds but routes
+            //      them through currentSoundPreset)
+            if buffer == nil, let s = click.soundOverride {
+                buffer = await resolveBuffer(forKey: s, accent: click.accent, pitch: click.pitchShift)
+            }
+            if buffer == nil, let s = songPreset {
+                buffer = await resolveBuffer(forKey: s, accent: click.accent, pitch: click.pitchShift)
+            }
+            if buffer == nil {
                 let bufferKey = BufferKey(
-                    sound: effectiveSound,
+                    sound: settings.clickSound,
                     accent: click.accent,
                     pitch: click.pitchShift
                 )
-                return clickBuffers[bufferKey]
-            }()
+                buffer = clickBuffers[bufferKey]
+            }
             guard let buffer else { continue }
             // Apply latency calibration. Negative = fire earlier
             // (compensates for Bluetooth headphone output latency).
@@ -416,6 +427,26 @@ public actor AudioScheduler {
             // residual queue from a recent toggle clears.
             polyPlayerNode.volume = 0
         }
+    }
+
+    /// Resolve a single sound-preset key to a playable buffer at the
+    /// given accent + pitch. Keys of the form `"user:<UUID>"` route
+    /// through the imported-sound registry; built-in `ClickSound.rawValue`
+    /// strings hit the synthesized buffer cache; anything unrecognized
+    /// returns nil so the caller can fall through to the next level of
+    /// the sound-resolution chain.
+    private func resolveBuffer(
+        forKey key: String,
+        accent: AccentLevel,
+        pitch: PitchShift
+    ) async -> AVAudioPCMBuffer? {
+        if let id = UserSound.id(fromKey: key) {
+            return await userSoundRegistry.buffer(for: id, accent: accent)?.buffer
+        }
+        if let cs = ClickSound(rawValue: key) {
+            return clickBuffers[BufferKey(sound: cs, accent: accent, pitch: pitch)]
+        }
+        return nil
     }
 
     /// Deterministic per-beat dice roll for random-mute mode (spec §6.4).

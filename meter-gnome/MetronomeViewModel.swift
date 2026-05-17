@@ -31,6 +31,17 @@ final class MetronomeViewModel {
     /// Practice-session log store. Optional so previews + tests still
     /// construct the view model without a SwiftData container.
     @ObservationIgnored let practiceSessionStore: PracticeSessionStore?
+    /// User-imported sound store (spec §4.2). Optional so previews +
+    /// tests construct without a SwiftData container.
+    @ObservationIgnored let userSoundStore: UserSoundStore?
+    /// AudioScheduler reference so the view model can push fresh
+    /// `UserSoundRegistry` snapshots after imports/deletes.
+    @ObservationIgnored let audioScheduler: AudioScheduler?
+    /// Snapshot of currently-imported user sounds, refreshed from the
+    /// store on launch + after every add/delete/update. Drives the
+    /// "Imported Sounds" picker rows in Settings + SongDetail.
+    var userSounds: [UserSound] = []
+
     /// Named accent-pattern preset library (spec §3.2). Optional so
     /// previews + tests can construct the view model without one.
     @ObservationIgnored let accentPatternPresetStore: AccentPatternPresetStore?
@@ -159,7 +170,9 @@ final class MetronomeViewModel {
         setlistPlayer: SetlistPlayer? = nil,
         practiceSessionStore: PracticeSessionStore? = nil,
         accentPatternPresetStore: AccentPatternPresetStore? = nil,
-        songSectionPlayer: SongSectionPlayer? = nil
+        songSectionPlayer: SongSectionPlayer? = nil,
+        userSoundStore: UserSoundStore? = nil,
+        audioScheduler: AudioScheduler? = nil
     ) {
         self.engine = engine
         self.settingsStore = settingsStore
@@ -168,6 +181,14 @@ final class MetronomeViewModel {
         self.practiceSessionStore = practiceSessionStore
         self.accentPatternPresetStore = accentPatternPresetStore
         self.songSectionPlayer = songSectionPlayer
+        self.userSoundStore = userSoundStore
+        self.audioScheduler = audioScheduler
+        // Seed the UI list from disk so pickers populate immediately
+        // without waiting for a refresh task. The audio path's registry
+        // is populated separately in meter_gnomeApp on launch.
+        if let store = userSoundStore {
+            self.userSounds = store.allSounds()
+        }
         // Seed `settings` synchronously from the store if available so
         // the SettingsView opens with the persisted values, not defaults.
         if let initial = settingsStore?.current {
@@ -498,6 +519,77 @@ final class MetronomeViewModel {
     func deleteAccentPatternPreset(id: UUID) {
         accentPatternPresetStore?.delete(id: id)
         refreshAccentPatternPresets()
+    }
+
+    // MARK: - User-imported sounds (spec §4.2)
+
+    /// Refresh the cached list of user sounds from disk + push a fresh
+    /// snapshot to the audio scheduler's registry. Called after every
+    /// add / delete / update so pickers + the audio path stay in sync.
+    func refreshUserSounds() {
+        guard let store = userSoundStore else { return }
+        userSounds = store.allSounds()
+        pushUserSoundsToRegistry()
+    }
+
+    /// Import a candidate audio file. Returns the new `UserSound` on
+    /// success, or throws `UserSoundImportError` so the UI can show
+    /// the actual constraint that failed (file size / duration /
+    /// format / decode). Caller is responsible for security-scoped
+    /// resource access if the URL came from a document picker.
+    @discardableResult
+    func importUserSound(from url: URL, displayName: String? = nil) throws -> UserSound? {
+        guard let store = userSoundStore else { return nil }
+        let imported = try store.importSound(from: url, displayName: displayName)
+        refreshUserSounds()
+        return imported
+    }
+
+    /// Update an existing user sound's display name + volume trim.
+    /// Re-pushes the registry so volume-trim changes take effect
+    /// at the next refill (~50ms).
+    func updateUserSound(_ sound: UserSound) {
+        userSoundStore?.update(sound)
+        refreshUserSounds()
+    }
+
+    /// Delete a user sound (row + file) and refresh.
+    func deleteUserSound(id: UUID) {
+        userSoundStore?.deleteSound(id: id)
+        refreshUserSounds()
+    }
+
+    /// Display name for a sound-preset key string used in pickers /
+    /// indicators. Resolves built-in `ClickSound` cases via their
+    /// `displayName`; user sounds via their stored name; falls back to
+    /// "Unknown sound" when the key is dangling (e.g. song saved with
+    /// a user sound that was later deleted).
+    func displayName(forSoundPresetKey key: String) -> String {
+        if let cs = ClickSound(rawValue: key) {
+            return cs.displayName
+        }
+        if let id = UserSound.id(fromKey: key),
+           let sound = userSounds.first(where: { $0.id == id }) {
+            return sound.name
+        }
+        return "Unknown sound"
+    }
+
+    /// Push the current `userSounds` snapshot to the audio scheduler's
+    /// registry. Detached so the actor hop doesn't block the calling
+    /// UI thread; harmless if the registry is briefly stale.
+    private func pushUserSoundsToRegistry() {
+        guard let scheduler = audioScheduler, let store = userSoundStore else { return }
+        let snapshot = userSounds
+        let urlFor: @Sendable (UserSound) -> URL = { store.url(for: $0) }
+        Task {
+            let format = await scheduler.format
+            await scheduler.userSoundRegistry.setSounds(
+                snapshot,
+                format: format,
+                urlFor: urlFor
+            )
+        }
     }
 
     /// Upsert an existing preset (preserving its UUID — used by the

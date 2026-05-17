@@ -24,7 +24,8 @@ struct meter_gnomeApp: App {
                     PersistedSong.self,
                     PersistedSetlist.self,
                     PersistedPracticeSession.self,
-                    PersistedAccentPatternPreset.self
+                    PersistedAccentPatternPreset.self,
+                    PersistedUserSound.self
             )
         } catch {
             fatalError("Failed to initialize SwiftData ModelContainer: \(error)")
@@ -38,6 +39,7 @@ struct meter_gnomeApp: App {
         let libraryStore = LibraryStore(context: context)
         let practiceSessionStore = PracticeSessionStore(context: context)
         let accentPatternPresetStore = AccentPatternPresetStore(context: context)
+        let userSoundStore = UserSoundStore(context: context)
 
         // Audio
         AudioSessionCoordinator.shared.configure()
@@ -45,6 +47,17 @@ struct meter_gnomeApp: App {
         let scheduler = AudioScheduler()
         Task {
             await engine.attach(scheduler: scheduler)
+            // Seed the user-sound registry from persisted imports on
+            // launch so they're available the moment playback starts.
+            // The view model also calls refreshUserSounds() after any
+            // import/delete to keep the registry in sync.
+            let sounds = userSoundStore.allSounds()
+            let format = scheduler.format
+            await scheduler.userSoundRegistry.setSounds(
+                sounds,
+                format: format,
+                urlFor: { userSoundStore.url(for: $0) }
+            )
         }
         AudioSessionCoordinator.shared.attach(engine: engine)
 
@@ -93,7 +106,9 @@ struct meter_gnomeApp: App {
             setlistPlayer: setlistPlayer,
             practiceSessionStore: practiceSessionStore,
             accentPatternPresetStore: accentPatternPresetStore,
-            songSectionPlayer: songSectionPlayer
+            songSectionPlayer: songSectionPlayer,
+            userSoundStore: userSoundStore,
+            audioScheduler: scheduler
         )
 
         // Lock-screen + Control Center + AirPods integration. The

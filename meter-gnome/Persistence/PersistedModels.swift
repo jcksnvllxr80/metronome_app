@@ -542,3 +542,48 @@ final class PersistedSetlist {
         songsData = (try? JSONEncoder().encode(setlist.songs)) ?? Data()
     }
 }
+
+// MARK: - User-imported sound (spec §4.2)
+
+/// SwiftData row mirroring `MetronomeCore.UserSound`. The audio file
+/// itself lives in `Documents/UserSounds/<filename>`; this row carries
+/// the metadata + per-sound volume trim. Lightweight migration adds
+/// the table seamlessly on first launch with the feature.
+@Model
+final class PersistedUserSound {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var filename: String
+    var volumeTrim: Double
+
+    init(id: UUID, name: String, filename: String, volumeTrim: Double) {
+        self.id = id
+        self.name = name
+        self.filename = filename
+        self.volumeTrim = volumeTrim
+    }
+
+    convenience init(from sound: UserSound) {
+        self.init(
+            id: sound.id,
+            name: sound.name,
+            filename: sound.filename,
+            volumeTrim: sound.volumeTrim
+        )
+    }
+
+    func toUserSound() -> UserSound {
+        UserSound(
+            id: id,
+            name: name,
+            filename: filename,
+            volumeTrim: volumeTrim
+        )
+    }
+
+    func update(from sound: UserSound) {
+        name = sound.name
+        filename = sound.filename
+        volumeTrim = sound.volumeTrim
+    }
+}

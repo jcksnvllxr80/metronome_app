@@ -1,6 +1,16 @@
 import Foundation
 import AVFoundation
 
+/// Sendable wrapper around an `AVAudioPCMBuffer`. The buffer is only
+/// ever read after `UserSoundRegistry` finishes writing it (callers
+/// of `setSounds` await its completion), and `AVAudioPlayerNode`'s
+/// `scheduleBuffer` is thread-safe — so the unchecked Sendable is
+/// safe in this narrow case.
+public struct UserSoundBufferRef: @unchecked Sendable {
+    public let buffer: AVAudioPCMBuffer
+    public init(_ buffer: AVAudioPCMBuffer) { self.buffer = buffer }
+}
+
 /// Per-accent buffer cache for one user-imported sound. Built once at
 /// import time (or on first reference after app launch) and held in
 /// memory by `UserSoundRegistry`. Pre-rendering five accent-level
@@ -12,7 +22,7 @@ private struct UserSoundBufferSet {
     /// level so the audio path can pick the right amplitude without
     /// touching the playback node's volume (which is owned by the
     /// primary mix).
-    var byAccent: [AccentLevel: AVAudioPCMBuffer]
+    var byAccent: [AccentLevel: UserSoundBufferRef]
 }
 
 /// In-memory registry mapping `UserSound.id` to pre-rendered buffers
@@ -73,7 +83,9 @@ public actor UserSoundRegistry {
     /// Buffer for a given (sound, accent) pair, or nil when the sound
     /// is missing, failed to load, or the accent is mute (caller is
     /// expected to filter mute clicks before reaching the audio path).
-    public func buffer(for id: UUID, accent: AccentLevel) -> AVAudioPCMBuffer? {
+    /// Returns a `UserSoundBufferRef` so the buffer can cross actor
+    /// boundaries — `AVAudioPCMBuffer` itself isn't Sendable.
+    public func buffer(for id: UUID, accent: AccentLevel) -> UserSoundBufferRef? {
         bufferSets[id]?.byAccent[accent]
     }
 
@@ -113,14 +125,14 @@ public actor UserSoundRegistry {
             .loud:   0.85,
             .accent: 1.00,
         ]
-        var byAccent: [AccentLevel: AVAudioPCMBuffer] = [:]
+        var byAccent: [AccentLevel: UserSoundBufferRef] = [:]
         for (level, mul) in multipliers {
             guard let scaled = Self.scaledCopy(
                 of: srcBuffer,
                 amplitude: mul * Float(trim),
                 targetFormat: format
             ) else { continue }
-            byAccent[level] = scaled
+            byAccent[level] = UserSoundBufferRef(scaled)
         }
         return UserSoundBufferSet(byAccent: byAccent)
     }
