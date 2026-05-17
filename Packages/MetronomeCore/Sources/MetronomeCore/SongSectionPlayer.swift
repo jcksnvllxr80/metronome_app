@@ -74,10 +74,21 @@ public actor SongSectionPlayer {
         self.currentRepetition = 0
         self.isAlFineMode = false
         self.isActive = true
-        let materialized = Self.materialize(section: sections[safeIndex], parentSong: song)
+        let firstSection = sections[safeIndex]
+        let materialized = Self.materialize(section: firstSection, parentSong: song)
+        // First-section start: standard apply + start the engine. The
+        // applyForSectionTransition path is for AFTER engine.start has
+        // already been called (mid-playback transitions).
         await engine.apply(materialized)
         await engine.start()
-        await capSchedulingAtSectionBoundary(engine: engine)
+        // Set the initial section's boundary cap on the audio scheduler.
+        if let scheduler = await engine.scheduler,
+           let schedule = await engine.schedule {
+            let songFirstClickIndex = schedule.countInClicks
+            let boundaryClickIndex = songFirstClickIndex + firstSection.measureCount * schedule.clicksPerMeasure
+            let boundaryTime = schedule.click(at: boundaryClickIndex).time
+            await scheduler.scheduleResetWithCap(boundaryTime)
+        }
         startPolling()
     }
 
@@ -182,34 +193,9 @@ public actor SongSectionPlayer {
               currentIndex < sections.count,
               let engine = engineRef
         else { return }
-        let materialized = Self.materialize(section: sections[currentIndex], parentSong: song)
-        await engine.apply(materialized)
-        await capSchedulingAtSectionBoundary(engine: engine)
-    }
-
-    /// Update the audio scheduler's cap to the current section's natural
-    /// boundary AND immediately re-queue clicks from the new schedule.
-    /// The combined operation is necessary because `engine.apply()`
-    /// dispatches 5 scheduleReset Tasks that race ahead of any
-    /// follow-up `setSchedulingEndTime` call: those Tasks run with the
-    /// OLD cap (which equals the new section's first click hostTime)
-    /// and reject the new clicks, leaving the queue empty until the
-    /// next refill tick. `scheduleResetWithCap` is one actor-isolated
-    /// call that updates the cap and refills atomically, so the new
-    /// clicks land immediately at the new tempo.
-    ///
-    /// Called on play, advance, repeat, D.C. jump. Computes the cap
-    /// from the engine's CURRENT schedule (which has already been
-    /// updated by `engine.apply`).
-    private func capSchedulingAtSectionBoundary(engine: MetronomeEngine) async {
-        guard let scheduler = await engine.scheduler,
-              let schedule = await engine.schedule,
-              let section = currentSection
-        else { return }
-        let songFirstClickIndex = schedule.countInClicks
-        let boundaryClickIndex = songFirstClickIndex + section.measureCount * schedule.clicksPerMeasure
-        let boundaryTime = schedule.click(at: boundaryClickIndex).time
-        await scheduler.scheduleResetWithCap(boundaryTime)
+        let section = sections[currentIndex]
+        let materialized = Self.materialize(section: section, parentSong: song)
+        await engine.applyForSectionTransition(materialized, sectionMeasureCount: section.measureCount)
     }
 
     private func advanceToNextSection() async {
@@ -224,9 +210,9 @@ public actor SongSectionPlayer {
         }
         currentIndex = nextIdx
         currentRepetition = 0
-        let materialized = Self.materialize(section: sections[nextIdx], parentSong: song)
-        await engine.apply(materialized)
-        await capSchedulingAtSectionBoundary(engine: engine)
+        let nextSection = sections[nextIdx]
+        let materialized = Self.materialize(section: nextSection, parentSong: song)
+        await engine.applyForSectionTransition(materialized, sectionMeasureCount: nextSection.measureCount)
     }
 
     /// D.C. al Fine jump: go back to section 0, leave in al-fine mode
@@ -242,9 +228,9 @@ public actor SongSectionPlayer {
         currentIndex = 0
         currentRepetition = 0
         isAlFineMode = true
-        let materialized = Self.materialize(section: sections[0], parentSong: song)
-        await engine.apply(materialized)
-        await capSchedulingAtSectionBoundary(engine: engine)
+        let firstSection = sections[0]
+        let materialized = Self.materialize(section: firstSection, parentSong: song)
+        await engine.applyForSectionTransition(materialized, sectionMeasureCount: firstSection.measureCount)
     }
 
     /// Synthesize a single-section Song from a SongSection + its parent

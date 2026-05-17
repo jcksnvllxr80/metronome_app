@@ -301,6 +301,37 @@ public actor MetronomeEngine {
         self.hapticScheduler = haptic
     }
 
+    /// Apply a song's state AND reset the audio scheduler in a single
+    /// atomic operation. Used by `SongSectionPlayer` for section
+    /// transitions where the standard `apply()` path was producing
+    /// timing problems because each of its 5 internal setters
+    /// dispatched a separate `scheduleReset` Task on the audio
+    /// scheduler, racing with the explicit cap update the section
+    /// player needed to do afterwards.
+    ///
+    /// This method temporarily detaches the audio scheduler while
+    /// running the standard `apply()` chain — so the 5 reanchor
+    /// Tasks don't fire on it — then re-attaches and does ONE
+    /// explicit `scheduleResetWithCap` call with the new section's
+    /// boundary. MIDI and haptic schedulers stay attached and get
+    /// their normal reanchor Tasks (they need them).
+    public func applyForSectionTransition(_ song: Song, sectionMeasureCount: Int) async {
+        let savedScheduler = self.scheduler
+        self.scheduler = nil
+        apply(song)
+        self.scheduler = savedScheduler
+
+        guard isRunning,
+              let scheduler = savedScheduler,
+              let schedule = self.schedule
+        else { return }
+
+        let songFirstClickIndex = schedule.countInClicks
+        let boundaryClickIndex = songFirstClickIndex + sectionMeasureCount * schedule.clicksPerMeasure
+        let boundaryTime = schedule.click(at: boundaryClickIndex).time
+        await scheduler.scheduleResetWithCap(boundaryTime)
+    }
+
     /// Next `count` clicks starting at or after `clock.now`. Returns `[]`
     /// when the engine is stopped. The UI uses this to drive the visual
     /// pulse + active beat indicator.
