@@ -355,6 +355,18 @@ final class MetronomeViewModel {
         refreshAccentPatternPresets()
     }
 
+    /// Seed the preset library with the curated starter set. Idempotent
+    /// in spirit (each call generates new UUIDs so the user can re-run
+    /// to top up if they've deleted some), but the UI should call this
+    /// at most once on user request to avoid duplicate rows.
+    @discardableResult
+    func addStarterAccentPresets() -> Int {
+        guard let store = accentPatternPresetStore else { return 0 }
+        let added = store.addStarterPresets()
+        refreshAccentPatternPresets()
+        return added
+    }
+
     /// Discard the entire practice-session history. Used by the Stats
     /// tab's clear-history action. Returns the count deleted.
     @discardableResult

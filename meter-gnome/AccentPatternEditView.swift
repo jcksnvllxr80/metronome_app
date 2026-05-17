@@ -260,10 +260,21 @@ struct AccentPatternEditView: View {
                 .listRowBackground(DS.DSColor.bgElevated)
 
                 if presetsForThisMeter.isEmpty {
-                    Text("No saved presets yet for \(timeSignature.numerator)/\(timeSignature.denominator.rawValue).")
-                        .font(DS.Font.label)
-                        .foregroundStyle(DS.DSColor.textMuted)
-                        .listRowBackground(DS.DSColor.bgElevated)
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        Text("No saved presets yet for \(timeSignature.numerator)/\(timeSignature.denominator.rawValue).")
+                            .font(DS.Font.label)
+                            .foregroundStyle(DS.DSColor.textMuted)
+                        if (viewModel?.accentPatternPresets.isEmpty ?? true) {
+                            Button {
+                                _ = viewModel?.addStarterAccentPresets()
+                                refreshPresets()
+                            } label: {
+                                Text("Add starter presets")
+                                    .foregroundStyle(DS.DSColor.accentTempo)
+                            }
+                        }
+                    }
+                    .listRowBackground(DS.DSColor.bgElevated)
                 } else {
                     ForEach(presetsForThisMeter) { preset in
                         Button {

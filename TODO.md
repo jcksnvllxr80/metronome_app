@@ -115,9 +115,8 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 `MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` wired (play/pause/toggle, next/prev in setlists, song title + BPM artist line, app-icon artwork). Real-device verification of AirPods double-tap + Control Center transport still pending.
 
 ### Accent pattern library — remaining (spec §3.2)
-Named preset library shipped. AccentPatternEditView has a "Save as preset" button + a list of existing presets matching the current time signature (swipe to delete). Each song still owns its own per-beat pattern; loading a preset copies its beats into the draft. Still backlog:
+Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/8, 7/8 2+2+3, 5/4 3+2). AccentPatternEditView has a "Save as preset" button + a list of existing presets matching the current time signature (swipe to delete) + "Add starter presets" button when the library is empty. Each song still owns its own per-beat pattern; loading a preset copies its beats into the draft. Still backlog:
 - Dedicated patterns-library view (browse / rename / edit standalone without going through a song)
-- Bundled starter presets (rock 4/4, swing 12/8, etc.) so the library isn't empty on first launch
 
 ## Known issues / debt
 
