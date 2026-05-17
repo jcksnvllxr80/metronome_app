@@ -159,6 +159,66 @@ private func roundTrip<T: Codable & Equatable>(_ value: T) throws -> T {
     #expect(try roundTrip(s) == s)
 }
 
+@Test func engineSettingsRoundTripWithAllNewFields() throws {
+    // Exercises every field added after v0.5.0: random mute, haptic
+    // mode + per-accent intensities, keep-screen-awake, start-on-launch,
+    // daily practice goal.
+    let s = EngineSettings(
+        masterVolume: 0.5,
+        latencyOffsetSeconds: 0.030,
+        mixWithOthers: true,
+        countIn: .oneMeasure,
+        bpmPrecisionMode: true,
+        autoResumeAfterInterruption: false,
+        clickSound: .digitalBeep,
+        midiClockEnabled: false,
+        midiClockReceiveEnabled: false,
+        voiceCountMode: .off,
+        randomMutePercentage: 25,
+        hapticMode: .accentsOnly,
+        hapticIntensity: HapticIntensity(soft: 0.4, normal: 0.7, loud: 0.9, accent: 1.0),
+        keepScreenAwakeDuringPlayback: false,
+        startOnLaunch: true,
+        dailyPracticeGoalMinutes: 45
+    )
+    let back = try roundTrip(s)
+    #expect(back.randomMutePercentage == 25)
+    #expect(back.hapticMode == .accentsOnly)
+    #expect(back.hapticIntensity.soft == 0.4)
+    #expect(back.hapticIntensity.accent == 1.0)
+    #expect(back.keepScreenAwakeDuringPlayback == false)
+    #expect(back.startOnLaunch == true)
+    #expect(back.dailyPracticeGoalMinutes == 45)
+    #expect(back == s)
+}
+
+@Test func engineSettingsLegacyJSONDecodesWithDefaults() throws {
+    // Pre-v0.8.0 payload — no haptic / random mute / new playback
+    // fields. The custom decoder should fall back to defaults for
+    // every missing key. `countIn` is Int-rawValue (0 == .off).
+    let legacyJSON = """
+    {
+      "masterVolume": 0.8,
+      "latencyOffsetSeconds": 0.0,
+      "mixWithOthers": true,
+      "countIn": 0,
+      "bpmPrecisionMode": false,
+      "autoResumeAfterInterruption": false,
+      "clickSound": "digitalBeep",
+      "midiClockEnabled": false,
+      "midiClockReceiveEnabled": false,
+      "voiceCountMode": "off"
+    }
+    """.data(using: .utf8)!
+    let decoded = try JSONDecoder().decode(EngineSettings.self, from: legacyJSON)
+    #expect(decoded.masterVolume == 0.8)
+    #expect(decoded.randomMutePercentage == 0)
+    #expect(decoded.hapticMode == .off)
+    #expect(decoded.keepScreenAwakeDuringPlayback == true)
+    #expect(decoded.startOnLaunch == false)
+    #expect(decoded.dailyPracticeGoalMinutes == 0)
+}
+
 @Test func engineSettingsDefaultsMidiOff() {
     #expect(EngineSettings().midiClockEnabled == false)
     #expect(EngineSettings().midiClockReceiveEnabled == false)
