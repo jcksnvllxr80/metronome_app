@@ -76,9 +76,17 @@ public actor SongSectionPlayer {
     /// without the section player tearing down the engine. When the
     /// callback is set, natural-end paths skip `engine.stop()` and the
     /// caller is responsible for the next action.
+    ///
+    /// `countIn` is forwarded to `engine.start(countIn:)`, so a count-in
+    /// prelude plays before section 0's first measure. The audio
+    /// scheduler's boundary cap is computed from the post-count-in click
+    /// index (`schedule.countInClicks` already accounts for the prelude),
+    /// so section 0's measure count still measures from the first SONG
+    /// click — not from the count-in.
     public func play(
         _ song: Song,
         startingAt index: Int = 0,
+        countIn: CountIn = .off,
         onSectionsExhausted: (@Sendable () async -> Void)? = nil
     ) async {
         guard song.isMultiSection,
@@ -99,7 +107,7 @@ public actor SongSectionPlayer {
         // applyForSectionTransition path is for AFTER engine.start has
         // already been called (mid-playback transitions).
         await engine.apply(materialized)
-        await engine.start()
+        await engine.start(countIn: countIn)
         // Set the initial section's boundary cap on the audio scheduler.
         if let scheduler = await engine.scheduler,
            let schedule = await engine.schedule {

@@ -125,23 +125,28 @@ public actor SetlistPlayer {
 
     private func startCurrentSong(countInMeasures: Int) async {
         guard let song = currentSong else { return }
+        let countIn = CountIn(rawValue: countInMeasures) ?? .off
         // Multi-section songs route through SongSectionPlayer so section
         // auto-advance works inside the setlist. The completion callback
         // signals "song finished" back here, which then advances the
-        // setlist per its advanceMode. Count-in for the first section is
-        // not yet plumbed through this path (TODO — for now, .countdown
-        // mode on a multi-section song will skip count-in).
+        // setlist per its advanceMode. Count-in is forwarded so
+        // `.countdown` advance mode prepends a prelude before section 0,
+        // matching flat-song behavior.
         if song.isMultiSection, let sectionPlayer {
-            await sectionPlayer.play(song) { [weak self] in
+            await sectionPlayer.play(song, countIn: countIn) { [weak self] in
                 guard let self else { return }
                 await self.handleSectionsExhausted()
             }
             // Duration tracking is moot — SongSectionPlayer drives end.
-            songStartTime = clock.now
+            // Offset by the count-in prelude so any external time-based
+            // logic (none today) reads consistently with flat songs.
+            let countInDuration = Double(countInMeasures)
+                * Double(song.timeSignature.numerator)
+                * song.bpm.beatPeriod
+            songStartTime = clock.now + countInDuration
             return
         }
         await engine?.apply(song)
-        let countIn = CountIn(rawValue: countInMeasures) ?? .off
         await engine?.start(countIn: countIn)
         // Track song start time AFTER any count-in completes so .seconds
         // duration measures "song time", not "song + preamble time".

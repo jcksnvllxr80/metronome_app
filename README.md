@@ -14,7 +14,7 @@ Latest tag: **v0.16.2**.
 
 | Layer | State |
 |---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 316 tests passing, drift < 1 ms/min verified in math |
+| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 321 tests passing, drift < 1 ms/min verified in math |
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
 | Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
 | Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
@@ -80,7 +80,7 @@ cd Packages/MetronomeCore
 swift test
 ```
 
-316 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
+321 tests at the time of writing — engine math, accent pattern logic, setlist + multi-section player behavior, tempo automation curves, subdivision config, Codable round-trips, automation-ceiling auto-stop. Runs in ~20ms; no audio or UI is exercised.
 
 ### Run package tests inside Xcode
 
