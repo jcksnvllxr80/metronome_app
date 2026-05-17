@@ -187,15 +187,20 @@ public actor SongSectionPlayer {
         await capSchedulingAtSectionBoundary(engine: engine)
     }
 
-    /// Tell the audio scheduler not to queue any clicks at or past the
-    /// current section's natural boundary. Without this, the boundary
-    /// click — which conceptually belongs to the NEXT section, not this
-    /// one — ends up scheduled in the player node's queue and plays
-    /// alongside the next section's first click after the transition.
+    /// Update the audio scheduler's cap to the current section's natural
+    /// boundary AND immediately re-queue clicks from the new schedule.
+    /// The combined operation is necessary because `engine.apply()`
+    /// dispatches 5 scheduleReset Tasks that race ahead of any
+    /// follow-up `setSchedulingEndTime` call: those Tasks run with the
+    /// OLD cap (which equals the new section's first click hostTime)
+    /// and reject the new clicks, leaving the queue empty until the
+    /// next refill tick. `scheduleResetWithCap` is one actor-isolated
+    /// call that updates the cap and refills atomically, so the new
+    /// clicks land immediately at the new tempo.
     ///
-    /// Called on play, every advance / repeat / D.C. jump. The cap is
-    /// recomputed each time because the schedule's startTime changes
-    /// on every reanchor, so the boundary's absolute time changes too.
+    /// Called on play, advance, repeat, D.C. jump. Computes the cap
+    /// from the engine's CURRENT schedule (which has already been
+    /// updated by `engine.apply`).
     private func capSchedulingAtSectionBoundary(engine: MetronomeEngine) async {
         guard let scheduler = await engine.scheduler,
               let schedule = await engine.schedule,
@@ -204,7 +209,7 @@ public actor SongSectionPlayer {
         let songFirstClickIndex = schedule.countInClicks
         let boundaryClickIndex = songFirstClickIndex + section.measureCount * schedule.clicksPerMeasure
         let boundaryTime = schedule.click(at: boundaryClickIndex).time
-        await scheduler.setSchedulingEndTime(boundaryTime)
+        await scheduler.scheduleResetWithCap(boundaryTime)
     }
 
     private func advanceToNextSection() async {

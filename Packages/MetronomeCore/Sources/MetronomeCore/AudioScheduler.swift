@@ -201,6 +201,24 @@ public actor AudioScheduler {
         self.schedulingEndTime = time
     }
 
+    /// Update the cap AND trigger an immediate refill in a single
+    /// actor-isolated call. Section transitions need this combined
+    /// operation because if we just call `setSchedulingEndTime`
+    /// separately after `engine.apply`, the 5 scheduleReset Tasks
+    /// the apply chain dispatches run BEFORE our cap update — and
+    /// they run with the OLD cap, which happens to equal the NEW
+    /// section's first click hostTime. So they reject the new click.
+    /// Result: new section's clicks never queue, tempo stays stuck
+    /// at old. Doing both inside one method body bypasses the
+    /// interleaving — the cap is updated first, then the refill
+    /// picks it up immediately.
+    public func scheduleResetWithCap(_ newCap: TimeInterval?) async {
+        self.schedulingEndTime = newCap
+        lastScheduledTime = -.infinity
+        guard playerNode.isPlaying else { return }
+        await refillOnce(interruptsFirst: true)
+    }
+
     /// Hard reset variant for cases where the existing queue contains
     /// buffers we definitely DON'T want to play — e.g. section
     /// boundaries, where the OLD section's "next-measure downbeat"
