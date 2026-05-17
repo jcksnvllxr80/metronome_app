@@ -84,20 +84,34 @@ public extension Sequence where Element == PracticeSession {
         filter { $0.startedAt >= date }
     }
 
-    /// Group by `songID`, returning (id, title, count, totalDuration)
-    /// tuples sorted by total duration descending. Sessions with no
-    /// `songID` aggregate under a sentinel UUID (`.zero`) so freestyle
-    /// practice shows up as its own row instead of being dropped.
-    func bySong() -> [(id: UUID, title: String, count: Int, totalDuration: TimeInterval)] {
+    /// Group by `songID`, returning aggregated stats per song sorted
+    /// by total duration descending. Sessions with no `songID`
+    /// aggregate under a sentinel UUID (`.zero`) so freestyle practice
+    /// shows up as its own row.
+    ///
+    /// `bpmMin` / `bpmMax` are the global min / max across all the
+    /// session rows in this group (so a song practiced at 60–80 then
+    /// later at 100–120 reads 60…120). When a group has no sessions
+    /// (shouldn't happen in practice), both are nil.
+    func bySong() -> [(id: UUID, title: String, count: Int, totalDuration: TimeInterval, bpmMin: BPM?, bpmMax: BPM?)] {
         let freestyleID = UUID(uuid: UUID_NULL)
-        var buckets: [UUID: (title: String, count: Int, total: TimeInterval)] = [:]
+        // Tuple-keyed buckets; nested struct doesn't work inside a
+        // generic extension method (Swift restriction).
+        var buckets: [UUID: (title: String, count: Int, total: TimeInterval, bpmMin: BPM?, bpmMax: BPM?)] = [:]
         for session in self {
             let id = session.songID ?? freestyleID
             let title = session.songTitle ?? "Freestyle"
-            let existing = buckets[id] ?? (title, 0, 0)
-            buckets[id] = (title, existing.count + 1, existing.total + session.duration)
+            var bucket = buckets[id] ?? (title, 0, 0, nil, nil)
+            bucket.count += 1
+            bucket.total += session.duration
+            bucket.bpmMin = bucket.bpmMin.map { Swift.min($0, session.bpmMin) } ?? session.bpmMin
+            bucket.bpmMax = bucket.bpmMax.map { Swift.max($0, session.bpmMax) } ?? session.bpmMax
+            buckets[id] = bucket
         }
-        return buckets.map { (id: $0.key, title: $0.value.title, count: $0.value.count, totalDuration: $0.value.total) }
+        return buckets
+            .map { (id: $0.key, title: $0.value.title, count: $0.value.count,
+                    totalDuration: $0.value.total,
+                    bpmMin: $0.value.bpmMin, bpmMax: $0.value.bpmMax) }
             .sorted { $0.totalDuration > $1.totalDuration }
     }
 }

@@ -124,7 +124,13 @@ struct StatsView: View {
                 .foregroundStyle(DS.DSColor.textMuted)
             VStack(spacing: 0) {
                 ForEach(Array(groups.enumerated()), id: \.element.id) { idx, group in
-                    songRow(title: group.title, count: group.count, total: group.totalDuration)
+                    songRow(
+                        title: group.title,
+                        count: group.count,
+                        total: group.totalDuration,
+                        bpmMin: group.bpmMin,
+                        bpmMax: group.bpmMax
+                    )
                     if idx < groups.count - 1 {
                         Divider().background(DS.DSColor.textDim)
                     }
@@ -137,12 +143,12 @@ struct StatsView: View {
         }
     }
 
-    private func songRow(title: String, count: Int, total: TimeInterval) -> some View {
+    private func songRow(title: String, count: Int, total: TimeInterval, bpmMin: BPM?, bpmMax: BPM?) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                 Text(title)
                     .foregroundStyle(DS.DSColor.textPrimary)
-                Text("\(count) session\(count == 1 ? "" : "s")")
+                Text(subtitle(count: count, bpmMin: bpmMin, bpmMax: bpmMax))
                     .font(DS.Font.label)
                     .foregroundStyle(DS.DSColor.textMuted)
             }
@@ -152,6 +158,16 @@ struct StatsView: View {
                 .foregroundStyle(DS.DSColor.textPrimary)
         }
         .padding(DS.Spacing.md)
+    }
+
+    /// "3 sessions · 80–120 BPM" / "1 session · 120 BPM" / "3 sessions"
+    /// — collapses range to a single number when min == max, drops the
+    /// BPM segment entirely when no data is available.
+    private func subtitle(count: Int, bpmMin: BPM?, bpmMax: BPM?) -> String {
+        let countStr = "\(count) session\(count == 1 ? "" : "s")"
+        guard let lo = bpmMin, let hi = bpmMax else { return countStr }
+        if lo == hi { return "\(countStr) · \(lo.displayInt) BPM" }
+        return "\(countStr) · \(lo.displayInt)–\(hi.displayInt) BPM"
     }
 
     // MARK: - Actions
