@@ -240,25 +240,38 @@ struct ContentView: View {
     }
 
     private func rampIndicatorText(for auto: TempoAutomation) -> String {
-        let durationPart: String
-        switch auto.duration {
-        case .measures(let n): durationPart = "\(n) \(n == 1 ? "bar" : "bars")"
-        case .seconds(let s): durationPart = "\(Int(s.rounded())) sec"
+        switch auto {
+        case .gradual(let g):
+            let durationPart: String
+            switch g.duration {
+            case .measures(let n): durationPart = "\(n) \(n == 1 ? "bar" : "bars")"
+            case .seconds(let s): durationPart = "\(Int(s.rounded())) sec"
+            }
+            return "Ramp \(g.startBPM.displayInt) → \(g.endBPM.displayInt) · \(durationPart)"
+        case .step(let s):
+            let ceilingPart = s.ceiling.map { " → \($0.displayInt)" } ?? ""
+            let plural = s.measuresPerStep == 1 ? "bar" : "bars"
+            return "Step \(s.startBPM.displayInt)\(ceilingPart) · +\(Int(s.increment.rounded())) every \(s.measuresPerStep) \(plural)"
         }
-        return "Ramp \(auto.startBPM.displayInt) → \(auto.endBPM.displayInt) · \(durationPart)"
     }
 
     private func rampIndicatorAccessibility(for auto: TempoAutomation) -> String {
-        let direction: String
-        if auto.endBPM > auto.startBPM { direction = "Accelerando" }
-        else if auto.endBPM < auto.startBPM { direction = "Ritardando" }
-        else { direction = "Tempo hold" }
-        let durationPart: String
-        switch auto.duration {
-        case .measures(let n): durationPart = "\(n) measure\(n == 1 ? "" : "s")"
-        case .seconds(let s): durationPart = "\(Int(s.rounded())) seconds"
+        switch auto {
+        case .gradual(let g):
+            let direction: String
+            if g.endBPM > g.startBPM { direction = "Accelerando" }
+            else if g.endBPM < g.startBPM { direction = "Ritardando" }
+            else { direction = "Tempo hold" }
+            let durationPart: String
+            switch g.duration {
+            case .measures(let n): durationPart = "\(n) measure\(n == 1 ? "" : "s")"
+            case .seconds(let s): durationPart = "\(Int(s.rounded())) seconds"
+            }
+            return "\(direction) from \(g.startBPM.displayInt) to \(g.endBPM.displayInt) BPM over \(durationPart)"
+        case .step(let s):
+            let ceilingPart = s.ceiling.map { ", ceiling \($0.displayInt) BPM" } ?? ""
+            return "Speed trainer step mode starting at \(s.startBPM.displayInt) BPM, increasing by \(Int(s.increment.rounded())) BPM every \(s.measuresPerStep) measure\(s.measuresPerStep == 1 ? "" : "s")\(ceilingPart)"
         }
-        return "\(direction) from \(auto.startBPM.displayInt) to \(auto.endBPM.displayInt) BPM over \(durationPart)"
     }
 
     // MARK: - Meter row (time signature + subdivision, top)

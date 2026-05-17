@@ -188,22 +188,34 @@ struct SongDetailView: View {
         song.accentPattern == nil ? DS.DSColor.textMuted : DS.DSColor.accentTempo
     }
 
-    // MARK: - Tempo Automation (spec §6.3, gradual ramp)
+    // MARK: - Tempo Automation (spec §6.3 gradual + §6.4 step)
+
+    private enum AutomationKind: Hashable { case gradual, step }
+    private enum AutomationDurationKind: Hashable { case measures, seconds }
 
     private var automationSection: some View {
         Section {
-            Toggle("Enable Ramp", isOn: automationEnabledBinding)
+            Toggle("Enable Automation", isOn: automationEnabledBinding)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
 
             if let auto = song.automation {
-                automationStartRow(auto: auto)
-                automationEndRow(auto: auto)
-                automationDurationKindRow(auto: auto)
-                automationDurationValueRow(auto: auto)
+                automationKindPicker(auto: auto)
+                switch auto {
+                case .gradual(let g):
+                    gradualStartRow(g: g)
+                    gradualEndRow(g: g)
+                    gradualDurationKindRow(g: g)
+                    gradualDurationValueRow(g: g)
+                case .step(let s):
+                    stepStartRow(s: s)
+                    stepIncrementRow(s: s)
+                    stepMeasuresPerStepRow(s: s)
+                    stepCeilingRow(s: s)
+                }
             }
         } header: {
-            Text("Tempo Ramp").foregroundStyle(DS.DSColor.textMuted)
+            Text("Tempo Automation").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
             Text(automationFooter).foregroundStyle(DS.DSColor.textMuted)
         }
@@ -212,16 +224,19 @@ struct SongDetailView: View {
     private var automationEnabledBinding: Binding<Bool> {
         Binding(
             get: { song.automation != nil },
+            // Toggling on defaults to gradual + 40 BPM ramp over 16 bars
+            // (whichever direction current BPM allows). Step mode is
+            // opt-in via the kind picker that appears once enabled.
             set: { isOn in
                 if isOn {
-                    // Default: ramp +40 BPM over 16 measures, capped at 400.
                     let end = min(song.bpm.value + 40, BPM.maximum)
-                    let auto = TempoAutomation(
+                    if let auto = TempoAutomation.gradual(
                         startBPM: song.bpm,
                         endBPM: BPM(end),
                         duration: .measures(16)
-                    )
-                    song.setAutomation(auto)
+                    ) {
+                        song.setAutomation(auto)
+                    }
                 } else {
                     song.setAutomation(nil)
                 }
@@ -229,68 +244,96 @@ struct SongDetailView: View {
         )
     }
 
-    private func automationStartRow(auto: TempoAutomation) -> some View {
+    private func automationKindPicker(auto: TempoAutomation) -> some View {
+        Picker(
+            "Mode",
+            selection: Binding<AutomationKind>(
+                get: {
+                    switch auto {
+                    case .gradual: return .gradual
+                    case .step: return .step
+                    }
+                },
+                set: { newKind in
+                    // Preserve startBPM across the kind switch; pick
+                    // sensible defaults for the new case's other fields.
+                    let start = auto.startBPM
+                    switch newKind {
+                    case .gradual:
+                        if case .gradual = auto { return }
+                        let end = min(start.value + 40, BPM.maximum)
+                        if let next = TempoAutomation.gradual(
+                            startBPM: start, endBPM: BPM(end), duration: .measures(16)
+                        ) {
+                            song.setAutomation(next)
+                        }
+                    case .step:
+                        if case .step = auto { return }
+                        if let next = TempoAutomation.step(
+                            startBPM: start,
+                            increment: 5,
+                            measuresPerStep: 4,
+                            ceiling: nil
+                        ) {
+                            song.setAutomation(next)
+                        }
+                    }
+                }
+            )
+        ) {
+            Text("Gradual").tag(AutomationKind.gradual)
+            Text("Step").tag(AutomationKind.step)
+        }
+        .pickerStyle(.segmented)
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    // MARK: Gradual rows
+
+    private func gradualStartRow(g: TempoAutomation.Gradual) -> some View {
         Stepper(
             value: Binding(
-                get: { auto.startBPM.value },
-                set: { newValue in
-                    let next = TempoAutomation(
-                        startBPM: BPM(newValue),
-                        endBPM: auto.endBPM,
-                        duration: auto.duration
-                    )
-                    song.setAutomation(next)
+                get: { g.startBPM.value },
+                set: { v in
+                    if let next = TempoAutomation.gradual(
+                        startBPM: BPM(v), endBPM: g.endBPM, duration: g.duration
+                    ) {
+                        song.setAutomation(next)
+                    }
                 }
             ),
-            in: BPM.minimum...BPM.maximum,
-            step: 1
+            in: BPM.minimum...BPM.maximum, step: 1
         ) {
-            HStack {
-                Text("Start BPM").foregroundStyle(DS.DSColor.textPrimary)
-                Spacer()
-                Text("\(auto.startBPM.displayInt)")
-                    .font(DS.Font.monoData)
-                    .foregroundStyle(DS.DSColor.textPrimary)
-            }
+            bpmRow(label: "Start BPM", value: g.startBPM)
         }
         .listRowBackground(DS.DSColor.bgElevated)
     }
 
-    private func automationEndRow(auto: TempoAutomation) -> some View {
+    private func gradualEndRow(g: TempoAutomation.Gradual) -> some View {
         Stepper(
             value: Binding(
-                get: { auto.endBPM.value },
-                set: { newValue in
-                    let next = TempoAutomation(
-                        startBPM: auto.startBPM,
-                        endBPM: BPM(newValue),
-                        duration: auto.duration
-                    )
-                    song.setAutomation(next)
+                get: { g.endBPM.value },
+                set: { v in
+                    if let next = TempoAutomation.gradual(
+                        startBPM: g.startBPM, endBPM: BPM(v), duration: g.duration
+                    ) {
+                        song.setAutomation(next)
+                    }
                 }
             ),
-            in: BPM.minimum...BPM.maximum,
-            step: 1
+            in: BPM.minimum...BPM.maximum, step: 1
         ) {
-            HStack {
-                Text("End BPM").foregroundStyle(DS.DSColor.textPrimary)
-                Spacer()
-                Text("\(auto.endBPM.displayInt)")
-                    .font(DS.Font.monoData)
-                    .foregroundStyle(DS.DSColor.textPrimary)
-            }
+            bpmRow(label: "End BPM", value: g.endBPM)
         }
         .listRowBackground(DS.DSColor.bgElevated)
     }
 
-    private enum AutomationDurationKind: Hashable { case measures, seconds }
-
-    private func automationDurationKindRow(auto: TempoAutomation) -> some View {
+    private func gradualDurationKindRow(g: TempoAutomation.Gradual) -> some View {
         Picker(
             "Duration",
             selection: Binding(
                 get: {
-                    switch auto.duration {
+                    switch g.duration {
                     case .measures: return AutomationDurationKind.measures
                     case .seconds: return AutomationDurationKind.seconds
                     }
@@ -299,18 +342,17 @@ struct SongDetailView: View {
                     let newDuration: TempoAutomation.Duration
                     switch kind {
                     case .measures:
-                        if case .measures = auto.duration { return }
+                        if case .measures = g.duration { return }
                         newDuration = .measures(16)
                     case .seconds:
-                        if case .seconds = auto.duration { return }
+                        if case .seconds = g.duration { return }
                         newDuration = .seconds(60)
                     }
-                    let next = TempoAutomation(
-                        startBPM: auto.startBPM,
-                        endBPM: auto.endBPM,
-                        duration: newDuration
-                    )
-                    song.setAutomation(next)
+                    if let next = TempoAutomation.gradual(
+                        startBPM: g.startBPM, endBPM: g.endBPM, duration: newDuration
+                    ) {
+                        song.setAutomation(next)
+                    }
                 }
             )
         ) {
@@ -322,27 +364,20 @@ struct SongDetailView: View {
     }
 
     @ViewBuilder
-    private func automationDurationValueRow(auto: TempoAutomation) -> some View {
-        switch auto.duration {
+    private func gradualDurationValueRow(g: TempoAutomation.Gradual) -> some View {
+        switch g.duration {
         case .measures(let n):
             Stepper(value: Binding(
                 get: { n },
                 set: { newN in
-                    let next = TempoAutomation(
-                        startBPM: auto.startBPM,
-                        endBPM: auto.endBPM,
-                        duration: .measures(newN)
-                    )
-                    song.setAutomation(next)
+                    if let next = TempoAutomation.gradual(
+                        startBPM: g.startBPM, endBPM: g.endBPM, duration: .measures(newN)
+                    ) {
+                        song.setAutomation(next)
+                    }
                 }
             ), in: 1...512, step: 1) {
-                HStack {
-                    Text("Measures").foregroundStyle(DS.DSColor.textPrimary)
-                    Spacer()
-                    Text("\(n)")
-                        .font(DS.Font.monoData)
-                        .foregroundStyle(DS.DSColor.textPrimary)
-                }
+                intRow(label: "Measures", value: n)
             }
             .listRowBackground(DS.DSColor.bgElevated)
         case .seconds(let s):
@@ -357,12 +392,12 @@ struct SongDetailView: View {
                 Slider(value: Binding(
                     get: { s },
                     set: { newS in
-                        let next = TempoAutomation(
-                            startBPM: auto.startBPM,
-                            endBPM: auto.endBPM,
+                        if let next = TempoAutomation.gradual(
+                            startBPM: g.startBPM, endBPM: g.endBPM,
                             duration: .seconds(newS.rounded())
-                        )
-                        song.setAutomation(next)
+                        ) {
+                            song.setAutomation(next)
+                        }
                     }
                 ), in: 5...600, step: 1)
                     .tint(DS.DSColor.accentTempo)
@@ -371,18 +406,163 @@ struct SongDetailView: View {
         }
     }
 
+    // MARK: Step rows
+
+    private func stepStartRow(s: TempoAutomation.Step) -> some View {
+        Stepper(
+            value: Binding(
+                get: { s.startBPM.value },
+                set: { v in
+                    // Drop ceiling if the new start exceeds it (factory
+                    // would otherwise reject the construction).
+                    let newStart = BPM(v)
+                    let newCeiling: BPM? = {
+                        guard let c = s.ceiling else { return nil }
+                        return c.value > newStart.value ? c : nil
+                    }()
+                    if let next = TempoAutomation.step(
+                        startBPM: newStart, increment: s.increment,
+                        measuresPerStep: s.measuresPerStep, ceiling: newCeiling
+                    ) {
+                        song.setAutomation(next)
+                    }
+                }
+            ),
+            in: BPM.minimum...BPM.maximum, step: 1
+        ) {
+            bpmRow(label: "Start BPM", value: s.startBPM)
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func stepIncrementRow(s: TempoAutomation.Step) -> some View {
+        Stepper(
+            value: Binding(
+                get: { s.increment },
+                set: { v in
+                    if let next = TempoAutomation.step(
+                        startBPM: s.startBPM, increment: max(1, v),
+                        measuresPerStep: s.measuresPerStep, ceiling: s.ceiling
+                    ) {
+                        song.setAutomation(next)
+                    }
+                }
+            ),
+            in: 1...50, step: 1
+        ) {
+            HStack {
+                Text("Increment").foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text("+\(Int(s.increment.rounded())) BPM")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.textPrimary)
+            }
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func stepMeasuresPerStepRow(s: TempoAutomation.Step) -> some View {
+        Stepper(value: Binding(
+            get: { s.measuresPerStep },
+            set: { newN in
+                if let next = TempoAutomation.step(
+                    startBPM: s.startBPM, increment: s.increment,
+                    measuresPerStep: newN, ceiling: s.ceiling
+                ) {
+                    song.setAutomation(next)
+                }
+            }
+        ), in: 1...64, step: 1) {
+            intRow(label: "Measures per step", value: s.measuresPerStep)
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func stepCeilingRow(s: TempoAutomation.Step) -> some View {
+        let ceilingEnabledBinding = Binding<Bool>(
+            get: { s.ceiling != nil },
+            set: { isOn in
+                let newCeiling: BPM? = isOn
+                    ? BPM(min(s.startBPM.value + s.increment * 8, BPM.maximum))
+                    : nil
+                if let next = TempoAutomation.step(
+                    startBPM: s.startBPM, increment: s.increment,
+                    measuresPerStep: s.measuresPerStep, ceiling: newCeiling
+                ) {
+                    song.setAutomation(next)
+                }
+            }
+        )
+        return Group {
+            Toggle("Ceiling", isOn: ceilingEnabledBinding)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+            if let ceiling = s.ceiling {
+                Stepper(
+                    value: Binding(
+                        get: { ceiling.value },
+                        set: { v in
+                            // Ceiling must remain above startBPM; if user
+                            // drives it down past start, snap it just above.
+                            let clamped = max(s.startBPM.value + 1, v)
+                            if let next = TempoAutomation.step(
+                                startBPM: s.startBPM, increment: s.increment,
+                                measuresPerStep: s.measuresPerStep,
+                                ceiling: BPM(clamped)
+                            ) {
+                                song.setAutomation(next)
+                            }
+                        }
+                    ),
+                    in: BPM.minimum...BPM.maximum, step: 1
+                ) {
+                    bpmRow(label: "Ceiling BPM", value: ceiling)
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            }
+        }
+    }
+
+    // MARK: Row helpers
+
+    private func bpmRow(label: String, value: BPM, prefix: String = "") -> some View {
+        HStack {
+            Text(label).foregroundStyle(DS.DSColor.textPrimary)
+            Spacer()
+            Text("\(prefix)\(value.displayInt)")
+                .font(DS.Font.monoData)
+                .foregroundStyle(DS.DSColor.textPrimary)
+        }
+    }
+
+    private func intRow(label: String, value: Int) -> some View {
+        HStack {
+            Text(label).foregroundStyle(DS.DSColor.textPrimary)
+            Spacer()
+            Text("\(value)")
+                .font(DS.Font.monoData)
+                .foregroundStyle(DS.DSColor.textPrimary)
+        }
+    }
+
     private var automationFooter: String {
         guard let auto = song.automation else {
-            return "Linearly ramp tempo from one BPM to another over a fixed duration (accelerando or ritardando). Begins after count-in, ends and holds at End BPM."
+            return "Gradual ramps the tempo linearly (accelerando / ritardando). Step jumps BPM by a fixed amount every N measures — useful for speed-trainer drills. Both begin after count-in. Song tempo is locked to Start BPM while automation is enabled."
         }
-        let direction = auto.endBPM > auto.startBPM ? "Accelerate" :
-                        (auto.endBPM < auto.startBPM ? "Decelerate" : "Hold")
-        let durationText: String
-        switch auto.duration {
-        case .measures(let n): durationText = "\(n) measure\(n == 1 ? "" : "s")"
-        case .seconds(let s): durationText = "\(Int(s.rounded())) seconds"
+        switch auto {
+        case .gradual(let g):
+            let direction = g.endBPM > g.startBPM ? "Accelerate" :
+                            (g.endBPM < g.startBPM ? "Decelerate" : "Hold")
+            let durationText: String
+            switch g.duration {
+            case .measures(let n): durationText = "\(n) measure\(n == 1 ? "" : "s")"
+            case .seconds(let s): durationText = "\(Int(s.rounded())) seconds"
+            }
+            return "\(direction) from \(g.startBPM.displayInt) to \(g.endBPM.displayInt) BPM over \(durationText)."
+        case .step(let s):
+            let ceilingText = s.ceiling.map { ", stopping at \($0.displayInt) BPM" } ?? " (no ceiling — runs indefinitely)"
+            return "Step up \(Int(s.increment.rounded())) BPM every \(s.measuresPerStep) measure\(s.measuresPerStep == 1 ? "" : "s") starting from \(s.startBPM.displayInt) BPM\(ceilingText)."
         }
-        return "\(direction) from \(auto.startBPM.displayInt) to \(auto.endBPM.displayInt) BPM over \(durationText). Song tempo is locked to Start BPM while ramp is enabled."
     }
 
     // MARK: - Sound
