@@ -168,6 +168,54 @@ import Foundation
     #expect(pcs.allSatisfy { abs($0.volume - 0.7) < 1e-12 })
 }
 
+@Test func songOverrideBeatsEngineSetting() async {
+    let engine = MetronomeEngine(clock: FakeClock())
+    var settings = EngineSettings()
+    settings.polyrhythm = PolyrhythmConfig(pulses: 3, sound: .digitalBeep, volume: 0.5)
+    await engine.setSettings(settings)
+    let song = Song(
+        title: "Override",
+        bpm: BPM(120),
+        polyrhythm: PolyrhythmConfig(pulses: 5, sound: .hiHat, volume: 0.9)
+    )!
+    await engine.apply(song)
+    await engine.start()
+    let pcs = await engine.upcomingPolyClicks(count: 5)
+    // Override wins — 5 pulses, hiHat, 0.9 volume.
+    #expect(pcs.count == 5)
+    #expect(pcs.allSatisfy { $0.sound == .hiHat })
+    #expect(pcs.allSatisfy { abs($0.volume - 0.9) < 1e-12 })
+}
+
+@Test func songWithNilPolyrhythmInheritsEngineSetting() async {
+    let engine = MetronomeEngine(clock: FakeClock())
+    var settings = EngineSettings()
+    settings.polyrhythm = PolyrhythmConfig(pulses: 3, sound: .digitalBeep, volume: 0.5)
+    await engine.setSettings(settings)
+    let song = Song(title: "Inherit", bpm: BPM(120))!  // polyrhythm nil → inherit
+    await engine.apply(song)
+    await engine.start()
+    let pcs = await engine.upcomingPolyClicks(count: 3)
+    #expect(pcs.count == 3)
+    #expect(pcs.allSatisfy { $0.sound == .digitalBeep })
+}
+
+@Test func stopClearsPolyrhythmOverride() async {
+    let engine = MetronomeEngine(clock: FakeClock())
+    let song = Song(
+        title: "Override",
+        bpm: BPM(120),
+        polyrhythm: PolyrhythmConfig(pulses: 5)
+    )!
+    await engine.apply(song)
+    #expect(await engine.effectivePolyrhythm != nil)
+    await engine.start()
+    await engine.stop()
+    // Stop clears the song override; with no engine-level default,
+    // effective polyrhythm is nil again.
+    #expect(await engine.effectivePolyrhythm == nil)
+}
+
 @Test func engineHotTogglesPolyrhythm() async {
     let clock = FakeClock(start: 0)
     let engine = MetronomeEngine(clock: clock)

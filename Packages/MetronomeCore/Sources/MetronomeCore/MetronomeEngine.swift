@@ -57,6 +57,20 @@ public actor MetronomeEngine {
     /// about the song, not about the tempo.
     public private(set) var currentSoundPreset: String?
 
+    /// Polyrhythm override from the currently-loaded `Song` (spec §2.4).
+    /// `nil` = no override → engine uses `settings.polyrhythm`. Non-nil
+    /// = override → engine uses this regardless of the settings-level
+    /// default. Set by `apply(_:)`, cleared by `stop()` so the next
+    /// blank-engine play uses the engine-level default again.
+    public private(set) var currentPolyrhythmOverride: PolyrhythmConfig?
+
+    /// Resolved polyrhythm for the active context — song override wins
+    /// over engine settings. Used by `rebuildSchedule` and exposed for
+    /// UI inspection.
+    public var effectivePolyrhythm: PolyrhythmConfig? {
+        currentPolyrhythmOverride ?? settings.polyrhythm
+    }
+
     /// Active tempo ramp (spec §6.3). Set by `apply(_:Song)` or
     /// `setAutomation(_:)`. Cleared by `stop()` and by any tempo edit
     /// (setBPM dropping the user mid-ramp would be confusing). Re-anchors
@@ -142,6 +156,7 @@ public actor MetronomeEngine {
         isPaused = false
         schedule = nil
         currentSoundPreset = nil
+        currentPolyrhythmOverride = nil
         automation = nil
         if let scheduler {
             await scheduler.stop()
@@ -259,15 +274,17 @@ public actor MetronomeEngine {
         let oldMidi = settings.midiClockEnabled
         let oldMidiRx = settings.midiClockReceiveEnabled
         let oldMidiRxSource = settings.midiReceiveSourceName
-        let oldPoly = settings.polyrhythm
+        let oldEffectivePoly = effectivePolyrhythm
         let oldSubdivConfig = settings.subdivisionConfigs[subdivision]
         settings = newSettings
         // Hot-apply polyrhythm changes (spec §2.4) and subdivision-config
         // changes (spec §2.3) so the user toggling them mid-run rebuilds
         // the schedule and the audio path picks them up at the next
-        // refill. Both feed into rebuildSchedule's ClickSchedule init.
+        // refill. Comparison uses `effectivePolyrhythm` (override-aware)
+        // so editing the engine default while a song override is
+        // active doesn't reanchor needlessly.
         let newSubdivConfig = newSettings.subdivisionConfigs[subdivision]
-        if oldPoly != newSettings.polyrhythm || oldSubdivConfig != newSubdivConfig {
+        if oldEffectivePoly != effectivePolyrhythm || oldSubdivConfig != newSubdivConfig {
             reanchorIfRunning()
         }
         // Hot-apply midiClockEnabled so the user toggling it in the
@@ -308,6 +325,19 @@ public actor MetronomeEngine {
     /// `settings.clickSound`. Pass `nil` to revert to the global default.
     public func setSoundPreset(_ preset: String?) {
         currentSoundPreset = preset
+    }
+
+    /// Set or clear the per-song polyrhythm override (spec §2.4).
+    /// Passing `nil` removes the override; the engine falls back to
+    /// `settings.polyrhythm`. Re-anchors when the effective polyrhythm
+    /// changes so the audio + haptic schedulers pick up the new stream
+    /// at the next refill.
+    public func setPolyrhythmOverride(_ poly: PolyrhythmConfig?) {
+        let oldEffective = effectivePolyrhythm
+        currentPolyrhythmOverride = poly
+        if oldEffective != effectivePolyrhythm {
+            reanchorIfRunning()
+        }
     }
 
     /// Attach an `AudioScheduler` for audio output. The app target builds
@@ -484,11 +514,10 @@ public actor MetronomeEngine {
             // ClickSchedule's legacy default (`.soft`, no override).
             subdivisionConfig: settings.subdivisionConfigs[subdivision],
             // Per spec §2.4: same-measure polyrhythm. The schedule
-            // produces a parallel stream of pulses; nil = off. Songs
-            // override via Song.polyrhythm; engine-level default
-            // applies when no override is set (resolution happens in
-            // apply(_:) so this read sees the effective value).
-            polyrhythm: settings.polyrhythm
+            // produces a parallel stream of pulses; nil = off. Song
+            // overrides win via currentPolyrhythmOverride; otherwise
+            // the engine-level default applies.
+            polyrhythm: effectivePolyrhythm
         )
     }
 

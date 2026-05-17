@@ -658,7 +658,8 @@ final class MetronomeViewModel {
             notes: source.notes,
             duration: source.duration,
             automation: source.automation,
-            sections: source.sections
+            sections: source.sections,
+            polyrhythm: source.polyrhythm
         ) else { return nil }
         store.save(copy)
         refreshLibrary()

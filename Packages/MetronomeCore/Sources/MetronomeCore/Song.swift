@@ -35,6 +35,13 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
     /// they represent the "first section" defaults shown on Stage before
     /// playback engages section navigation.
     public var sections: [SongSection]?
+    /// Per-song polyrhythm override (spec §2.4). `nil` = inherit
+    /// engine-level `EngineSettings.polyrhythm`; non-nil = override
+    /// with this config. Same inherit-on-nil pattern as
+    /// `soundPreset`. To disable polyrhythm for a song while the
+    /// engine default is on, disable it engine-wide for now (v1
+    /// keeps the tri-state out of the song model).
+    public var polyrhythm: PolyrhythmConfig?
 
     /// Returns `nil` when `accentPattern.timeSignature != timeSignature`.
     /// `automation`'s `startBPM` overrides the `bpm` argument when provided.
@@ -49,7 +56,8 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
         notes: String? = nil,
         duration: SongDuration? = nil,
         automation: TempoAutomation? = nil,
-        sections: [SongSection]? = nil
+        sections: [SongSection]? = nil,
+        polyrhythm: PolyrhythmConfig? = nil
     ) {
         if let pattern = accentPattern, pattern.timeSignature != timeSignature {
             return nil
@@ -67,6 +75,7 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
         // Treat empty array same as nil — simplifies "has multi-section
         // playback?" checks downstream. Both mean "single-section song."
         self.sections = (sections?.isEmpty ?? true) ? nil : sections
+        self.polyrhythm = polyrhythm
     }
 
     /// True when this song has at least one section configured (spec
@@ -113,6 +122,7 @@ extension Song {
     private enum CodingKeys: String, CodingKey {
         case id, title, bpm, timeSignature, subdivision, accentPattern
         case soundPreset, notes, duration, automation, sections
+        case polyrhythm
     }
 
     public init(from decoder: Decoder) throws {
@@ -128,6 +138,7 @@ extension Song {
         let duration = try container.decodeIfPresent(SongDuration.self, forKey: .duration)
         let automation = try container.decodeIfPresent(TempoAutomation.self, forKey: .automation)
         let sections = try container.decodeIfPresent([SongSection].self, forKey: .sections)
+        let polyrhythm = try container.decodeIfPresent(PolyrhythmConfig.self, forKey: .polyrhythm)
         guard let song = Song(
             id: id,
             title: title,
@@ -139,7 +150,8 @@ extension Song {
             notes: notes,
             duration: duration,
             automation: automation,
-            sections: sections
+            sections: sections,
+            polyrhythm: polyrhythm
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .accentPattern,
@@ -163,6 +175,7 @@ extension Song {
         try container.encodeIfPresent(duration, forKey: .duration)
         try container.encodeIfPresent(automation, forKey: .automation)
         try container.encodeIfPresent(sections, forKey: .sections)
+        try container.encodeIfPresent(polyrhythm, forKey: .polyrhythm)
     }
 }
 
@@ -182,6 +195,10 @@ extension MetronomeEngine {
         setSubdivision(song.subdivision)
         _ = setAccentPattern(song.accentPattern)
         setSoundPreset(song.soundPreset)
+        // Same inherit-on-nil pattern as soundPreset (spec §2.4) — pass
+        // through whatever the song carries; the engine resolves against
+        // EngineSettings.polyrhythm at schedule-build time.
+        setPolyrhythmOverride(song.polyrhythm)
         // Order matters: setBPM clears automation, so set automation LAST.
         setAutomation(song.automation)
     }

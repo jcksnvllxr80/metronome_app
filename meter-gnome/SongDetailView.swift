@@ -40,6 +40,7 @@ struct SongDetailView: View {
                 automationSection
                 sectionsSection
                 soundSection
+                polyrhythmSection
                 durationSection
                 notesSection
                 deleteSection
@@ -1129,6 +1130,112 @@ struct SongDetailView: View {
         Binding(
             get: { song.soundPreset },
             set: { song.soundPreset = $0 }
+        )
+    }
+
+    // MARK: - Polyrhythm (spec §2.4)
+
+    /// Per-song polyrhythm override. `nil` = inherit from
+    /// `EngineSettings.polyrhythm`; non-nil = use this config when
+    /// the song is loaded. Same shape as the engine-level Settings
+    /// row, just scoped to a single song.
+    private var polyrhythmSection: some View {
+        Section {
+            Toggle("Override Polyrhythm", isOn: songPolyEnabledBinding)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+            if let poly = song.polyrhythm {
+                Stepper(
+                    value: songPolyPulsesBinding(currentValue: poly.pulses),
+                    in: PolyrhythmConfig.pulsesRange,
+                    step: 1
+                ) {
+                    HStack {
+                        Text("Pulses").foregroundStyle(DS.DSColor.textPrimary)
+                        Spacer()
+                        Text("\(poly.pulses)")
+                            .font(DS.Font.monoData)
+                            .foregroundStyle(DS.DSColor.accentTempo)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Pulses, \(poly.pulses) per measure")
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+                Picker("Sound", selection: songPolySoundBinding(currentValue: poly.sound)) {
+                    ForEach(ClickSound.allCases, id: \.self) { s in
+                        Text(s.displayName).tag(s)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+                HStack(spacing: DS.Spacing.md) {
+                    Text("Volume").foregroundStyle(DS.DSColor.textPrimary)
+                    Slider(value: songPolyVolumeBinding(currentValue: poly.volume), in: 0...1)
+                        .tint(DS.DSColor.accentTempo)
+                    Text("\(Int((poly.volume * 100).rounded()))%")
+                        .font(DS.Font.monoData)
+                        .frame(width: 48, alignment: .trailing)
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            }
+        } header: {
+            Text("Polyrhythm").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Override the global polyrhythm just for this song. Off = inherit Settings. On = use this song's config whenever it's loaded.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var songPolyEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { song.polyrhythm != nil },
+            set: { isOn in
+                song.polyrhythm = isOn ? PolyrhythmConfig() : nil
+            }
+        )
+    }
+
+    private func songPolyPulsesBinding(currentValue: Int) -> Binding<Int> {
+        Binding(
+            get: { currentValue },
+            set: { newValue in
+                guard let poly = song.polyrhythm else { return }
+                song.polyrhythm = PolyrhythmConfig(
+                    pulses: newValue,
+                    sound: poly.sound,
+                    volume: poly.volume
+                )
+            }
+        )
+    }
+
+    private func songPolySoundBinding(currentValue: ClickSound) -> Binding<ClickSound> {
+        Binding(
+            get: { currentValue },
+            set: { newValue in
+                guard let poly = song.polyrhythm else { return }
+                song.polyrhythm = PolyrhythmConfig(
+                    pulses: poly.pulses,
+                    sound: newValue,
+                    volume: poly.volume
+                )
+            }
+        )
+    }
+
+    private func songPolyVolumeBinding(currentValue: Double) -> Binding<Double> {
+        Binding(
+            get: { currentValue },
+            set: { newValue in
+                guard let poly = song.polyrhythm else { return }
+                song.polyrhythm = PolyrhythmConfig(
+                    pulses: poly.pulses,
+                    sound: poly.sound,
+                    volume: newValue
+                )
+            }
         )
     }
 

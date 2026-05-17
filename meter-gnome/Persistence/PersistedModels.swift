@@ -289,6 +289,10 @@ final class PersistedSong {
     /// Added in the §7.3 multi-section commit; SwiftData lightweight
     /// migration handles old rows defaulting to nil.
     var sectionsData: Data?
+    /// JSON-encoded `PolyrhythmConfig?` per-song override (spec §2.4).
+    /// nil = inherit `EngineSettings.polyrhythm`; non-nil = override.
+    /// SwiftData lightweight migration adds it with nil default.
+    var polyrhythmData: Data? = nil
 
     init(
         id: UUID,
@@ -302,7 +306,8 @@ final class PersistedSong {
         durationData: Data? = nil,
         accentPatternData: Data? = nil,
         automationData: Data? = nil,
-        sectionsData: Data? = nil
+        sectionsData: Data? = nil,
+        polyrhythmData: Data? = nil
     ) {
         self.id = id
         self.title = title
@@ -316,6 +321,7 @@ final class PersistedSong {
         self.accentPatternData = accentPatternData
         self.automationData = automationData
         self.sectionsData = sectionsData
+        self.polyrhythmData = polyrhythmData
     }
 
     convenience init?(from song: Song) {
@@ -323,6 +329,7 @@ final class PersistedSong {
         let patternData = song.accentPattern.flatMap { try? JSONEncoder().encode($0) }
         let automationData = song.automation.flatMap { try? JSONEncoder().encode($0) }
         let sectionsData = song.sections.flatMap { try? JSONEncoder().encode($0) }
+        let polyData = song.polyrhythm.flatMap { try? JSONEncoder().encode($0) }
         self.init(
             id: song.id,
             title: song.title,
@@ -335,7 +342,8 @@ final class PersistedSong {
             durationData: durationData,
             accentPatternData: patternData,
             automationData: automationData,
-            sectionsData: sectionsData
+            sectionsData: sectionsData,
+            polyrhythmData: polyData
         )
     }
 
@@ -356,6 +364,9 @@ final class PersistedSong {
         let sections = sectionsData.flatMap {
             try? JSONDecoder().decode([SongSection].self, from: $0)
         }
+        let poly = polyrhythmData.flatMap {
+            try? JSONDecoder().decode(PolyrhythmConfig.self, from: $0)
+        }
         return Song(
             id: id,
             title: title,
@@ -367,7 +378,8 @@ final class PersistedSong {
             notes: notes,
             duration: duration,
             automation: automation,
-            sections: sections
+            sections: sections,
+            polyrhythm: poly
         )
     }
 }
