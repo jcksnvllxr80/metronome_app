@@ -40,6 +40,16 @@ struct ContentView: View {
     /// sheet path. Persists via @AppStorage so the user's choice
     /// survives relaunch without round-tripping through EngineSettings.
     @AppStorage("ipadLibraryDocked") private var libraryDocked: Bool = true
+    /// Persisted preferred width of the docked Library panel on iPad
+    /// (pt). The actual rendered width clamps this to the allowable
+    /// range derived from the current viewport — see
+    /// `clampedLibraryWidth(forTotal:)`. Default 420pt matches the
+    /// pre-v0.33 fixed sidebar; drag the splitter to change.
+    @AppStorage("ipadLibrarySidebarWidth") private var librarySidebarWidth: Double = 420
+    /// Width snapshot at the start of a splitter drag, so subsequent
+    /// drag-deltas resolve against a stable baseline rather than the
+    /// continuously-updating preference. Reset to nil on drag end.
+    @State private var splitterDragBaseline: Double?
 
     private static let announceBPMThreshold = 5
     private static let announceMinIntervalSeconds: TimeInterval = 0.5
@@ -80,18 +90,20 @@ struct ContentView: View {
         Group {
             if horizontalSizeClass == .regular && libraryDocked {
                 // iPad split: Stage on the left, Library docked on the
-                // right. Library stays put when songs load — `dismiss()`
-                // calls inside LibraryView become no-ops because the
-                // view isn't in a presentation context. The Stage panel
-                // owns the sheets for time-sig / subdivision / etc. so
-                // they continue to look like Stage modals.
-                HStack(spacing: 0) {
-                    stageBody
-                        .frame(maxWidth: .infinity)
-                    Divider()
-                        .background(DS.DSColor.bgElevated)
-                    LibraryView(viewModel: viewModel)
-                        .frame(width: librarySidebarWidth)
+                // right. The splitter between the two columns is a
+                // draggable hit area — user resizes the sidebar to
+                // taste, the preference persists via @AppStorage.
+                // Library stays put when songs load (`dismiss()`
+                // inside LibraryView is a no-op without a presenter).
+                GeometryReader { geo in
+                    let width = clampedLibraryWidth(forTotal: geo.size.width)
+                    HStack(spacing: 0) {
+                        stageBody
+                            .frame(maxWidth: .infinity)
+                        librarySplitter(totalWidth: geo.size.width)
+                        LibraryView(viewModel: viewModel)
+                            .frame(width: width)
+                    }
                 }
                 .background(DS.DSColor.bgBase.ignoresSafeArea())
                 .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: libraryDocked)
@@ -122,11 +134,67 @@ struct ContentView: View {
         }
     }
 
-    /// Width of the docked library panel on iPad. ~420pt fits a tab
-    /// picker (320pt) plus comfortable padding, leaves the BPM hero
-    /// the dominant element on the Stage side at landscape and most
-    /// portrait sizes.
-    private var librarySidebarWidth: CGFloat { 420 }
+    /// Minimum width the Library column will shrink to. Below this
+    /// the segmented tab picker + add button start crunching.
+    private static let librarySidebarMin: CGFloat = 340
+    /// Minimum width left for the Stage when the Library is wide.
+    /// Keeps the BPM hero + transport row from being squeezed off.
+    private static let stageMinWidth: CGFloat = 320
+
+    /// Clamp the user's preferred Library width to what fits the
+    /// current viewport: at least `librarySidebarMin`, at most
+    /// `total - stageMinWidth`. Falls back gracefully on very narrow
+    /// viewports (unlikely for `.regular` size class but defended).
+    private func clampedLibraryWidth(forTotal total: CGFloat) -> CGFloat {
+        let maxAllowed = max(Self.librarySidebarMin, total - Self.stageMinWidth)
+        return min(max(CGFloat(librarySidebarWidth), Self.librarySidebarMin), maxAllowed)
+    }
+
+    /// Draggable separator between Stage + Library on iPad. Visible
+    /// line is 1pt; the hit area is wider (14pt centered on the line)
+    /// so the user doesn't need pixel-perfect aim. Tinted vermillion
+    /// during an active drag for affordance feedback.
+    private func librarySplitter(totalWidth: CGFloat) -> some View {
+        let isDragging = splitterDragBaseline != nil
+        return Rectangle()
+            .fill(isDragging ? DS.DSColor.accentTempo : DS.DSColor.bgElevated)
+            .frame(width: 1)
+            .frame(maxHeight: .infinity)
+            .overlay(
+                // Invisible wider strip captures the gesture; sits on
+                // top of the visible line so the line stays crisp.
+                Color.clear
+                    .frame(width: 14)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                if splitterDragBaseline == nil {
+                                    splitterDragBaseline = librarySidebarWidth
+                                }
+                                // Dragging left grows the Library
+                                // (the column lives on the trailing
+                                // side of the splitter), so subtract
+                                // the X translation from the baseline.
+                                let proposed = (splitterDragBaseline ?? 420)
+                                    - Double(value.translation.width)
+                                let maxAllowed = max(
+                                    Double(Self.librarySidebarMin),
+                                    Double(totalWidth) - Double(Self.stageMinWidth)
+                                )
+                                librarySidebarWidth = min(
+                                    max(proposed, Double(Self.librarySidebarMin)),
+                                    maxAllowed
+                                )
+                            }
+                            .onEnded { _ in
+                                splitterDragBaseline = nil
+                            }
+                    )
+                    .accessibilityLabel("Library panel splitter")
+                    .accessibilityHint("Drag to resize the library panel")
+            )
+    }
 
     /// Stage content (BPM hero, transport, top overlay). On iPhone this
     /// is the whole app body; on iPad it's the left column of the

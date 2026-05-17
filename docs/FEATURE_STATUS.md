@@ -41,7 +41,6 @@ Spec-coverage snapshot as of **v0.32.6**. Section numbers reference [`FUNCTIONAL
 | Spec | Item | Notes |
 |---|---|---|
 | §1.1 | Real-device drift test | Math passes 383 tests, but the < 1 ms/min spec applies to the full audio output path on real hardware. Procedure: load on device, run 5 min at 120 BPM against a hardware metronome / DAW reference, FFT-detect click onsets, measure spacing variance. Pure verification — no code change unless it fails. |
-| — | Resizable iPad Library splitter | Minor polish over the current fixed 420pt sidebar. Skip unless asked. |
 
 ## Explicitly dropped (not coming back without checking first)
 
