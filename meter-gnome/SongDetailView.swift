@@ -792,6 +792,8 @@ struct SongDetailView: View {
             ) {
                 bpmRow(label: "BPM", value: section.bpm)
             }
+            sectionTimeSignatureMenu(index: index, section: section)
+            sectionSubdivisionMenu(index: index, section: section)
             Stepper(
                 value: Binding(
                     get: { section.measureCount },
@@ -841,6 +843,56 @@ struct SongDetailView: View {
         }
         .padding(.vertical, DS.Spacing.xs)
         .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    /// Inline Menu listing the 8 most common time signatures. Full
+    /// 1–32-numerator × 6-denominator picker exists in
+    /// TimeSignaturePickerView but is overkill for a per-row control —
+    /// sheets-per-row would also be awkward in a Form. If the user
+    /// needs an exotic TS for a section, they can change the song's
+    /// flat TS first and then enable multi-section.
+    private static let commonSectionTimeSignatures: [TimeSignature] = [
+        .twoFour, .threeFour, .fourFour, .fiveFour,
+        .sixEight, .sevenEight, .nineEight, .twelveEight,
+    ]
+
+    private func sectionTimeSignatureMenu(index: Int, section: SongSection) -> some View {
+        Menu {
+            ForEach(Self.commonSectionTimeSignatures, id: \.self) { ts in
+                Button("\(ts.numerator)/\(ts.denominator.rawValue)") {
+                    updateSection(at: index) { $0.setTimeSignature(ts) }
+                }
+            }
+        } label: {
+            HStack {
+                Text("Time signature")
+                    .foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text("\(section.timeSignature.numerator)/\(section.timeSignature.denominator.rawValue)")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.accentTempo)
+            }
+        }
+    }
+
+    private func sectionSubdivisionMenu(index: Int, section: SongSection) -> some View {
+        Menu {
+            ForEach(Subdivision.allCases, id: \.self) { sub in
+                Button(SubdivisionLabel.descriptive(sub)) {
+                    updateSection(at: index) { $0.subdivision = sub }
+                }
+            }
+        } label: {
+            HStack {
+                Text("Subdivision")
+                    .foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text(SubdivisionLabel.descriptive(section.subdivision))
+                    .foregroundStyle(section.subdivision == .none
+                        ? DS.DSColor.textMuted
+                        : DS.DSColor.accentTempo)
+            }
+        }
     }
 
     private func updateSection(at index: Int, mutate: (inout SongSection) -> Void) {

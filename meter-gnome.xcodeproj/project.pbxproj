@@ -283,7 +283,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.12.8;
+				MARKETING_VERSION = 0.12.9;
 				PRODUCT_BUNDLE_IDENTIFIER = "ACW.meter-gnome";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -311,7 +311,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.12.8;
+				MARKETING_VERSION = 0.12.9;
 				PRODUCT_BUNDLE_IDENTIFIER = "ACW.meter-gnome";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
