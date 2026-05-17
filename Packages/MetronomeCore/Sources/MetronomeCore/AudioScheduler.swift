@@ -167,13 +167,21 @@ public actor AudioScheduler {
     }
 
     /// Engine calls this when it rebuilds its schedule (BPM change, time
-    /// signature change, etc.). Drops everything queued in the player node
-    /// and lets the refill loop re-populate from the new schedule.
+    /// signature change, etc.). Drops everything queued in the player
+    /// node and re-populates from the new schedule **immediately** — the
+    /// regular refill loop only ticks every 50 ms, which was long enough
+    /// to produce an audible audio dropout when the user nudged tempo
+    /// mid-playback (real-device QA, 2026-05). Doing the refill inline
+    /// here closes that gap to whatever it takes to enqueue 4 buffers.
     public func scheduleReset() async {
         guard playerNode.isPlaying else { return }
         playerNode.reset()
         playerNode.play()
         lastScheduledTime = -.infinity
+        // Queue the new schedule's clicks NOW so the player node has
+        // something to render in the next audio cycle instead of waiting
+        // up to a refill interval for the next loop iteration.
+        await refillOnce()
     }
 
     // MARK: - Refill loop

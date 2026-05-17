@@ -119,8 +119,8 @@ Named preset library shipped + starter presets (Rock 4/4, Waltz 3/4, Compound 6/
 
 ## Open bugs (real-device testing 2026-05)
 
-### Brief audio dropout on tempo change while running
-Changing tempo (or meter / subdivision) while the engine is running causes the audio to cut out for a noticeable moment before resuming. Suspect: `reanchorIfRunning` calls `AudioScheduler.scheduleReset()` which flushes pending buffers; refill on the new schedule may have a gap before the audio engine renders the new clicks. Possibly related to AVAudioPlayerNode needing the player to keep playing through the flush. Needs profiling on device with the new schedule.startTime, refill timing, and any `playerNode.stop()` calls during reset.
+### ~~Brief audio dropout on tempo change while running~~ — fixed in v0.12.3
+`AudioScheduler.scheduleReset()` now does the refill inline instead of waiting up to 50 ms for the next loop tick — `playerNode.reset()` flushed the queue, then nothing was scheduled until the next refill cycle, producing an audible gap. The inline `refillOnce()` after the reset queues new buffers immediately. Verify on device after pushing.
 
 ### ~~First downbeat dropped on initial play~~ — fixed in v0.12.2
 Engine now applies `MetronomeEngine.startupLeadInSeconds` (120 ms) to the schedule anchor on `start()` and `resume()`, so the first click lands a comfortable margin in the future of the audio path's first `scheduleBuffer(at:)` call. Mid-playback re-anchors (BPM / meter / subdivision tweaks via `setBPM` etc.) keep the lead-in at 0 — the audio engine is already running and doesn't have the startup race. Verify on device after pushing.
