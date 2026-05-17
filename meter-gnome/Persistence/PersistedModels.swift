@@ -51,6 +51,9 @@ final class PersistedEngineSettings {
     var hapticIntensityNormal: Double = 0.6
     var hapticIntensityLoud: Double = 0.85
     var hapticIntensityAccent: Double = 1.0
+    /// Default `true` per EngineSettings — preserves the in-spec default
+    /// for existing rows that pre-date v0.8.3.
+    var keepScreenAwakeDuringPlayback: Bool = true
 
     init(
         masterVolume: Double = 1.0,
@@ -68,7 +71,8 @@ final class PersistedEngineSettings {
         hapticIntensitySoft: Double = 0.3,
         hapticIntensityNormal: Double = 0.6,
         hapticIntensityLoud: Double = 0.85,
-        hapticIntensityAccent: Double = 1.0
+        hapticIntensityAccent: Double = 1.0,
+        keepScreenAwakeDuringPlayback: Bool = true
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -86,6 +90,7 @@ final class PersistedEngineSettings {
         self.hapticIntensityNormal = hapticIntensityNormal
         self.hapticIntensityLoud = hapticIntensityLoud
         self.hapticIntensityAccent = hapticIntensityAccent
+        self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
     }
 
     convenience init(from settings: EngineSettings) {
@@ -105,7 +110,8 @@ final class PersistedEngineSettings {
             hapticIntensitySoft: settings.hapticIntensity.soft,
             hapticIntensityNormal: settings.hapticIntensity.normal,
             hapticIntensityLoud: settings.hapticIntensity.loud,
-            hapticIntensityAccent: settings.hapticIntensity.accent
+            hapticIntensityAccent: settings.hapticIntensity.accent,
+            keepScreenAwakeDuringPlayback: settings.keepScreenAwakeDuringPlayback
         )
     }
 
@@ -128,7 +134,8 @@ final class PersistedEngineSettings {
                 normal: hapticIntensityNormal,
                 loud: hapticIntensityLoud,
                 accent: hapticIntensityAccent
-            )
+            ),
+            keepScreenAwakeDuringPlayback: keepScreenAwakeDuringPlayback
         )
     }
 
@@ -149,6 +156,7 @@ final class PersistedEngineSettings {
         hapticIntensityNormal = settings.hapticIntensity.normal
         hapticIntensityLoud = settings.hapticIntensity.loud
         hapticIntensityAccent = settings.hapticIntensity.accent
+        keepScreenAwakeDuringPlayback = settings.keepScreenAwakeDuringPlayback
     }
 }
 

@@ -110,8 +110,6 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 
 ### Settings — UI prefs not yet exposed
 - `EngineSettings.bpmPrecisionMode` is persisted but no toggle (spec §10.3 BPM precision 0.1)
-- Lock screen behavior (stay on / dim / sleep) — spec §10.2
-- Keep screen awake during playback — spec §10.2
 - Start-on-app-launch toggle — spec §10.2
 - Allow hardware volume keys to start/stop — spec §10.4
 - Headphone remote button mapping — spec §10.4

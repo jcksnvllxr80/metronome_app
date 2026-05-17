@@ -151,8 +151,13 @@ struct SettingsView: View {
             Toggle("Auto-resume after interruption", isOn: $settings.autoResumeAfterInterruption)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
+            Toggle("Keep screen awake while playing", isOn: $settings.keepScreenAwakeDuringPlayback)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Playback Behavior").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("When enabled, the metronome resumes automatically after a phone call or Siri interruption ends. Off by default — most musicians prefer to restart manually.")
+            Text("Auto-resume restarts the metronome after a phone call or Siri ends (off by default — most musicians prefer to restart manually). Keep-screen-awake prevents the display from sleeping mid-song when the engine is running.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

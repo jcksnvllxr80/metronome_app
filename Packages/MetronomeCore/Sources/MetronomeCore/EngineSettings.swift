@@ -99,6 +99,11 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// at 0). HapticScheduler reads these instead of the hardcoded
     /// curve it used at v0.8.0.
     public var hapticIntensity: HapticIntensity
+    /// When `true`, the screen stays on while the engine is playing
+    /// (spec §10.2). Defaults `true` because most users put the phone
+    /// on a music stand and don't want it sleeping mid-song. The view
+    /// layer toggles `UIApplication.isIdleTimerDisabled` per this flag.
+    public var keepScreenAwakeDuringPlayback: Bool
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -118,7 +123,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         voiceCountMode: VoiceCountMode = .off,
         randomMutePercentage: Int = 0,
         hapticMode: HapticMode = .off,
-        hapticIntensity: HapticIntensity = HapticIntensity()
+        hapticIntensity: HapticIntensity = HapticIntensity(),
+        keepScreenAwakeDuringPlayback: Bool = true
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -144,6 +150,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         }
         self.hapticMode = hapticMode
         self.hapticIntensity = hapticIntensity
+        self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
     }
 }
 
@@ -168,7 +175,8 @@ extension EngineSettings {
             voiceCountMode: try c.decodeIfPresent(VoiceCountMode.self, forKey: .voiceCountMode) ?? .off,
             randomMutePercentage: try c.decodeIfPresent(Int.self, forKey: .randomMutePercentage) ?? 0,
             hapticMode: try c.decodeIfPresent(HapticMode.self, forKey: .hapticMode) ?? .off,
-            hapticIntensity: try c.decodeIfPresent(HapticIntensity.self, forKey: .hapticIntensity) ?? HapticIntensity()
+            hapticIntensity: try c.decodeIfPresent(HapticIntensity.self, forKey: .hapticIntensity) ?? HapticIntensity(),
+            keepScreenAwakeDuringPlayback: try c.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeDuringPlayback) ?? true
         )
     }
 }

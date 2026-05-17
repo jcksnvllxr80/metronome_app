@@ -10,6 +10,7 @@
 //
 
 import SwiftUI
+import UIKit
 import MetronomeCore
 
 @Observable
@@ -153,6 +154,22 @@ final class MetronomeViewModel {
         self.automation = automation
 
         trackPracticeSession(running: running, paused: paused, currentBPM: bpm)
+        updateIdleTimer(running: running)
+    }
+
+    /// Keep the screen awake while the engine is playing if the user
+    /// has the setting on (spec §10.2). Phone-on-music-stand scenario:
+    /// the display sleeping mid-song is bad. Off by default would be
+    /// safer for battery, but the spec asks for default-on and that
+    /// matches the "stage-confident instrument" identity.
+    private func updateIdleTimer(running: Bool) {
+        guard settings.keepScreenAwakeDuringPlayback else {
+            // If the user has the setting off, the idle timer should
+            // always be at its default (enabled) — even mid-playback.
+            UIApplication.shared.isIdleTimerDisabled = false
+            return
+        }
+        UIApplication.shared.isIdleTimerDisabled = running
     }
 
     // MARK: - Practice-session tracking (spec §11)
