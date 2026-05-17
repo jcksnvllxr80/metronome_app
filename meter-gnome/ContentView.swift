@@ -337,14 +337,14 @@ struct ContentView: View {
             : DS.DSColor.textPrimary
 
         return VStack(spacing: DS.Spacing.sm) {
-            Text("\(viewModel.bpm.displayInt)")
+            Text(viewModel.bpmDisplay)
                 .font(.custom("JetBrainsMono-Bold", size: bpmFontSize))
                 .monospacedDigit()
                 .tracking(-bpmFontSize * 0.022)  // ~ -2% per DESIGN.md
                 .foregroundStyle(digitColor)
-                .contentTransition(.numericText(value: Double(viewModel.bpm.displayInt)))
-                .animation(.snappy(duration: 0.15), value: viewModel.bpm.displayInt)
-                .accessibilityLabel("Tempo, \(viewModel.bpm.displayInt) BPM")
+                .contentTransition(.numericText(value: viewModel.bpm.value))
+                .animation(.snappy(duration: 0.15), value: viewModel.bpm.value)
+                .accessibilityLabel("Tempo, \(viewModel.bpmDisplay) BPM")
                 .accessibilityHint("Double tap for Italian tempo presets")
                 .accessibilityAddTraits(.isButton)
             Text(tempoMarkingLabel)
@@ -397,15 +397,15 @@ struct ContentView: View {
 
     private var controlsView: some View {
         HStack(spacing: DS.Spacing.xl) {
-            nudgeButton(label: "minus", delta: -1)
+            nudgeButton(label: "minus", sign: -1)
             playStopButton
-            nudgeButton(label: "plus", delta: 1)
+            nudgeButton(label: "plus", sign: 1)
         }
     }
 
-    private func nudgeButton(label: String, delta: Double) -> some View {
+    private func nudgeButton(label: String, sign: Double) -> some View {
         Button {
-            viewModel.nudgeBPM(by: delta)
+            viewModel.nudgeBPM(by: sign * viewModel.bpmNudgeStep)
         } label: {
             Image(systemName: label)
                 .font(.system(size: 22, weight: .medium))
@@ -414,7 +414,7 @@ struct ContentView: View {
                 .background(DS.DSColor.bgElevated, in: Circle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(delta < 0 ? "Decrease tempo" : "Increase tempo")
+        .accessibilityLabel(sign < 0 ? "Decrease tempo" : "Increase tempo")
     }
 
     private var playStopButton: some View {

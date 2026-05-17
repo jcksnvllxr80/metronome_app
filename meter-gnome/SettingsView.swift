@@ -154,10 +154,13 @@ struct SettingsView: View {
             Toggle("Keep screen awake while playing", isOn: $settings.keepScreenAwakeDuringPlayback)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
+            Toggle("BPM precision (0.1)", isOn: $settings.bpmPrecisionMode)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
         } header: {
             Text("Playback Behavior").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Auto-resume restarts the metronome after a phone call or Siri ends (off by default — most musicians prefer to restart manually). Keep-screen-awake prevents the display from sleeping mid-song when the engine is running.")
+            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song. BPM precision shows the tempo to 1/10 of a BPM and switches the ± buttons to 0.1 steps — for fine-grained recording or speed-trainer drills.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

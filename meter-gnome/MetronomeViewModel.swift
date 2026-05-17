@@ -229,6 +229,23 @@ final class MetronomeViewModel {
         }
     }
 
+    /// User-facing BPM string honoring the `bpmPrecisionMode` setting
+    /// (spec §10.3): "120" by default, "120.5" when precision mode is
+    /// on. The view layer reads this instead of `bpm.displayInt`
+    /// directly so the toggle in Settings flows everywhere.
+    var bpmDisplay: String {
+        if settings.bpmPrecisionMode {
+            return String(format: "%.1f", bpm.value)
+        }
+        return "\(bpm.displayInt)"
+    }
+
+    /// Per-tap delta for the nudge buttons. 0.1 BPM in precision mode,
+    /// 1 BPM otherwise.
+    var bpmNudgeStep: Double {
+        settings.bpmPrecisionMode ? 0.1 : 1.0
+    }
+
     func togglePlay() {
         Task {
             if await engine.isRunning {
