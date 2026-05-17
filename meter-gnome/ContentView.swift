@@ -230,6 +230,17 @@ struct ContentView: View {
                             .textCase(.uppercase)
                             .tracking(2)
                     }
+                    if let preset = soundPresetIndicatorText {
+                        HStack(spacing: DS.Spacing.xxs) {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .font(.system(size: 9, weight: .semibold))
+                            Text(preset)
+                        }
+                        .font(DS.Font.label)
+                        .foregroundStyle(DS.DSColor.textDim)
+                        .textCase(.uppercase)
+                        .tracking(2)
+                    }
                 }
                 .padding(.horizontal, DS.Spacing.sm)
                 .padding(.vertical, DS.Spacing.xxs)
@@ -238,6 +249,21 @@ struct ContentView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(sectionAccessibilityLabel(title: title))
         }
+    }
+
+    /// Display name for the active per-song sound preset, or nil when
+    /// the song is using the global default. Shown under the loaded-
+    /// song indicator so the user has a visible cue that the click
+    /// they're hearing came from the song's override, not Settings.
+    /// Matching by raw rawValue against `ClickSound` so display stays
+    /// in sync if a sound is renamed; arbitrary strings (future user-
+    /// imported sounds, spec §4.2) render with first letter uppercased.
+    private var soundPresetIndicatorText: String? {
+        guard let raw = viewModel.currentSoundPreset, !raw.isEmpty else { return nil }
+        if let sound = ClickSound(rawValue: raw) {
+            return sound.displayName
+        }
+        return raw.prefix(1).uppercased() + raw.dropFirst()
     }
 
     /// "INTRO · 1/3" when a sectioned song is loaded; nil otherwise.

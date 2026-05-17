@@ -125,6 +125,14 @@ final class MetronomeViewModel {
     /// adjustments.
     var loadedSongTitle: String? = nil
 
+    /// Mirror of `engine.currentSoundPreset` — the sound name carried in
+    /// from the currently-applied `Song` (e.g. "cowbell"). Surfaced on
+    /// Stage as a small affordance under the gear so the user has a
+    /// visual cue that the song-level override is active and the click
+    /// they're hearing isn't the global default. `nil` when no song is
+    /// loaded, or when the song uses the global default sound.
+    var currentSoundPreset: String? = nil
+
     /// Clock time of the most recent tap on the tap-tempo button. Drives
     /// the visual flash via `tapFlashIntensity(at:)`. `-.infinity` means
     /// "never tapped" — by definition `time - (-.infinity) > 0.150`, so
@@ -192,6 +200,7 @@ final class MetronomeViewModel {
         let sched = await engine.schedule
         let settings = await engine.settings
         let automation = await engine.automation
+        let soundPreset = await engine.currentSoundPreset
         // Spec §6.4: step-mode tempo automation with a ceiling stops the
         // engine when the ceiling is reached. The schedule math clamps
         // BPM past the ceiling step, which would otherwise let the click
@@ -204,6 +213,7 @@ final class MetronomeViewModel {
         self.schedule = sched
         self.settings = settings
         self.automation = automation
+        self.currentSoundPreset = soundPreset
 
         if ceilingHit && running {
             // Route through standalone or section-aware stop so any

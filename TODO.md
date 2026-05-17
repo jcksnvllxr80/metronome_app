@@ -70,9 +70,8 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 - Per-sound volume trim
 - `Song.soundPreset: String?` already accepts arbitrary names; resolver in `AudioScheduler` falls through unknown strings to settings default — when imports land, route the same field at imported-asset URLs
 
-### Per-song sound preset UI Stage indicator
-- `Song.soundPreset` is editable in SongDetailView already; on Stage there's no indication "this song is using cowbell instead of digital beep"
-- Subtle label near gear icon? Or in the meter row?
+### ~~Per-song sound preset Stage indicator~~ — shipped in v0.15.3
+A small "🔊 Cowbell" row now sits under the loaded-song title (and under any section indicator) whenever a song is loaded that overrides the global default sound. Renders nothing when `engine.currentSoundPreset` is nil. Uses `ClickSound.displayName` for known presets, falls through to capitalized rawValue for arbitrary strings (forward-compatible with user-imported sounds, spec §4.2). Setlist playback shows the loaded-song title via its own setlist indicator and doesn't currently surface the preset there — follow-up if it ever matters.
 
 ## Engine / audio improvements
 
