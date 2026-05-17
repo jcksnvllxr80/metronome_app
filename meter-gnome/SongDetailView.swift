@@ -222,6 +222,9 @@ struct SongDetailView: View {
                     stepIncrementRow(s: s)
                     stepMeasuresPerStepRow(s: s)
                     stepCeilingRow(s: s)
+                    if s.ceiling != nil {
+                        stepCeilingBehaviorRow(s: s)
+                    }
                 case .loop(let l):
                     loopStagesEditor(l: l)
                 }
@@ -447,7 +450,8 @@ struct SongDetailView: View {
                     }()
                     if let next = TempoAutomation.step(
                         startBPM: newStart, increment: s.increment,
-                        measuresPerStep: s.measuresPerStep, ceiling: newCeiling
+                        measuresPerStep: s.measuresPerStep, ceiling: newCeiling,
+                        ceilingBehavior: s.ceilingBehavior
                     ) {
                         song.setAutomation(next)
                     }
@@ -467,7 +471,8 @@ struct SongDetailView: View {
                 set: { v in
                     if let next = TempoAutomation.step(
                         startBPM: s.startBPM, increment: max(1, v),
-                        measuresPerStep: s.measuresPerStep, ceiling: s.ceiling
+                        measuresPerStep: s.measuresPerStep, ceiling: s.ceiling,
+                        ceilingBehavior: s.ceilingBehavior
                     ) {
                         song.setAutomation(next)
                     }
@@ -492,7 +497,8 @@ struct SongDetailView: View {
             set: { newN in
                 if let next = TempoAutomation.step(
                     startBPM: s.startBPM, increment: s.increment,
-                    measuresPerStep: newN, ceiling: s.ceiling
+                    measuresPerStep: newN, ceiling: s.ceiling,
+                    ceilingBehavior: s.ceilingBehavior
                 ) {
                     song.setAutomation(next)
                 }
@@ -512,7 +518,8 @@ struct SongDetailView: View {
                     : nil
                 if let next = TempoAutomation.step(
                     startBPM: s.startBPM, increment: s.increment,
-                    measuresPerStep: s.measuresPerStep, ceiling: newCeiling
+                    measuresPerStep: s.measuresPerStep, ceiling: newCeiling,
+                    ceilingBehavior: s.ceilingBehavior
                 ) {
                     song.setAutomation(next)
                 }
@@ -533,7 +540,8 @@ struct SongDetailView: View {
                             if let next = TempoAutomation.step(
                                 startBPM: s.startBPM, increment: s.increment,
                                 measuresPerStep: s.measuresPerStep,
-                                ceiling: BPM(clamped)
+                                ceiling: BPM(clamped),
+                                ceilingBehavior: s.ceilingBehavior
                             ) {
                                 song.setAutomation(next)
                             }
@@ -546,6 +554,30 @@ struct SongDetailView: View {
                 .listRowBackground(DS.DSColor.bgElevated)
             }
         }
+    }
+
+    /// Picker for what happens when step automation hits the ceiling —
+    /// either stop playback (default, spec §6.4) or count back down to
+    /// `startBPM` (triangle-wave practice ramp). Only meaningful when a
+    /// ceiling is set; the caller gates the row on `s.ceiling != nil`.
+    private func stepCeilingBehaviorRow(s: TempoAutomation.Step) -> some View {
+        Picker("At Ceiling", selection: Binding(
+            get: { s.ceilingBehavior },
+            set: { newBehavior in
+                if let next = TempoAutomation.step(
+                    startBPM: s.startBPM, increment: s.increment,
+                    measuresPerStep: s.measuresPerStep, ceiling: s.ceiling,
+                    ceilingBehavior: newBehavior
+                ) {
+                    song.setAutomation(next)
+                }
+            }
+        )) {
+            Text("Stop").tag(TempoAutomation.CeilingBehavior.stop)
+            Text("Reverse").tag(TempoAutomation.CeilingBehavior.reverse)
+        }
+        .pickerStyle(.segmented)
+        .listRowBackground(DS.DSColor.bgElevated)
     }
 
     // MARK: Loop stages editor

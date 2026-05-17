@@ -22,7 +22,7 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 | Background mode + interruption + route-change handling | ✓ Pauses cleanly on phone calls + headphone unplug |
 | Now Playing + Remote Command Center | ✓ Lock-screen tempo + song title + app-icon artwork; play/pause from AirPods + Control Center; setlist prev/next |
 | Tempo automation — gradual + step + loop | ✓ Per-song picker covering all 3 §6.3 modes — gradual accel/rit, step with optional ceiling, multi-stage loop cycling indefinitely |
-| Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling |
+| Speed trainer — random mute + step | ✓ 10–50% random mute (per-session seed) + step-up BPM with optional target ceiling. Engine auto-stops at ceiling, or counts back down to start (triangle-wave reverse mode). |
 | Multi-section songs (§7.3) | ✓ Per-section name + BPM + meter + subdivision + measures + accent pattern + sound + repeat count. Auto-advance + drag-to-reorder + duplicate. Sections auto-advance inside a setlist too (`.immediate` / `.countdown` modes). |
 | Practice stats / session log | ✓ Library → Stats: today/week/month totals + per-song breakdown + 14-day chart + daily goal progress + CSV export. 30-sec minimum, pause-aware. |
 | Haptics | ✓ CoreHaptics: off / downbeats / accents only / every beat / subdivisions too. Per-accent intensity sliders. Real device only. |

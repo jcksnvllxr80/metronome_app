@@ -36,6 +36,16 @@ public enum TempoAutomation: Hashable, Sendable {
         }
     }
 
+    /// What happens to step-mode playback when the BPM ceiling is hit.
+    /// Default `.stop` matches spec §6.4 ("stop at target tempo");
+    /// `.reverse` is the triangle-wave practice ramp — count back down
+    /// to `startBPM` by the same `increment`, then stop. No-ceiling
+    /// step automations ignore this field entirely.
+    public enum CeilingBehavior: String, Hashable, Sendable, Codable {
+        case stop
+        case reverse
+    }
+
     public struct Step: Hashable, Sendable {
         public var startBPM: BPM
         /// Positive BPM delta added at each step boundary. Typed as
@@ -49,22 +59,56 @@ public enum TempoAutomation: Hashable, Sendable {
         /// Optional BPM ceiling. When reached, BPM holds constant and
         /// the engine can stop playback (handled at a higher layer).
         public var ceiling: BPM?
+        /// What the engine does when the ceiling is reached. Defaults
+        /// to `.stop`. `.reverse` produces a triangle-wave ramp that
+        /// counts back down to `startBPM` before stopping.
+        public var ceilingBehavior: CeilingBehavior
 
-        public init(startBPM: BPM, increment: Double, measuresPerStep: Int, ceiling: BPM? = nil) {
+        public init(
+            startBPM: BPM,
+            increment: Double,
+            measuresPerStep: Int,
+            ceiling: BPM? = nil,
+            ceilingBehavior: CeilingBehavior = .stop
+        ) {
             self.startBPM = startBPM
             self.increment = max(1, increment)
             self.measuresPerStep = max(1, measuresPerStep)
             self.ceiling = ceiling
+            self.ceilingBehavior = ceilingBehavior
+        }
+
+        /// Step index at which the ascent first reaches (or exceeds) the
+        /// ceiling. Used by both `bpm(atStep:)` and `ceilingReached` for
+        /// `.reverse` behavior to switch from ascending to descending.
+        /// Returns nil when there's no ceiling.
+        private var peakStepIndex: Int? {
+            guard let ceiling = ceiling else { return nil }
+            return Int(((ceiling.value - startBPM.value) / increment).rounded(.up))
         }
 
         /// BPM at the given step index (step 0 is the starting tempo).
-        /// Clamps at `ceiling` when set.
+        /// Clamps at `ceiling` when set; for `.reverse` behavior, after
+        /// the ceiling step the BPM steps back DOWN by `increment` per
+        /// step, clamped at `startBPM` on the way back.
         public func bpm(atStep step: Int) -> BPM {
-            let raw = startBPM.value + Double(step) * increment
-            if let ceiling = ceiling {
-                return BPM(min(raw, ceiling.value))
+            guard let ceiling = ceiling else {
+                return BPM(startBPM.value + Double(step) * increment)
             }
-            return BPM(raw)
+            switch ceilingBehavior {
+            case .stop:
+                let raw = startBPM.value + Double(step) * increment
+                return BPM(min(raw, ceiling.value))
+            case .reverse:
+                guard let peak = peakStepIndex else {
+                    return BPM(min(startBPM.value + Double(step) * increment, ceiling.value))
+                }
+                if step <= peak {
+                    return BPM(min(startBPM.value + Double(step) * increment, ceiling.value))
+                }
+                let descended = ceiling.value - Double(step - peak) * increment
+                return BPM(max(descended, startBPM.value))
+            }
         }
 
         /// Step index that would be reached at the given beat position.
@@ -74,13 +118,27 @@ public enum TempoAutomation: Hashable, Sendable {
             return Int((beat / beatsPerStep).rounded(.down))
         }
 
-        /// Whether the ceiling has been hit for the given step index.
-        /// Engines can use this to stop playback when the user's target
-        /// tempo has been reached.
+        /// Whether the engine should stop at the given step index.
+        ///
+        /// - `.stop` behavior: fires as soon as the ascent reaches the
+        ///   ceiling (the original semantic — spec §6.4 default).
+        /// - `.reverse` behavior: fires only when the descent has
+        ///   returned the BPM to (or below) `startBPM`. Steps at the
+        ///   peak or mid-descent return false so playback continues.
+        ///
+        /// No-ceiling step automations always return false (the ramp
+        /// never terminates).
         public func ceilingReached(atStep step: Int) -> Bool {
-            guard let ceiling = ceiling else { return false }
-            let raw = startBPM.value + Double(step) * increment
-            return raw >= ceiling.value
+            guard let ceiling = ceiling, let peak = peakStepIndex else { return false }
+            switch ceilingBehavior {
+            case .stop:
+                let raw = startBPM.value + Double(step) * increment
+                return raw >= ceiling.value
+            case .reverse:
+                if step <= peak { return false }
+                let descended = ceiling.value - Double(step - peak) * increment
+                return descended <= startBPM.value
+            }
         }
     }
 
@@ -153,7 +211,8 @@ public enum TempoAutomation: Hashable, Sendable {
         startBPM: BPM,
         increment: Double,
         measuresPerStep: Int,
-        ceiling: BPM? = nil
+        ceiling: BPM? = nil,
+        ceilingBehavior: CeilingBehavior = .stop
     ) -> TempoAutomation? {
         guard measuresPerStep > 0 else { return nil }
         guard increment > 0 else { return nil }
@@ -162,7 +221,8 @@ public enum TempoAutomation: Hashable, Sendable {
             startBPM: startBPM,
             increment: increment,
             measuresPerStep: measuresPerStep,
-            ceiling: ceiling
+            ceiling: ceiling,
+            ceilingBehavior: ceilingBehavior
         ))
     }
 
@@ -412,7 +472,7 @@ extension TempoAutomation: Codable {
         // Gradual
         case endBPM, durationKind, durationValue
         // Step
-        case increment, measuresPerStep, ceiling
+        case increment, measuresPerStep, ceiling, ceilingBehavior
         // Loop
         case stages
     }
@@ -449,11 +509,16 @@ extension TempoAutomation: Codable {
             let increment = try c.decode(Double.self, forKey: .increment)
             let measuresPerStep = try c.decode(Int.self, forKey: .measuresPerStep)
             let ceiling = try c.decodeIfPresent(BPM.self, forKey: .ceiling)
+            // Pre-existing step automations (before the reverse-on-ceiling
+            // feature) had no `ceilingBehavior` field — default to .stop
+            // so they keep their existing behavior on first load.
+            let ceilingBehavior = (try? c.decode(CeilingBehavior.self, forKey: .ceilingBehavior)) ?? .stop
             guard let auto = TempoAutomation.step(
                 startBPM: start,
                 increment: increment,
                 measuresPerStep: measuresPerStep,
-                ceiling: ceiling
+                ceiling: ceiling,
+                ceilingBehavior: ceilingBehavior
             ) else {
                 throw DecodingError.dataCorruptedError(
                     forKey: .measuresPerStep, in: c,
@@ -495,6 +560,12 @@ extension TempoAutomation: Codable {
             try c.encode(s.increment, forKey: .increment)
             try c.encode(s.measuresPerStep, forKey: .measuresPerStep)
             try c.encodeIfPresent(s.ceiling, forKey: .ceiling)
+            // Skip the field when it's the default — keeps JSON for
+            // pre-feature songs clean and avoids re-encoding noise on
+            // load+save round-trips.
+            if s.ceilingBehavior != .stop {
+                try c.encode(s.ceilingBehavior, forKey: .ceilingBehavior)
+            }
         case .loop(let l):
             try c.encode(Kind.loop, forKey: .kind)
             // Encode startBPM so the schema stays uniform across cases —

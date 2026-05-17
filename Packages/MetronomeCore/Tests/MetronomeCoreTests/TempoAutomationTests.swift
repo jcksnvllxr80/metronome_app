@@ -462,6 +462,88 @@ import Foundation
     else { Issue.record("expected .measures duration") }
 }
 
+// MARK: - Reverse-on-ceiling (triangle-wave step ramp)
+
+@Test func reverseBehaviorAscentMatchesStop() {
+    // Before the ceiling step, .reverse behaves identically to .stop —
+    // the ascent half of the triangle is the same as a plain step ramp.
+    let stop = TempoAutomation.Step(
+        startBPM: BPM(60), increment: 20, measuresPerStep: 1,
+        ceiling: BPM(100), ceilingBehavior: .stop
+    )
+    let reverse = TempoAutomation.Step(
+        startBPM: BPM(60), increment: 20, measuresPerStep: 1,
+        ceiling: BPM(100), ceilingBehavior: .reverse
+    )
+    for n in 0...2 {
+        #expect(stop.bpm(atStep: n) == reverse.bpm(atStep: n),
+                "ascent step \(n) BPM differs between .stop and .reverse")
+    }
+}
+
+@Test func reverseBehaviorDescentBPM() {
+    // 60 → 80 → 100 → 80 → 60. Then ceilingReached fires at step 4.
+    let s = TempoAutomation.Step(
+        startBPM: BPM(60), increment: 20, measuresPerStep: 1,
+        ceiling: BPM(100), ceilingBehavior: .reverse
+    )
+    #expect(s.bpm(atStep: 0) == BPM(60))
+    #expect(s.bpm(atStep: 1) == BPM(80))
+    #expect(s.bpm(atStep: 2) == BPM(100))
+    #expect(s.bpm(atStep: 3) == BPM(80))
+    #expect(s.bpm(atStep: 4) == BPM(60))
+}
+
+@Test func reverseBehaviorCeilingReachedAtValley() {
+    // ceilingReached fires only on the descent back to startBPM — not
+    // at the peak. The engine keeps playing through the peak and only
+    // stops once the BPM has returned to startBPM.
+    let s = TempoAutomation.Step(
+        startBPM: BPM(60), increment: 20, measuresPerStep: 1,
+        ceiling: BPM(100), ceilingBehavior: .reverse
+    )
+    #expect(!s.ceilingReached(atStep: 0))
+    #expect(!s.ceilingReached(atStep: 1))
+    #expect(!s.ceilingReached(atStep: 2), "peak step keeps playing in .reverse mode")
+    #expect(!s.ceilingReached(atStep: 3), "mid-descent keeps playing")
+    #expect(s.ceilingReached(atStep: 4), "valley = back to startBPM, engine should stop")
+}
+
+@Test func reverseBehaviorClampsDescentAtStartBPM() {
+    // Non-aligned start/ceiling: 63 + 20 = 83, +20 = 103 (clamped to 100).
+    // Descent: 100 - 20 = 80, -20 = 60 (would go below 63), clamp to 63.
+    let s = TempoAutomation.Step(
+        startBPM: BPM(63), increment: 20, measuresPerStep: 1,
+        ceiling: BPM(100), ceilingBehavior: .reverse
+    )
+    #expect(s.bpm(atStep: 0) == BPM(63))
+    #expect(s.bpm(atStep: 1) == BPM(83))
+    #expect(s.bpm(atStep: 2) == BPM(100))
+    #expect(s.bpm(atStep: 3) == BPM(80))
+    #expect(s.bpm(atStep: 4) == BPM(63), "descent below startBPM clamps to startBPM")
+}
+
+@Test func reverseBehaviorRoundTripsThroughCodable() throws {
+    let original = TempoAutomation.step(
+        startBPM: BPM(60), increment: 20, measuresPerStep: 1,
+        ceiling: BPM(100), ceilingBehavior: .reverse
+    )!
+    let data = try JSONEncoder().encode(original)
+    let decoded = try JSONDecoder().decode(TempoAutomation.self, from: data)
+    #expect(decoded == original)
+}
+
+@Test func legacyStepJSONDefaultsToStopBehavior() throws {
+    // Pre-feature JSON has no `ceilingBehavior` field — must decode as
+    // `.stop` so existing songs keep behaving exactly as before.
+    let legacyJSON = """
+    {"kind": "step", "startBPM": 60, "increment": 20, "measuresPerStep": 1, "ceiling": 100}
+    """.data(using: .utf8)!
+    let auto = try JSONDecoder().decode(TempoAutomation.self, from: legacyJSON)
+    guard case .step(let s) = auto else { Issue.record("expected .step"); return }
+    #expect(s.ceilingBehavior == .stop)
+}
+
 @Test func driftAcrossLongRamp() {
     // 60→200 over 5 minutes (300 seconds). Schedule 1000 main beats; check
     // that every beat's `time` matches its expected curve-derived value to
