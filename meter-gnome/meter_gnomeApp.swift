@@ -111,6 +111,15 @@ struct meter_gnomeApp: App {
             audioScheduler: scheduler
         )
 
+        // Hardware volume-key start/stop bridge (spec §10.4). Opt-in
+        // via Settings → Playback Behavior; respects the user's
+        // saved preference on launch and hot-toggles via the
+        // view model's onChange path.
+        let volumeKeyMonitor = VolumeKeyMonitor()
+        volumeKeyMonitor.attach(viewModel: viewModel)
+        volumeKeyMonitor.setEnabled(settingsStore.current.useVolumeKeysForStartStop)
+        viewModel.volumeKeyMonitor = volumeKeyMonitor
+
         // Lock-screen + Control Center + AirPods integration. The
         // coordinator reads from the view model's mirrored engine state.
         NowPlayingCoordinator.shared.attach(viewModel: viewModel)

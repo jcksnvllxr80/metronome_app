@@ -149,6 +149,14 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// via `Song.polyrhythm`; absent override falls through to this
     /// engine-level default.
     public var polyrhythm: PolyrhythmConfig?
+    /// Allow the hardware volume keys to toggle playback (spec §10.4).
+    /// Implemented by the app layer via `AVAudioSession.outputVolume`
+    /// KVO — engine doesn't read this flag directly. Default `false`
+    /// because surprise interception of system volume keys violates
+    /// user expectations; the user has to opt in from Settings.
+    /// The iOS volume HUD still appears (can't be suppressed in
+    /// modern iOS); the volume change itself is also still applied.
+    public var useVolumeKeysForStartStop: Bool
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -177,7 +185,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         monthlyPracticeGoalMinutes: Int = 0,
         subdivisionConfigs: [Subdivision: SubdivisionConfig] = [:],
         largeDisplayMode: Bool = false,
-        polyrhythm: PolyrhythmConfig? = nil
+        polyrhythm: PolyrhythmConfig? = nil,
+        useVolumeKeysForStartStop: Bool = false
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -212,6 +221,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.subdivisionConfigs = subdivisionConfigs
         self.largeDisplayMode = largeDisplayMode
         self.polyrhythm = polyrhythm
+        self.useVolumeKeysForStartStop = useVolumeKeysForStartStop
     }
 }
 
@@ -229,6 +239,7 @@ extension EngineSettings {
         case dailyPracticeGoalMinutes, weeklyPracticeGoalMinutes
         case monthlyPracticeGoalMinutes, subdivisionConfigs, largeDisplayMode
         case polyrhythm
+        case useVolumeKeysForStartStop
     }
 
     /// Custom Codable to provide a default for `hapticIntensity` when
@@ -270,7 +281,8 @@ extension EngineSettings {
                 if let sub = Subdivision(rawValue: kv.key) { acc[sub] = kv.value }
             },
             largeDisplayMode: try c.decodeIfPresent(Bool.self, forKey: .largeDisplayMode) ?? false,
-            polyrhythm: try c.decodeIfPresent(PolyrhythmConfig.self, forKey: .polyrhythm)
+            polyrhythm: try c.decodeIfPresent(PolyrhythmConfig.self, forKey: .polyrhythm),
+            useVolumeKeysForStartStop: try c.decodeIfPresent(Bool.self, forKey: .useVolumeKeysForStartStop) ?? false
         )
     }
 
@@ -307,5 +319,8 @@ extension EngineSettings {
             try c.encode(largeDisplayMode, forKey: .largeDisplayMode)
         }
         try c.encodeIfPresent(polyrhythm, forKey: .polyrhythm)
+        if useVolumeKeysForStartStop {
+            try c.encode(useVolumeKeysForStartStop, forKey: .useVolumeKeysForStartStop)
+        }
     }
 }

@@ -370,13 +370,16 @@ struct SettingsView: View {
             Toggle("Start on app launch", isOn: $settings.startOnLaunch)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
+            Toggle("Volume keys start/stop", isOn: $settings.useVolumeKeysForStartStop)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
             dailyGoalRow
             weeklyGoalRow
             monthlyGoalRow
         } header: {
             Text("Playback Behavior").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song. Goals are independent — set just the ones you want to track.")
+            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song. Volume keys: when on, pressing volume up or down toggles playback (the iOS volume HUD still appears — that's a system limitation, not a bug). Goals are independent — set just the ones you want to track.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

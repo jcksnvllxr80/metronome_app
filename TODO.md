@@ -32,8 +32,8 @@ Each section carries its own complete state: name, BPM, time signature, subdivis
 - ~~Full time-signature picker per section~~ — shipped in v0.24.0 (per-row Menu now has a "Custom…" item that opens TimeSignaturePickerView, which gains a numerator stepper 1–32 + denominator picker 1/2/4/8/16/32; affects Stage time-sig picker too)
 
 ### Haptic feedback — remaining sub-features (spec §9)
-All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `AudioScheduler`'s shape — same engine click stream, same refill cadence. Sharpness curve still hardcoded (it's a tactile quality, not user-facing loudness). Real device only — Simulator has no haptic engine. Still backlog:
-- Real-device verification + tuning of the default intensity / sharpness curves; the current defaults are guesses
+All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `AudioScheduler`'s shape — same engine click stream, same refill cadence. Sharpness curve still hardcoded (it's a tactile quality, not user-facing loudness). Real device only — Simulator has no haptic engine. Code-path audit v0.32.1: structurally sound, no obvious bugs. Intensity defaults (soft 0.3 / normal 0.6 / loud 0.85 / accent 1.0) and sharpness ramp (soft 0.4 → accent 1.0) are reasonable monotonic curves matching the "snappier accents" design intent. Still backlog:
+- **Real-device verification + tuning of the default intensity / sharpness curves; the current defaults are educated guesses, not measured.** Needs hardware.
 
 ## Phase 4 polish
 
@@ -80,11 +80,11 @@ Settings → MIDI now shows a "Source" picker when "Listen for MIDI Clock" is on
 - Backlog: resizable splitter (currently the Library dock is fixed at 420pt; users with very wide iPads might want a wider sidebar). Skipping unless asked.
 
 ### Settings — UI prefs not yet exposed
-- Allow hardware volume keys to start/stop — spec §10.4
-- Headphone remote button mapping — spec §10.4
+- ~~Allow hardware volume keys to start/stop — spec §10.4~~ — shipped in v0.32.1. Opt-in via Settings → Playback Behavior → "Volume keys start/stop". Implementation: `VolumeKeyMonitor` observes `AVAudioSession.outputVolume` via KVO + parks a hidden `MPVolumeView` off-screen to keep the session publishing volume changes. The iOS volume HUD still appears on press (system-level, can't be suppressed without private API). Engine setting `useVolumeKeysForStartStop` defaults `false` so the unsurprising "volume keys change volume" behavior is the default. **Real-device verification pending.**
+- Headphone remote button mapping — spec §10.4. Already wired via `NowPlayingCoordinator` + `MPRemoteCommandCenter.togglePlayPauseCommand` → `vm.togglePlay()`. Wired headphone center button + AirPods center button + AirPods Pro tap should all route through this — confirmed by code audit in v0.32.1. **Real-device verification pending.**
 
 ### Now Playing — remaining (spec §16)
-`MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` wired (play/pause/toggle, next/prev in setlists, song title + BPM artist line, app-icon artwork). Real-device verification of AirPods double-tap + Control Center transport still pending.
+`MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` wired (play/pause/toggle, next/prev in setlists, song title + BPM artist line, app-icon artwork). Code-path audit completed v0.32.1 — `playCommand` / `pauseCommand` / `togglePlayPauseCommand` all map to `vm.togglePlay()` correctly; setlist next/prev are gated on `playingSetlistName != nil` and return `.noActionableNowPlayingItem` otherwise. `playbackState` toggles between `.playing` and `.paused` on each publish so the Now Playing card stays parked even when the engine pauses. **Real-device verification of AirPods double-tap + Control Center transport still pending — needs hardware.**
 
 ### ~~Accent pattern library — dedicated patterns-library view~~ — shipped in v0.21.0
 Library now has a fourth "Patterns" tab alongside Songs / Setlists / Stats. Presets group by time signature (sorted by numerator/denominator), with rows showing the accent-dot preview at a glance. Tap to edit (reuses AccentPatternEditView via sheet; preset UUID preserved so rename + beat changes update in place). Swipe to delete. Toolbar + opens a time-sig confirmationDialog (4/4, 3/4, 6/8, 5/4, 7/8) → new preset draft. New `viewModel.updateAccentPatternPreset(_:)` wraps the upsert-by-ID path so renames don't fork the UUID.

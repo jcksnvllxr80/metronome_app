@@ -37,6 +37,11 @@ final class MetronomeViewModel {
     /// AudioScheduler reference so the view model can push fresh
     /// `UserSoundRegistry` snapshots after imports/deletes.
     @ObservationIgnored let audioScheduler: AudioScheduler?
+    /// Hardware volume-key → start/stop bridge (spec §10.4). Set by
+    /// `meter_gnomeApp` after construction; the VM flips it on/off
+    /// in `setSettings` when `useVolumeKeysForStartStop` changes.
+    /// `nil` in previews + tests.
+    @ObservationIgnored var volumeKeyMonitor: VolumeKeyMonitor?
     /// Snapshot of currently-imported user sounds, refreshed from the
     /// store on launch + after every add/delete/update. Drives the
     /// "Imported Sounds" picker rows in Settings + SongDetail.
@@ -466,6 +471,10 @@ final class MetronomeViewModel {
     func setSettings(_ newSettings: EngineSettings) {
         settings = newSettings // optimistic
         settingsStore?.update(newSettings)
+        // Hot-toggle the volume-key bridge so flipping the Settings
+        // switch takes effect immediately (attach KVO + hidden
+        // MPVolumeView on enable; detach both on disable).
+        volumeKeyMonitor?.setEnabled(newSettings.useVolumeKeysForStartStop)
         Task {
             await engine.setSettings(newSettings)
             await refresh()

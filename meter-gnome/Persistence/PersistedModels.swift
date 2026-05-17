@@ -87,6 +87,10 @@ final class PersistedEngineSettings {
     /// default — existing rows boot with polyrhythm off, identical to
     /// pre-feature behavior.
     var polyrhythmData: Data? = nil
+    /// Hardware volume-key start/stop opt-in (spec §10.4). Defaults
+    /// `false` so existing rows boot with the unsurprising behavior
+    /// of volume keys just changing volume.
+    var useVolumeKeysForStartStop: Bool = false
 
     init(
         masterVolume: Double = 1.0,
@@ -113,7 +117,8 @@ final class PersistedEngineSettings {
         monthlyPracticeGoalMinutes: Int = 0,
         subdivisionConfigsData: Data? = nil,
         largeDisplayMode: Bool = false,
-        polyrhythmData: Data? = nil
+        polyrhythmData: Data? = nil,
+        useVolumeKeysForStartStop: Bool = false
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -140,6 +145,7 @@ final class PersistedEngineSettings {
         self.subdivisionConfigsData = subdivisionConfigsData
         self.largeDisplayMode = largeDisplayMode
         self.polyrhythmData = polyrhythmData
+        self.useVolumeKeysForStartStop = useVolumeKeysForStartStop
     }
 
     private static func encodePolyrhythm(_ poly: PolyrhythmConfig?) -> Data? {
@@ -200,7 +206,8 @@ final class PersistedEngineSettings {
             monthlyPracticeGoalMinutes: settings.monthlyPracticeGoalMinutes,
             subdivisionConfigsData: Self.encode(settings.subdivisionConfigs),
             largeDisplayMode: settings.largeDisplayMode,
-            polyrhythmData: Self.encodePolyrhythm(settings.polyrhythm)
+            polyrhythmData: Self.encodePolyrhythm(settings.polyrhythm),
+            useVolumeKeysForStartStop: settings.useVolumeKeysForStartStop
         )
     }
 
@@ -232,7 +239,8 @@ final class PersistedEngineSettings {
             monthlyPracticeGoalMinutes: monthlyPracticeGoalMinutes,
             subdivisionConfigs: Self.decodeSubdivisionConfigs(subdivisionConfigsData),
             largeDisplayMode: largeDisplayMode,
-            polyrhythm: Self.decodePolyrhythm(polyrhythmData)
+            polyrhythm: Self.decodePolyrhythm(polyrhythmData),
+            useVolumeKeysForStartStop: useVolumeKeysForStartStop
         )
     }
 
@@ -262,6 +270,7 @@ final class PersistedEngineSettings {
         subdivisionConfigsData = Self.encode(settings.subdivisionConfigs)
         largeDisplayMode = settings.largeDisplayMode
         polyrhythmData = Self.encodePolyrhythm(settings.polyrhythm)
+        useVolumeKeysForStartStop = settings.useVolumeKeysForStartStop
     }
 }
 
