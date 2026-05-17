@@ -121,3 +121,64 @@ import Foundation
     // 60 / 1.9 ≈ 31.58, snapped to 0.1 = 31.6
     #expect(result!.value == 31.6)
 }
+
+// MARK: - v0.34.2 median + min-interval
+
+@Test func tapTooCloseToPreviousIsRejected() {
+    // 50ms after the previous tap (would be 1200 BPM raw) — should
+    // be rejected by minimumInterval, leaving the window unchanged.
+    var est = TapTempoEstimator()
+    _ = est.tap(at: 0)
+    _ = est.tap(at: 0.5)  // estimate 120 BPM
+    let result = est.tap(at: 0.55)  // 50ms after previous — rejected
+    #expect(est.taps == [0, 0.5])  // window unchanged
+    #expect(result == BPM(120))    // estimate unchanged
+}
+
+@Test func singleOutlierDoesNotWreckEstimate() {
+    // Four taps with one short interval — mean would pull BPM way
+    // up; median should hold at 120.
+    //   intervals: 0.5, 0.2, 0.5 → sorted [0.2, 0.5, 0.5] → median 0.5
+    // Mean would have been (0.5+0.2+0.5)/3 = 0.4 → 150 BPM.
+    var est = TapTempoEstimator()
+    _ = est.tap(at: 0)
+    _ = est.tap(at: 0.5)
+    _ = est.tap(at: 0.7)  // outlier — way too fast
+    let result = est.tap(at: 1.2)
+    #expect(result == BPM(120))
+}
+
+@Test func twoIntervalsMedianIsTheirAverage() {
+    // 3 taps → 2 intervals: 0.4, 0.6. Median of even-length list is
+    // the average of the two middle values: (0.4 + 0.6) / 2 = 0.5
+    // → 120 BPM. (Same as mean here; the test pins the even-length
+    // branch.)
+    var est = TapTempoEstimator()
+    _ = est.tap(at: 0)
+    _ = est.tap(at: 0.4)
+    let result = est.tap(at: 1.0)
+    #expect(result == BPM(120))
+}
+
+@Test func minimumIntervalIsExclusive() {
+    // Exactly 100ms after the previous tap — NOT rejected (< is
+    // strict). 600 BPM raw → clamps to 400 BPM.
+    var est = TapTempoEstimator()
+    _ = est.tap(at: 0)
+    let result = est.tap(at: 0.1)
+    #expect(est.taps == [0, 0.1])
+    #expect(result == BPM(BPM.maximum))
+}
+
+@Test func rejectedTapDoesNotAdvanceLastTime() {
+    // After a rejected tap, the NEXT tap measures from the previous
+    // accepted tap, not from the rejected one. (i.e. rejection
+    // doesn't poison the window.)
+    var est = TapTempoEstimator()
+    _ = est.tap(at: 0)
+    _ = est.tap(at: 0.5)
+    _ = est.tap(at: 0.55)  // rejected (50ms gap)
+    let result = est.tap(at: 1.0)  // 500ms after 0.5 (last accepted)
+    // Intervals: [0.5, 0.5] → median 0.5 → 120 BPM
+    #expect(result == BPM(120))
+}
