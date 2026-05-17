@@ -18,16 +18,15 @@ Spec §1.1 mandates < 1 ms/minute drift. Engine math is verified via `FakeClock`
 - Engine instrumentation to write a session on start/stop
 
 ### Tempo automation — remaining sub-features (spec §6.3)
-Gradual ramp shipped (per-song, accelerando/ritardando over measures or seconds) plus the Stage ramp indicator. Still backlog:
-- Step change: increase by X BPM every N measures (overlaps heavily with Speed trainer; consider folding)
-- Ramp loops: cycle through multiple tempo targets
+Gradual ramp + step BPM both shipped (per-song, picker chooses between the two in SongDetail). Stage indicator renders the active mode. Still backlog:
+- Ramp loops: cycle through multiple tempo targets (slots in as a third TempoAutomation case alongside .gradual and .step)
 - Stage-quick-sheet variant (current UI is per-song only)
 
 ### Speed trainer — remaining sub-features (spec §6.4)
-Random-mute mode shipped (Settings → Speed Trainer; 10–50% with per-session seed, mutes whole beats including subdivisions, count-in exempt). Still backlog:
-- Step BPM: start at slow BPM, increase by X every N measures or N "successful" loops
-- Optional ceiling — stop or reverse on hit
-- Pairs with practice stats (tracks "successful" attempts)
+Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tempo Automation → Step: start BPM, increment per step, measures per step, optional ceiling that holds BPM constant once reached. Still backlog:
+- Engine-stops-on-ceiling: when the step ceiling is hit, automatically stop playback (currently the schedule clamps BPM but the engine keeps running)
+- "Reverse on ceiling" alternative — instead of stopping, count back down
+- "Successful loops" trigger — increment only after the user completes N error-free passes; needs practice-stats integration to detect "successful"
 
 ## Phase 3 backlog
 

@@ -93,7 +93,7 @@ The spec is unusually prescriptive about the audio path because casual choices h
 Status as of 2026-05. Don't re-do shipped work; check TODO.md before starting a Phase 2/3 item.
 
 - **Phase 1 (MVP) — ✓ shipped:** §1 engine, §2.1–2.3 meter/subdivision, §3 accents, §4.1 synthesized sounds (real samples still pending), §6.1–6.2 tap tempo + Italian preset *data* (no UI surface yet), §8 visual pulse, §10.1–10.3 settings, §16 background/interruption/route-change + Now Playing + Remote Command Center (artwork on the lock-screen card still pending).
-- **Phase 2 (practice tools) — partial:** §5 voice count *scaffold + .beats mode* ✓, full language/gender sample matrix ✗; §7.1–7.2 songs/setlists ✓ (incl. accent pattern editor, setlist auto-advance); §6.3 tempo automation — gradual ramp ✓ (step + ramp-loop ✗); §6.4 speed trainer — random mute ✓ (step BPM + ceiling ✗); §9 haptics ✗; §11 practice stats ✗.
+- **Phase 2 (practice tools) — partial:** §5 voice count *scaffold + .beats mode* ✓, full language/gender sample matrix ✗; §7.1–7.2 songs/setlists ✓ (incl. accent pattern editor, setlist auto-advance); §6.3 tempo automation — gradual ramp + step BPM ✓ (ramp loops ✗); §6.4 speed trainer — random mute + step BPM ✓ (stop/reverse-on-ceiling + "successful loops" trigger ✗); §9 haptics ✗; §11 practice stats ✗.
 - **Phase 3 (pro) — partial:** §12.2 MIDI Clock send + receive ✓; §2.4 polyrhythm ✗; §7.3 multi-section songs ✗; §12.1 BLE pedals, §12.3 Ableton Link, §13 Apple Watch, §14 iCloud — **user has explicitly dropped these** (TODO.md).
 - **Phase 4 (polish):** §15 accessibility audit, latency tuning, edge cases — partially in place (Reduce Motion respected; full audit pending).
 
