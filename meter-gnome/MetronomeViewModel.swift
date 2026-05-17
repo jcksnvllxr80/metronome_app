@@ -202,6 +202,10 @@ final class MetronomeViewModel {
         // the SettingsView opens with the persisted values, not defaults.
         if let initial = settingsStore?.current {
             self.settings = initial
+            // Propagate the persisted tap-tempo min-taps to the
+            // estimator immediately so the first tap-tempo session
+            // after launch respects the user's setting.
+            self.tapEstimator.setMinTaps(initial.tapTempoMinTaps)
         }
         Task { await self.refresh() }
         // 100 ms tick so the setlist indicator reflects internal advances
@@ -487,6 +491,10 @@ final class MetronomeViewModel {
         AudioSessionCoordinator.shared.configure(
             mixWithOthers: newSettings.mixWithOthers
         )
+        // Propagate the tap-tempo minimum to the estimator. Existing
+        // taps in the window are preserved; the change takes effect
+        // at the next tap.
+        tapEstimator.setMinTaps(newSettings.tapTempoMinTaps)
         Task {
             await engine.setSettings(newSettings)
             await refresh()

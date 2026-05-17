@@ -214,6 +214,29 @@ struct SettingsView: View {
         return n == 0 ? "Default" : "\(n) custom"
     }
 
+    /// Stepper for `EngineSettings.tapTempoMinTaps` — how many taps
+    /// the tap-tempo affordance needs before locking in a BPM (spec
+    /// §6.1). Range 2–8 per `TapTempoEstimator.minTapsRange`.
+    private var tapTempoMinTapsRow: some View {
+        Stepper(
+            value: $settings.tapTempoMinTaps,
+            in: TapTempoEstimator.minTapsRange,
+            step: 1
+        ) {
+            HStack {
+                Text("Tap tempo min taps")
+                    .foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text("\(settings.tapTempoMinTaps)")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.accentTempo)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Tap tempo minimum taps, \(settings.tapTempoMinTaps)")
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
     // MARK: - Polyrhythm (spec §2.4)
 
     /// Same-measure polyrhythm — fires N evenly-spaced pulses across
@@ -406,13 +429,14 @@ struct SettingsView: View {
             Toggle("Coexist with other audio (tuners)", isOn: $settings.mixWithOthers)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
+            tapTempoMinTapsRow
             dailyGoalRow
             weeklyGoalRow
             monthlyGoalRow
         } header: {
             Text("Playback Behavior").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song. Volume keys: when on, pressing volume up or down toggles playback (the iOS volume HUD still appears — that's a system limitation, not a bug). Coexist with other audio: when ON, the metronome shares the audio session with apps like tuners and music players — the trade-off is the lock-screen / Control Center Now Playing card won't appear (iOS only shows it for the primary audio app). When OFF (default), the metronome takes over playback and shows in Now Playing. Goals are independent — set just the ones you want to track.")
+            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song. Volume keys: when on, pressing volume up or down toggles playback (the iOS volume HUD still appears — that's a system limitation, not a bug). Coexist with other audio: when ON, the metronome shares the audio session with apps like tuners and music players — the trade-off is the lock-screen / Control Center Now Playing card won't appear (iOS only shows it for the primary audio app). When OFF (default), the metronome takes over playback and shows in Now Playing. Tap tempo min taps: how many times you tap before the metronome locks in a BPM. More taps = more stable estimate, slightly slower lock-in. Default 3. Goals are independent — set just the ones you want to track.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

@@ -91,6 +91,10 @@ final class PersistedEngineSettings {
     /// `false` so existing rows boot with the unsurprising behavior
     /// of volume keys just changing volume.
     var useVolumeKeysForStartStop: Bool = false
+    /// Tap tempo minimum-taps (spec §6.1). Default 3 (v0.34.4 default).
+    /// Stored as Int; clamped to TapTempoEstimator.minTapsRange (2–8)
+    /// on read via toEngineSettings().
+    var tapTempoMinTaps: Int = TapTempoEstimator.defaultMinTaps
 
     init(
         masterVolume: Double = 1.0,
@@ -118,7 +122,8 @@ final class PersistedEngineSettings {
         subdivisionConfigsData: Data? = nil,
         largeDisplayMode: Bool = false,
         polyrhythmData: Data? = nil,
-        useVolumeKeysForStartStop: Bool = false
+        useVolumeKeysForStartStop: Bool = false,
+        tapTempoMinTaps: Int = TapTempoEstimator.defaultMinTaps
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -146,6 +151,7 @@ final class PersistedEngineSettings {
         self.largeDisplayMode = largeDisplayMode
         self.polyrhythmData = polyrhythmData
         self.useVolumeKeysForStartStop = useVolumeKeysForStartStop
+        self.tapTempoMinTaps = tapTempoMinTaps
     }
 
     private static func encodePolyrhythm(_ poly: PolyrhythmConfig?) -> Data? {
@@ -207,7 +213,8 @@ final class PersistedEngineSettings {
             subdivisionConfigsData: Self.encode(settings.subdivisionConfigs),
             largeDisplayMode: settings.largeDisplayMode,
             polyrhythmData: Self.encodePolyrhythm(settings.polyrhythm),
-            useVolumeKeysForStartStop: settings.useVolumeKeysForStartStop
+            useVolumeKeysForStartStop: settings.useVolumeKeysForStartStop,
+            tapTempoMinTaps: settings.tapTempoMinTaps
         )
     }
 
@@ -240,7 +247,8 @@ final class PersistedEngineSettings {
             subdivisionConfigs: Self.decodeSubdivisionConfigs(subdivisionConfigsData),
             largeDisplayMode: largeDisplayMode,
             polyrhythm: Self.decodePolyrhythm(polyrhythmData),
-            useVolumeKeysForStartStop: useVolumeKeysForStartStop
+            useVolumeKeysForStartStop: useVolumeKeysForStartStop,
+            tapTempoMinTaps: tapTempoMinTaps
         )
     }
 
@@ -271,6 +279,7 @@ final class PersistedEngineSettings {
         largeDisplayMode = settings.largeDisplayMode
         polyrhythmData = Self.encodePolyrhythm(settings.polyrhythm)
         useVolumeKeysForStartStop = settings.useVolumeKeysForStartStop
+        tapTempoMinTaps = settings.tapTempoMinTaps
     }
 }
 

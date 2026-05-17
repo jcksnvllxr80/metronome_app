@@ -157,6 +157,12 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// The iOS volume HUD still appears (can't be suppressed in
     /// modern iOS); the volume change itself is also still applied.
     public var useVolumeKeysForStartStop: Bool
+    /// Minimum taps before the tap-tempo affordance produces a BPM
+    /// estimate (spec §6.1). Default 3 (v0.34.4 raised this from 2
+    /// after real-device QA showed a single mis-timed first tap
+    /// locked in a wrong BPM before the user could correct it).
+    /// Clamped to `TapTempoEstimator.minTapsRange` (2–8).
+    public var tapTempoMinTaps: Int
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -186,7 +192,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         subdivisionConfigs: [Subdivision: SubdivisionConfig] = [:],
         largeDisplayMode: Bool = false,
         polyrhythm: PolyrhythmConfig? = nil,
-        useVolumeKeysForStartStop: Bool = false
+        useVolumeKeysForStartStop: Bool = false,
+        tapTempoMinTaps: Int = TapTempoEstimator.defaultMinTaps
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -222,6 +229,10 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.largeDisplayMode = largeDisplayMode
         self.polyrhythm = polyrhythm
         self.useVolumeKeysForStartStop = useVolumeKeysForStartStop
+        self.tapTempoMinTaps = max(
+            TapTempoEstimator.minTapsRange.lowerBound,
+            min(TapTempoEstimator.minTapsRange.upperBound, tapTempoMinTaps)
+        )
     }
 }
 
@@ -240,6 +251,7 @@ extension EngineSettings {
         case monthlyPracticeGoalMinutes, subdivisionConfigs, largeDisplayMode
         case polyrhythm
         case useVolumeKeysForStartStop
+        case tapTempoMinTaps
     }
 
     /// Custom Codable to provide a default for `hapticIntensity` when
@@ -282,7 +294,8 @@ extension EngineSettings {
             },
             largeDisplayMode: try c.decodeIfPresent(Bool.self, forKey: .largeDisplayMode) ?? false,
             polyrhythm: try c.decodeIfPresent(PolyrhythmConfig.self, forKey: .polyrhythm),
-            useVolumeKeysForStartStop: try c.decodeIfPresent(Bool.self, forKey: .useVolumeKeysForStartStop) ?? false
+            useVolumeKeysForStartStop: try c.decodeIfPresent(Bool.self, forKey: .useVolumeKeysForStartStop) ?? false,
+            tapTempoMinTaps: try c.decodeIfPresent(Int.self, forKey: .tapTempoMinTaps) ?? TapTempoEstimator.defaultMinTaps
         )
     }
 
@@ -321,6 +334,10 @@ extension EngineSettings {
         try c.encodeIfPresent(polyrhythm, forKey: .polyrhythm)
         if useVolumeKeysForStartStop {
             try c.encode(useVolumeKeysForStartStop, forKey: .useVolumeKeysForStartStop)
+        }
+        // Only encode when the user changed it; default rows stay clean.
+        if tapTempoMinTaps != TapTempoEstimator.defaultMinTaps {
+            try c.encode(tapTempoMinTaps, forKey: .tapTempoMinTaps)
         }
     }
 }
