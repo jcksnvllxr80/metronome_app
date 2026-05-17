@@ -45,6 +45,7 @@ struct SettingsView: View {
                 displaySection
                 soundSection
                 subdivisionSection
+                polyrhythmSection
                 voiceCountSection
                 countInSection
                 masterVolumeSection
@@ -148,6 +149,113 @@ struct SettingsView: View {
     private var subdivisionsSummaryText: String {
         let n = settings.subdivisionConfigs.count
         return n == 0 ? "Default" : "\(n) custom"
+    }
+
+    // MARK: - Polyrhythm (spec §2.4)
+
+    /// Same-measure polyrhythm — fires N evenly-spaced pulses across
+    /// each primary-meter measure with its own sound + volume. The
+    /// engine default; songs override per-song in their detail view.
+    private var polyrhythmSection: some View {
+        Section {
+            Toggle("Enable Polyrhythm", isOn: polyrhythmEnabledBinding)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+            if let poly = settings.polyrhythm {
+                Stepper(
+                    value: polyPulsesBinding(currentValue: poly.pulses),
+                    in: PolyrhythmConfig.pulsesRange,
+                    step: 1
+                ) {
+                    HStack {
+                        Text("Pulses").foregroundStyle(DS.DSColor.textPrimary)
+                        Spacer()
+                        Text("\(poly.pulses)")
+                            .font(DS.Font.monoData)
+                            .foregroundStyle(DS.DSColor.accentTempo)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Pulses, \(poly.pulses) per measure")
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+                Picker("Sound", selection: polySoundBinding(currentValue: poly.sound)) {
+                    ForEach(ClickSound.allCases, id: \.self) { s in
+                        Text(s.displayName).tag(s)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+                HStack(spacing: DS.Spacing.md) {
+                    Text("Volume").foregroundStyle(DS.DSColor.textPrimary)
+                    Slider(value: polyVolumeBinding(currentValue: poly.volume), in: 0...1)
+                        .tint(DS.DSColor.accentTempo)
+                    Text("\(Int((poly.volume * 100).rounded()))%")
+                        .font(DS.Font.monoData)
+                        .frame(width: 48, alignment: .trailing)
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            }
+        } header: {
+            Text("Polyrhythm").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Plays N evenly-spaced pulses against each measure of the primary meter — e.g. 3 against 4 in 4/4 time. Independent sound + volume from the main click. Songs can override this default per-song.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    /// Toggle binding — flipping on creates a default config (3 pulses,
+    /// cowbell, 80% volume); flipping off nils the setting entirely.
+    private var polyrhythmEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { settings.polyrhythm != nil },
+            set: { isOn in
+                settings.polyrhythm = isOn ? PolyrhythmConfig() : nil
+            }
+        )
+    }
+
+    private func polyPulsesBinding(currentValue: Int) -> Binding<Int> {
+        Binding(
+            get: { currentValue },
+            set: { newValue in
+                guard let poly = settings.polyrhythm else { return }
+                settings.polyrhythm = PolyrhythmConfig(
+                    pulses: newValue,
+                    sound: poly.sound,
+                    volume: poly.volume
+                )
+            }
+        )
+    }
+
+    private func polySoundBinding(currentValue: ClickSound) -> Binding<ClickSound> {
+        Binding(
+            get: { currentValue },
+            set: { newValue in
+                guard let poly = settings.polyrhythm else { return }
+                settings.polyrhythm = PolyrhythmConfig(
+                    pulses: poly.pulses,
+                    sound: newValue,
+                    volume: poly.volume
+                )
+            }
+        )
+    }
+
+    private func polyVolumeBinding(currentValue: Double) -> Binding<Double> {
+        Binding(
+            get: { currentValue },
+            set: { newValue in
+                guard let poly = settings.polyrhythm else { return }
+                settings.polyrhythm = PolyrhythmConfig(
+                    pulses: poly.pulses,
+                    sound: poly.sound,
+                    volume: newValue
+                )
+            }
+        )
     }
 
     private var countInSection: some View {
