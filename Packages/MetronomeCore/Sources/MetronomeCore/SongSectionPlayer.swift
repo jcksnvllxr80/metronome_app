@@ -23,6 +23,11 @@ public actor SongSectionPlayer {
     private weak var engineRef: MetronomeEngine?
     public private(set) var song: Song?
     public private(set) var currentIndex: Int = -1
+    /// Zero-based count of completed passes through the current
+    /// section. When this hits `section.repeatCount - 1` AND another
+    /// measure-boundary fires, the player advances to the next
+    /// section instead of looping again.
+    public private(set) var currentRepetition: Int = 0
     public private(set) var isActive: Bool = false
     private var pollTask: Task<Void, Never>?
     private var isAdvancing: Bool = false
@@ -57,6 +62,7 @@ public actor SongSectionPlayer {
         let safeIndex = max(0, min(index, sections.count - 1))
         self.song = song
         self.currentIndex = safeIndex
+        self.currentRepetition = 0
         self.isActive = true
         let materialized = Self.materialize(section: sections[safeIndex], parentSong: song)
         await engine.apply(materialized)
@@ -68,6 +74,7 @@ public actor SongSectionPlayer {
     public func stop() async {
         isActive = false
         currentIndex = -1
+        currentRepetition = 0
         pollTask?.cancel()
         pollTask = nil
         if let engine = engineRef {
@@ -108,15 +115,38 @@ public actor SongSectionPlayer {
         // `measureCount` (zero-indexed: measure indices 0..<measureCount
         // are in-section; index `measureCount` is past the section).
         // Count-in clicks have their own measure indexing; ignore them.
-        let shouldAdvance = !next.isCountIn
+        let atBoundary = !next.isCountIn
             && next.measureIndex >= section.measureCount
             && next.beatIndex == 0
             && next.subdivisionIndex == 0
-        if shouldAdvance {
+        if atBoundary {
             isAdvancing = true
-            await advanceToNextSection()
+            // Decide: repeat the same section or advance to the next?
+            // Per-section repeatCount lets a song say "verse 3 times,
+            // bridge once" without duplicating the section row.
+            if currentRepetition + 1 < section.repeatCount {
+                currentRepetition += 1
+                await repeatCurrentSection()
+            } else {
+                await advanceToNextSection()
+            }
             isAdvancing = false
         }
+    }
+
+    /// Re-apply the current section's settings so engine.schedule
+    /// re-anchors at clock.now and measure counting restarts from 0.
+    /// Sound preset / accent pattern / BPM / meter all stay the same —
+    /// the engine just rebuilds its schedule.
+    private func repeatCurrentSection() async {
+        guard let song,
+              let sections = song.sections,
+              currentIndex >= 0,
+              currentIndex < sections.count,
+              let engine = engineRef
+        else { return }
+        let materialized = Self.materialize(section: sections[currentIndex], parentSong: song)
+        await engine.apply(materialized)
     }
 
     private func advanceToNextSection() async {
@@ -130,6 +160,7 @@ public actor SongSectionPlayer {
             return
         }
         currentIndex = nextIdx
+        currentRepetition = 0
         let materialized = Self.materialize(section: sections[nextIdx], parentSong: song)
         await engine.apply(materialized)
     }

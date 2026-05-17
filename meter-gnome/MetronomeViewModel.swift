@@ -99,6 +99,13 @@ final class MetronomeViewModel {
     var currentSectionName: String? = nil
     var currentSectionIndex: Int = -1
     var currentSectionCount: Int = 0
+    /// 1-based index of the current pass through a repeating section.
+    /// 1 by default; only > 1 when the section has `repeatCount > 1`
+    /// AND has looped at least once.
+    var currentSectionRepetition: Int = 1
+    /// Total repeats configured for the current section (mirror of
+    /// `SongSection.repeatCount`). 1 means non-repeating.
+    var currentSectionRepeatTotal: Int = 1
     /// Whether a multi-section song is loaded — drives togglePlay routing.
     var loadedSongHasSections: Bool = false
 
@@ -334,16 +341,21 @@ final class MetronomeViewModel {
             let section = await player.currentSection
             let idx = await player.currentIndex
             let count = await player.totalSections
+            let rep = await player.currentRepetition
             currentSectionName = section?.name
             currentSectionIndex = idx
             currentSectionCount = count
+            // SongSectionPlayer.currentRepetition is 0-based ("pass 0
+            // is in progress"); UI is 1-based ("1 of 3").
+            currentSectionRepetition = rep + 1
+            currentSectionRepeatTotal = section?.repeatCount ?? 1
         } else {
-            // Keep loaded-state metadata even when not playing; only
-            // clear once the user actively unloads the song.
             if !loadedSongHasSections {
                 currentSectionName = nil
                 currentSectionIndex = -1
             }
+            currentSectionRepetition = 1
+            currentSectionRepeatTotal = 1
         }
     }
 

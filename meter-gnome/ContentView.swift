@@ -249,7 +249,14 @@ struct ContentView: View {
               viewModel.currentSectionCount > 0
         else { return nil }
         let label = viewModel.currentSectionName ?? "Section \(viewModel.currentSectionIndex + 1)"
-        return "\(label) · \(viewModel.currentSectionIndex + 1)/\(viewModel.currentSectionCount)"
+        let position = "\(viewModel.currentSectionIndex + 1)/\(viewModel.currentSectionCount)"
+        // Only show repetition counter when the section actually has
+        // repeats configured — most sections play once, no need to
+        // clutter Stage with "1/1" everywhere.
+        if viewModel.currentSectionRepeatTotal > 1 {
+            return "\(label) · \(position) · \(viewModel.currentSectionRepetition)/\(viewModel.currentSectionRepeatTotal)"
+        }
+        return "\(label) · \(position)"
     }
 
     private func sectionAccessibilityLabel(title: String) -> String {

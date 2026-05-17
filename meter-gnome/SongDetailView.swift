@@ -805,6 +805,26 @@ struct SongDetailView: View {
             ) {
                 intRow(label: "Measures", value: section.measureCount)
             }
+            Stepper(
+                value: Binding(
+                    get: { section.repeatCount },
+                    set: { v in
+                        updateSection(at: index) { $0.repeatCount = max(1, v) }
+                    }
+                ),
+                in: 1...32, step: 1
+            ) {
+                HStack {
+                    Text("Repeat")
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                    Spacer()
+                    Text(section.repeatCount == 1 ? "Once" : "\(section.repeatCount)×")
+                        .font(DS.Font.monoData)
+                        .foregroundStyle(section.repeatCount == 1
+                            ? DS.DSColor.textMuted
+                            : DS.DSColor.accentTempo)
+                }
+            }
             NavigationLink {
                 AccentPatternEditView(
                     timeSignature: section.timeSignature,

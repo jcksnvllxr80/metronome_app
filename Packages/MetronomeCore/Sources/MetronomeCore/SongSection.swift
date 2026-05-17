@@ -21,6 +21,12 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
     public var measureCount: Int
     public private(set) var accentPattern: AccentPattern?
     public var soundPreset: String?
+    /// How many times the section's `measureCount` measures play
+    /// before the player advances to the next section. Default 1
+    /// (single pass). Minimum 1 — values < 1 are clamped at init.
+    /// Spec §7.3 "Optional repeat markers" — the simplest form.
+    /// Full DC-al-fine / segno / coda jumps are still backlog.
+    public var repeatCount: Int
 
     /// Returns `nil` if `measureCount < 1` or
     /// `accentPattern.timeSignature != timeSignature`.
@@ -32,7 +38,8 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         subdivision: Subdivision = .none,
         measureCount: Int,
         accentPattern: AccentPattern? = nil,
-        soundPreset: String? = nil
+        soundPreset: String? = nil,
+        repeatCount: Int = 1
     ) {
         guard measureCount >= 1 else { return nil }
         if let pattern = accentPattern, pattern.timeSignature != timeSignature {
@@ -46,6 +53,7 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         self.measureCount = measureCount
         self.accentPattern = accentPattern
         self.soundPreset = soundPreset
+        self.repeatCount = max(1, repeatCount)
     }
 
     /// Set or clear the accent pattern. Returns `true` if accepted,
@@ -73,7 +81,7 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
 
 extension SongSection {
     private enum CodingKeys: String, CodingKey {
-        case id, name, bpm, timeSignature, subdivision, measureCount, accentPattern, soundPreset
+        case id, name, bpm, timeSignature, subdivision, measureCount, accentPattern, soundPreset, repeatCount
     }
 
     public init(from decoder: Decoder) throws {
@@ -86,6 +94,8 @@ extension SongSection {
         let measureCount = try c.decode(Int.self, forKey: .measureCount)
         let pattern = try c.decodeIfPresent(AccentPattern.self, forKey: .accentPattern)
         let soundPreset = try c.decodeIfPresent(String.self, forKey: .soundPreset)
+        // Default to 1 for legacy rows that pre-date the repeatCount field.
+        let repeatCount = (try c.decodeIfPresent(Int.self, forKey: .repeatCount)) ?? 1
         guard let section = SongSection(
             id: id,
             name: name,
@@ -94,7 +104,8 @@ extension SongSection {
             subdivision: sub,
             measureCount: measureCount,
             accentPattern: pattern,
-            soundPreset: soundPreset
+            soundPreset: soundPreset,
+            repeatCount: repeatCount
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .measureCount, in: c,
@@ -114,5 +125,8 @@ extension SongSection {
         try c.encode(measureCount, forKey: .measureCount)
         try c.encodeIfPresent(accentPattern, forKey: .accentPattern)
         try c.encodeIfPresent(soundPreset, forKey: .soundPreset)
+        // Always encode — Codable consumers (CSV export, hand-crafted
+        // JSON, tests) shouldn't have to guess at the default.
+        try c.encode(repeatCount, forKey: .repeatCount)
     }
 }
