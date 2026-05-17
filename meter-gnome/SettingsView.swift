@@ -29,6 +29,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                displaySection
                 soundSection
                 subdivisionSection
                 voiceCountSection
@@ -60,6 +61,26 @@ struct SettingsView: View {
     }
 
     // MARK: - Sections
+
+    /// Display-only Stage preferences (spec §10.3). Currently houses
+    /// the large-display toggle and the BPM precision toggle — both
+    /// affect how the Stage hero renders without touching the engine.
+    private var displaySection: some View {
+        Section {
+            Toggle("Large Display", isOn: $settings.largeDisplayMode)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+            Toggle("BPM Precision (0.1)", isOn: $settings.bpmPrecisionMode)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+        } header: {
+            Text("Display")
+                .foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text("Large Display makes the BPM hero significantly bigger for stage use on a music stand. BPM Precision exposes the tenths digit.")
+                .foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
 
     private var soundSection: some View {
         Section {
@@ -194,14 +215,11 @@ struct SettingsView: View {
             Toggle("Start on app launch", isOn: $settings.startOnLaunch)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
-            Toggle("BPM precision (0.1)", isOn: $settings.bpmPrecisionMode)
-                .tint(DS.DSColor.accentTempo)
-                .listRowBackground(DS.DSColor.bgElevated)
             dailyGoalRow
         } header: {
             Text("Playback Behavior").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
-            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song. BPM precision shows the tempo to 1/10 of a BPM and switches the ± buttons to 0.1 steps — for fine-grained recording or speed-trainer drills.")
+            Text("Auto-resume restarts the metronome after a phone call or Siri ends. Keep-screen-awake prevents the display from sleeping mid-song.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
     }

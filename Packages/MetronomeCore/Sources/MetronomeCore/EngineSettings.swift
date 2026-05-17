@@ -121,6 +121,12 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// settings (eighth-note config is preserved when the user switches
     /// to triplets and back).
     public var subdivisionConfigs: [Subdivision: SubdivisionConfig]
+    /// "Large display mode" (spec §10.3). When true, the Stage BPM hero
+    /// renders at a substantially larger font for stage use (phone on
+    /// a music stand, iPad held vertically). View-side only — the
+    /// engine doesn't read it. Lives next to `bpmPrecisionMode` because
+    /// both are display preferences that persist via this same payload.
+    public var largeDisplayMode: Bool
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -144,7 +150,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         keepScreenAwakeDuringPlayback: Bool = true,
         startOnLaunch: Bool = false,
         dailyPracticeGoalMinutes: Int = 0,
-        subdivisionConfigs: [Subdivision: SubdivisionConfig] = [:]
+        subdivisionConfigs: [Subdivision: SubdivisionConfig] = [:],
+        largeDisplayMode: Bool = false
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -174,6 +181,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.startOnLaunch = startOnLaunch
         self.dailyPracticeGoalMinutes = max(0, dailyPracticeGoalMinutes)
         self.subdivisionConfigs = subdivisionConfigs
+        self.largeDisplayMode = largeDisplayMode
     }
 }
 
@@ -187,7 +195,7 @@ extension EngineSettings {
         case midiClockEnabled, midiClockReceiveEnabled, voiceCountMode
         case randomMutePercentage, hapticMode, hapticIntensity
         case keepScreenAwakeDuringPlayback, startOnLaunch
-        case dailyPracticeGoalMinutes, subdivisionConfigs
+        case dailyPracticeGoalMinutes, subdivisionConfigs, largeDisplayMode
     }
 
     /// Custom Codable to provide a default for `hapticIntensity` when
@@ -224,7 +232,8 @@ extension EngineSettings {
                 forKey: .subdivisionConfigs
             ) ?? [:]).reduce(into: [Subdivision: SubdivisionConfig]()) { acc, kv in
                 if let sub = Subdivision(rawValue: kv.key) { acc[sub] = kv.value }
-            }
+            },
+            largeDisplayMode: try c.decodeIfPresent(Bool.self, forKey: .largeDisplayMode) ?? false
         )
     }
 
@@ -253,6 +262,9 @@ extension EngineSettings {
                 $0[$1.key.rawValue] = $1.value
             }
             try c.encode(stringKeyed, forKey: .subdivisionConfigs)
+        }
+        if largeDisplayMode {
+            try c.encode(largeDisplayMode, forKey: .largeDisplayMode)
         }
     }
 }

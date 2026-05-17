@@ -23,13 +23,21 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
-    /// 280 on iPad / large landscape; 180 on iPhone portrait. A first-pass
-    /// alternative to true viewport-relative scaling — DESIGN.md asks for
-    /// Stage BPM to fill ~55% of viewport height, which this approximates
-    /// at common form factors. Full GeometryReader-driven scaling lands
-    /// when the spec §10.3 "Large display mode" setting comes online.
+    /// Stage BPM hero font size. Four-way table on
+    /// (size class × large-display setting). Large-display mode (spec
+    /// §10.3) bumps the digit roughly +50% so the number stays legible
+    /// from across the room when the device is on a music stand.
+    /// DESIGN.md asks for ~55% of viewport height — the iPad-large
+    /// variant approximates that on typical iPad portrait at ~1024pt.
     private var bpmFontSize: CGFloat {
-        horizontalSizeClass == .regular ? 280 : 180
+        let isIPad = horizontalSizeClass == .regular
+        let isLarge = viewModel.settings.largeDisplayMode
+        switch (isIPad, isLarge) {
+        case (true,  true):  return 440
+        case (true,  false): return 280
+        case (false, true):  return 260
+        case (false, false): return 180
+        }
     }
 
     var body: some View {

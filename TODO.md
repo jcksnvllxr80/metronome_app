@@ -93,9 +93,8 @@ A small "🔊 Cowbell" row now sits under the loaded-song title (and under any s
 ## UI gaps
 
 ### iPad-specific layouts
-- Current size-class branching covers the basics (BPM scales 180→280pt on `.regular`)
-- Spec §10.3 "Large display mode" — huge BPM readout for stage use
-- iPad could host two columns (Stage left + Library right)
+- Size-class branching covers the basics: BPM scales 180→280pt on `.regular`. Large display mode (spec §10.3) shipped in v0.16.2 — Settings → Display → Large Display jumps the hero to 260pt on iPhone / 440pt on iPad, persisted in `EngineSettings.largeDisplayMode`.
+- Still backlog: iPad two-column layout (Stage left + Library right). Viewport-relative scaling via GeometryReader as a polish step over the four-way static table.
 
 ### Settings — UI prefs not yet exposed
 - Allow hardware volume keys to start/stop — spec §10.4
