@@ -45,7 +45,7 @@ struct LibraryView: View {
                         .foregroundStyle(DS.DSColor.accentTempo)
                 }
                 ToolbarItem(placement: .principal) {
-                    Picker("", selection: $tab) {
+                    Picker("Library section", selection: $tab) {
                         Text("Songs").tag(LibraryTab.songs)
                         Text("Setlists").tag(LibraryTab.setlists)
                         Text("Patterns").tag(LibraryTab.patterns)
@@ -53,6 +53,7 @@ struct LibraryView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 320)
+                    .accessibilityLabel("Library section")
                 }
                 if tab == .songs || tab == .setlists {
                     ToolbarItem(placement: .primaryAction) {

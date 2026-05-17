@@ -79,6 +79,7 @@ struct SubdivisionPickerView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(SubdivisionLabel.descriptive(sub))\(isSelected ? ", currently selected" : "")")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

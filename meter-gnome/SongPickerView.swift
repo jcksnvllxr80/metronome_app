@@ -109,6 +109,9 @@ struct SongPickerView: View {
         }
         .padding(.vertical, DS.Spacing.xs)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(song.title), \(song.bpm.displayInt) BPM, \(song.timeSignature.numerator) over \(song.timeSignature.denominator.rawValue)\(isSelected ? ", selected" : "")")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

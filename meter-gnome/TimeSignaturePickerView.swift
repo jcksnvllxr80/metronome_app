@@ -197,7 +197,8 @@ struct TimeSignaturePickerView: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(ts.numerator) over \(ts.denominator.rawValue)")
+        .accessibilityLabel("\(ts.numerator) over \(ts.denominator.rawValue)\(isSelected ? ", currently selected" : "")")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

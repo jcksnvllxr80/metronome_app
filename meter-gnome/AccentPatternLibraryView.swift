@@ -149,7 +149,11 @@ struct AccentPatternLibraryView: View {
     // MARK: - Row
 
     private func presetRow(_ preset: AccentPatternPreset) -> some View {
-        HStack(spacing: DS.Spacing.md) {
+        let ts = preset.pattern.timeSignature
+        let beatsLabel = preset.pattern.beats
+            .map { AccentLevelLabel.short($0.accent).lowercased() }
+            .joined(separator: ", ")
+        return HStack(spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                 Text(preset.name)
                     .font(DS.Font.headline)
@@ -163,6 +167,9 @@ struct AccentPatternLibraryView: View {
         }
         .padding(.vertical, DS.Spacing.xs)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(preset.name), \(ts.numerator) over \(ts.denominator.rawValue). Beats: \(beatsLabel).")
+        .accessibilityHint("Double tap to edit pattern")
     }
 
     /// Horizontal row of dots sized + opacity'd to convey accent level

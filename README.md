@@ -14,7 +14,7 @@ Latest tag: **v0.16.2**.
 
 | Layer | State |
 |---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 351 tests passing, drift < 1 ms/min verified in math |
+| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 356 tests passing, drift < 1 ms/min verified in math |
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
 | Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
 | Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
