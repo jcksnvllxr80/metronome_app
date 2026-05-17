@@ -72,10 +72,8 @@ A small "🔊 Cowbell" row now sits under the loaded-song title (and under any s
 
 ## Engine / audio improvements
 
-### Lookahead policy refinement (`AUDIO_INTEGRATION_PLAN.md` open question)
-- Current: `max(4 clicks, ceil(0.5s / clickPeriod))`
-- At low BPM with subdivisions on, lookahead can balloon. Cap at some reasonable upper bound?
-- Real-device profiling needed before tuning
+### ~~Lookahead policy refinement~~ — capped in v0.27.2
+Lookahead now clamps to `min(48, max(4, ceil(0.5s / clickPeriod)))`. Worst-case pathological combination (400 BPM + custom-9 subdivision) yields ~31 clicks, well under the cap. Real-device profiling still pending if we ever want to tune the lower 0.5s floor or the 48-click ceiling.
 
 ### ~~MIDI Song Position Pointer support (spec §12.2)~~ — shipped in v0.19.0
 Receiver parses 0xF2 + LSB + MSB messages with a state machine that lets real-time status bytes interleave per MIDI spec. SPP value is stored as `pendingMIDIBeats: UInt16?` and consumed by the next 0xFA Start by passing `positionOffsetSeconds = beats * bpm.beatPeriod / 4` to `engine.start`. The schedule's `startTime` shifts backward by that offset so click(0) lands in the past and the first future click maps to the song-time position the DAW asked for — measure / beat / subdivision indexing follows naturally. Continue (0xFB) intentionally ignores pending SPP per common-master convention. Mid-song position offset + count-in are mutually exclusive (count-in is suppressed when offset > 0).

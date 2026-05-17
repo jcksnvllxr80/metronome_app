@@ -28,6 +28,11 @@ public actor AudioScheduler {
     /// latency bounded.
     private static let minLookaheadClicks: Int = 4
     private static let minLookaheadSeconds: TimeInterval = 0.5
+    /// Upper bound on clicks queued ahead. Stops pathological tempo +
+    /// subdivision combinations (e.g., 400 BPM custom-9 → 31 clicks)
+    /// from continuing to grow into territory that doesn't help latency
+    /// but does balloon recovery cost on schedule-reset.
+    private static let maxLookaheadClicks: Int = 48
 
     public let avEngine: AVAudioEngine
     public let playerNode: AVAudioPlayerNode
@@ -374,19 +379,22 @@ public actor AudioScheduler {
         return Int(x % 100) < percentage
     }
 
-    /// `max(4, ceil(0.5s / clickPeriod))` clicks. At 400 BPM (period
-    /// 150 ms) → 4 clicks (~600 ms of audio queued); at 120 BPM (500 ms)
-    /// → 4 clicks (~2 s); at 60 BPM (1000 ms) → 4 clicks (~4 s).
-    /// At very slow tempos the floor of 4 keeps things stable; at fast
-    /// tempos the seconds-floor would expand the queue, but realistically
-    /// 4 clicks is already > 0.5 s for the whole audible tempo range with
-    /// no subdivision. Subdivisions shrink clickPeriod and push lookahead up.
+    /// `max(4, ceil(0.5s / clickPeriod))` clicks, capped at
+    /// `maxLookaheadClicks` to defend against pathological combinations
+    /// (e.g., 400 BPM + custom-9 subdivision yields ~31 clicks; raising
+    /// either of those further would balloon the queue without
+    /// audible benefit). At 400 BPM (period 150 ms) → 4 clicks
+    /// (~600 ms of audio queued); at 120 BPM (500 ms) → 4 clicks
+    /// (~2 s); at 60 BPM (1000 ms) → 4 clicks (~4 s). Subdivisions
+    /// shrink clickPeriod and push lookahead up but stay bounded by
+    /// the cap.
     private func adaptiveLookahead(for engine: MetronomeEngine) async -> Int {
         guard let schedule = await engine.schedule else {
             return Self.minLookaheadClicks
         }
         let bySeconds = Int(ceil(Self.minLookaheadSeconds / schedule.clickPeriod))
-        return max(Self.minLookaheadClicks, bySeconds)
+        let bounded = max(Self.minLookaheadClicks, bySeconds)
+        return min(Self.maxLookaheadClicks, bounded)
     }
 
     // MARK: - Session activation (iOS only)
