@@ -784,6 +784,17 @@ final class MetronomeViewModel {
         return schedule.click(at: nextIdx - 1)
     }
 
+    /// 0-based pulse index of the most-recent polyrhythm pulse at-or-
+    /// before `time`. Returns nil when polyrhythm is off, the engine is
+    /// stopped, or `time` precedes the first pulse (count-in window).
+    /// Drives the Stage's secondary dot row.
+    func currentPolyPulse(at time: TimeInterval) -> Int? {
+        guard let schedule, isRunning, schedule.polyrhythm != nil else { return nil }
+        let nextIdx = schedule.firstPolyClickIndex(atOrAfter: time)
+        guard nextIdx > 0 else { return nil }
+        return schedule.polyClick(at: nextIdx - 1)?.pulseIndex
+    }
+
     /// Pulse intensity [0, 1] at the given clock time. 1 = on accent peak,
     /// 0 = back to base color. Implements DESIGN.md's beat pulse spec:
     /// - 10 ms hard attack

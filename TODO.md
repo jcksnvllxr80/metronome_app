@@ -22,11 +22,8 @@ Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tem
 
 ## Phase 3 backlog
 
-### Polyrhythm (spec §2.4)
-- Two independent meters running concurrently (3 against 4, 5 against 7, etc.)
-- Each meter has its own BPM ratio, sound, volume
-- Architecturally: two `ClickSchedule` instances, two `AVAudioPlayerNode`s in the audio scheduler
-- UI: secondary BPM/meter pair, visual indicator showing both pulse streams
+### ~~Polyrhythm (spec §2.4)~~ — shipped in v0.30.0
+Same-measure flavor (3-against-4, 5-against-7) — both meters share one measure boundary; the polyrhythm is N evenly-spaced pulses inside it. Engine math via `PolyrhythmConfig` + `ClickSchedule.polyClick(at:)`; audio renders through a second `AVAudioPlayerNode` with independent volume; Stage shows a secondary hollow-dot row under the primary beat dots; Settings has the engine-level default, SongDetail has a per-song override with inherit-on-nil semantics. Independent-BPM polymeter (different tempos drifting in and out of phase) is the heavier alternative and is deliberately deferred — three of the four "Phase 3" musicians I imagine practicing 3:4 want same-measure. If the polymeter use case surfaces, the natural next step is a separate Schedule with its own `bpm` field.
 
 ### Multi-section songs — remaining (spec §7.3)
 Each section carries its own complete state: name, BPM, time signature, subdivision, measure count, accent pattern, sound preset, repeat count, end-action, Fine marker. Editor exposes all inline. Playback auto-advances on measure boundaries, loops within a section per its repeat count, and honors D.C. al Fine (jumps back to section 0 and stops at the next section marked Fine). Stage indicator shows current section + position + repetition + AL FINE badge when applicable. Drag-to-reorder, duplicate-section. Setlist integration: when a setlist's current song is multi-section, playback routes through `SongSectionPlayer` with a completion callback so sections auto-advance and the setlist then chains to the next song honoring all three advance modes — `.immediate` / `.countdown` (sections auto-advance after the prior song ends; `.countdown(measures: N)` now plays an N-measure count-in prelude at section 0's tempo before the multi-section song begins, matching flat-song behavior — v0.17.0) and `.pause` (engine stops with section 0's tempo loaded; pressing Play routes through `SetlistPlayer.resumeAfterPause` which engages the section player when the song is multi-section). Still backlog:

@@ -245,6 +245,7 @@ struct ContentView: View {
     private func content(at now: TimeInterval) -> some View {
         let pulse = viewModel.pulseIntensity(at: now, reduceMotion: reduceMotion)
         let activeBeat = viewModel.currentClick(at: now)?.beatIndex
+        let activePolyPulse = viewModel.currentPolyPulse(at: now)
         let tapFlash = viewModel.tapFlashIntensity(at: now)
 
         VStack(spacing: 0) {
@@ -280,7 +281,15 @@ struct ContentView: View {
             Spacer()
 
             VStack(spacing: DS.Spacing.lg) {
-                beatDotsView(activeBeat: activeBeat)
+                VStack(spacing: DS.Spacing.xs) {
+                    beatDotsView(activeBeat: activeBeat)
+                    if let polyPulses = viewModel.schedule?.polyrhythm?.pulses {
+                        polyDotsView(
+                            pulses: polyPulses,
+                            activePulse: activePolyPulse
+                        )
+                    }
+                }
                 controlsView
                 tapButtonView(flash: tapFlash)
             }
@@ -599,6 +608,33 @@ struct ContentView: View {
             }
         }
         .animation(.snappy(duration: 0.08), value: activeBeat)
+    }
+
+    /// Secondary dot row for the polyrhythm stream (spec §2.4). Rendered
+    /// only when polyrhythm is active. Uses outlined / hollow dots so
+    /// the primary beat row stays visually dominant — the polyrhythm is
+    /// the secondary texture, not the read-head. Active pulse fills.
+    private func polyDotsView(pulses: Int, activePulse: Int?) -> some View {
+        HStack(spacing: DS.Spacing.sm) {
+            ForEach(0..<pulses, id: \.self) { i in
+                let active = (i == activePulse)
+                Circle()
+                    .strokeBorder(
+                        active ? DS.DSColor.accentTempo : DS.DSColor.textDim,
+                        lineWidth: 1.5
+                    )
+                    .background(
+                        Circle().fill(active ? DS.DSColor.accentTempo : .clear)
+                    )
+                    .frame(width: 7, height: 7)
+                    .accessibilityLabel(
+                        active
+                            ? "Polyrhythm pulse \(i + 1) of \(pulses), active"
+                            : "Polyrhythm pulse \(i + 1) of \(pulses)"
+                    )
+            }
+        }
+        .animation(.snappy(duration: 0.08), value: activePulse)
     }
 
     // MARK: - Controls

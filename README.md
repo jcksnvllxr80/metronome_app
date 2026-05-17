@@ -10,11 +10,11 @@ A stage-confident iOS metronome — an *instrument's read-head*, not a phone app
 
 **Phases 1 + 2 shipped, most of Phase 3 shipped.** Audio, MIDI send + receive, persistence, library + setlists, accent-pattern editor with preset library, tempo automation (gradual + step + loop), speed trainer (random mute + step with stop/reverse-on-ceiling), practice stats with charts + daily goal + CSV export, haptics with per-accent intensity, lock-screen / AirPods control, multi-section songs (with D.C. al Fine, repeats, per-section settings, setlist integration across all advance modes), per-subdivision-level click config, and Large Display mode all work end-to-end. Real-device-verified bug fixes through v0.14.8 (cold-launch downbeat, tempo-change dropout, haptic buzz, haptic mode-change, multi-section transition double-click, Stage BPM display lag during section transitions).
 
-Latest tag: **v0.29.0**.
+Latest tag: **v0.30.0**.
 
 | Layer | State |
 |---|---|
-| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 356 tests passing, drift < 1 ms/min verified in math |
+| Engine math (BPM, time sig, subdivision, accents, count-in, scheduling) | ✓ Built — 376 tests passing, drift < 1 ms/min verified in math |
 | Audio output | ✓ Synthesized click library (4 timbres) + per-beat sound + pitch + voice-count tones (.beats mode). Latency calibration ±50 ms. |
 | Stage UI | ✓ BPM hero (Large Display mode optional, spec §10.3), beat pulse, beat dots, tap tempo, time-sig + subdivision pickers, Italian tempo presets, loaded-song + section + ramp + sound-preset indicators |
 | Persistence (SwiftData) | ✓ Settings, songs, setlists, practice sessions, accent-pattern preset library — all survive launches |
