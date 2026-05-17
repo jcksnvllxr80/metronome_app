@@ -122,6 +122,10 @@ final class PersistedSong {
     var durationData: Data?
     /// JSON-encoded `AccentPattern?` (nil when using the default downbeat-only rule).
     var accentPatternData: Data?
+    /// JSON-encoded `TempoAutomation?` (nil when no ramp is configured).
+    /// New in v2 of the schema — old rows decode as nil via SwiftData's
+    /// implicit-nullable-column migration.
+    var automationData: Data?
 
     init(
         id: UUID,
@@ -133,7 +137,8 @@ final class PersistedSong {
         soundPreset: String? = nil,
         notes: String? = nil,
         durationData: Data? = nil,
-        accentPatternData: Data? = nil
+        accentPatternData: Data? = nil,
+        automationData: Data? = nil
     ) {
         self.id = id
         self.title = title
@@ -145,11 +150,13 @@ final class PersistedSong {
         self.notes = notes
         self.durationData = durationData
         self.accentPatternData = accentPatternData
+        self.automationData = automationData
     }
 
     convenience init?(from song: Song) {
         let durationData = song.duration.flatMap { try? JSONEncoder().encode($0) }
         let patternData = song.accentPattern.flatMap { try? JSONEncoder().encode($0) }
+        let automationData = song.automation.flatMap { try? JSONEncoder().encode($0) }
         self.init(
             id: song.id,
             title: song.title,
@@ -160,7 +167,8 @@ final class PersistedSong {
             soundPreset: song.soundPreset,
             notes: song.notes,
             durationData: durationData,
-            accentPatternData: patternData
+            accentPatternData: patternData,
+            automationData: automationData
         )
     }
 
@@ -175,6 +183,9 @@ final class PersistedSong {
         let duration = durationData.flatMap {
             try? JSONDecoder().decode(SongDuration.self, from: $0)
         }
+        let automation = automationData.flatMap {
+            try? JSONDecoder().decode(TempoAutomation.self, from: $0)
+        }
         return Song(
             id: id,
             title: title,
@@ -184,7 +195,8 @@ final class PersistedSong {
             accentPattern: pattern,
             soundPreset: soundPreset,
             notes: notes,
-            duration: duration
+            duration: duration,
+            automation: automation
         )
     }
 }

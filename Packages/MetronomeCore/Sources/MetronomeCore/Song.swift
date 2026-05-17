@@ -24,8 +24,12 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
     public var soundPreset: String?
     public var notes: String?
     public var duration: SongDuration?
+    /// Optional tempo ramp (spec §6.3). When present, `bpm` is forced to
+    /// `automation.startBPM` so callers don't have to keep them in sync.
+    public private(set) var automation: TempoAutomation?
 
     /// Returns `nil` when `accentPattern.timeSignature != timeSignature`.
+    /// `automation`'s `startBPM` overrides the `bpm` argument when provided.
     public init?(
         id: UUID = UUID(),
         title: String,
@@ -35,20 +39,31 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
         accentPattern: AccentPattern? = nil,
         soundPreset: String? = nil,
         notes: String? = nil,
-        duration: SongDuration? = nil
+        duration: SongDuration? = nil,
+        automation: TempoAutomation? = nil
     ) {
         if let pattern = accentPattern, pattern.timeSignature != timeSignature {
             return nil
         }
         self.id = id
         self.title = title
-        self.bpm = bpm
+        self.bpm = automation?.startBPM ?? bpm
         self.timeSignature = timeSignature
         self.subdivision = subdivision
         self.accentPattern = accentPattern
         self.soundPreset = soundPreset
         self.notes = notes
         self.duration = duration
+        self.automation = automation
+    }
+
+    /// Set or clear the active tempo automation. Forces `bpm` to
+    /// `automation.startBPM` when non-nil so the two stay consistent.
+    public mutating func setAutomation(_ auto: TempoAutomation?) {
+        automation = auto
+        if let auto {
+            bpm = auto.startBPM
+        }
     }
 
     /// Set or clear the accent pattern. Returns `true` if accepted, `false`
@@ -77,7 +92,7 @@ public struct Song: Hashable, Sendable, Identifiable, Codable {
 extension Song {
     private enum CodingKeys: String, CodingKey {
         case id, title, bpm, timeSignature, subdivision, accentPattern
-        case soundPreset, notes, duration
+        case soundPreset, notes, duration, automation
     }
 
     public init(from decoder: Decoder) throws {
@@ -91,6 +106,7 @@ extension Song {
         let soundPreset = try container.decodeIfPresent(String.self, forKey: .soundPreset)
         let notes = try container.decodeIfPresent(String.self, forKey: .notes)
         let duration = try container.decodeIfPresent(SongDuration.self, forKey: .duration)
+        let automation = try container.decodeIfPresent(TempoAutomation.self, forKey: .automation)
         guard let song = Song(
             id: id,
             title: title,
@@ -100,7 +116,8 @@ extension Song {
             accentPattern: pattern,
             soundPreset: soundPreset,
             notes: notes,
-            duration: duration
+            duration: duration,
+            automation: automation
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .accentPattern,
@@ -122,6 +139,7 @@ extension Song {
         try container.encodeIfPresent(soundPreset, forKey: .soundPreset)
         try container.encodeIfPresent(notes, forKey: .notes)
         try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(automation, forKey: .automation)
     }
 }
 
@@ -141,5 +159,7 @@ extension MetronomeEngine {
         setSubdivision(song.subdivision)
         _ = setAccentPattern(song.accentPattern)
         setSoundPreset(song.soundPreset)
+        // Order matters: setBPM clears automation, so set automation LAST.
+        setAutomation(song.automation)
     }
 }

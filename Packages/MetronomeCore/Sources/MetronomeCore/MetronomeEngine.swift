@@ -51,6 +51,12 @@ public actor MetronomeEngine {
     /// about the song, not about the tempo.
     public private(set) var currentSoundPreset: String?
 
+    /// Active tempo ramp (spec §6.3). Set by `apply(_:Song)` or
+    /// `setAutomation(_:)`. Cleared by `stop()` and by any tempo edit
+    /// (setBPM dropping the user mid-ramp would be confusing). Re-anchors
+    /// the schedule on change while running.
+    public private(set) var automation: TempoAutomation?
+
     public init(
         clock: any EngineClock = SystemClock(),
         bpm: BPM = BPM(120),
@@ -91,14 +97,15 @@ public actor MetronomeEngine {
     }
 
     /// Stop emitting clicks. The schedule is cleared; audio (if attached)
-    /// is torn down. The current sound preset is cleared so the next
-    /// engine.start() reverts to the global setting until a Song is
-    /// applied.
+    /// is torn down. The current sound preset and automation are cleared so
+    /// the next engine.start() reverts to the global setting until a Song
+    /// is applied.
     public func stop() async {
         isRunning = false
         isPaused = false
         schedule = nil
         currentSoundPreset = nil
+        automation = nil
         if let scheduler {
             await scheduler.stop()
         }
@@ -150,8 +157,22 @@ public actor MetronomeEngine {
     }
 
     /// Change tempo. Re-anchors the click sequence at `clock.now` when running.
+    /// Clears any active automation — a manual BPM nudge mid-ramp is the
+    /// user telling us to abandon the ramp.
     public func setBPM(_ newBPM: BPM) {
         bpm = newBPM
+        automation = nil
+        reanchorIfRunning()
+    }
+
+    /// Set or clear the active tempo automation. When `auto` is non-nil,
+    /// `bpm` is forced to `auto.startBPM` so the schedule's precondition
+    /// holds. Re-anchors the schedule on running change.
+    public func setAutomation(_ auto: TempoAutomation?) {
+        automation = auto
+        if let auto {
+            bpm = auto.startBPM
+        }
         reanchorIfRunning()
     }
 
@@ -270,7 +291,8 @@ public actor MetronomeEngine {
             subdivision: subdivision,
             startTime: clock.now,
             accentPattern: accentPattern,
-            countInMeasures: countIn.measures
+            countInMeasures: countIn.measures,
+            automation: automation
         )
     }
 

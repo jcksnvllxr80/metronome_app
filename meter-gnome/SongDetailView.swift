@@ -32,6 +32,7 @@ struct SongDetailView: View {
                 tempoSection
                 matchStageSection
                 accentPatternSection
+                automationSection
                 soundSection
                 durationSection
                 notesSection
@@ -185,6 +186,203 @@ struct SongDetailView: View {
 
     private var accentPatternColor: Color {
         song.accentPattern == nil ? DS.DSColor.textMuted : DS.DSColor.accentTempo
+    }
+
+    // MARK: - Tempo Automation (spec §6.3, gradual ramp)
+
+    private var automationSection: some View {
+        Section {
+            Toggle("Enable Ramp", isOn: automationEnabledBinding)
+                .tint(DS.DSColor.accentTempo)
+                .listRowBackground(DS.DSColor.bgElevated)
+
+            if let auto = song.automation {
+                automationStartRow(auto: auto)
+                automationEndRow(auto: auto)
+                automationDurationKindRow(auto: auto)
+                automationDurationValueRow(auto: auto)
+            }
+        } header: {
+            Text("Tempo Ramp").foregroundStyle(DS.DSColor.textMuted)
+        } footer: {
+            Text(automationFooter).foregroundStyle(DS.DSColor.textMuted)
+        }
+    }
+
+    private var automationEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { song.automation != nil },
+            set: { isOn in
+                if isOn {
+                    // Default: ramp +40 BPM over 16 measures, capped at 400.
+                    let end = min(song.bpm.value + 40, BPM.maximum)
+                    let auto = TempoAutomation(
+                        startBPM: song.bpm,
+                        endBPM: BPM(end),
+                        duration: .measures(16)
+                    )
+                    song.setAutomation(auto)
+                } else {
+                    song.setAutomation(nil)
+                }
+            }
+        )
+    }
+
+    private func automationStartRow(auto: TempoAutomation) -> some View {
+        Stepper(
+            value: Binding(
+                get: { auto.startBPM.value },
+                set: { newValue in
+                    let next = TempoAutomation(
+                        startBPM: BPM(newValue),
+                        endBPM: auto.endBPM,
+                        duration: auto.duration
+                    )
+                    song.setAutomation(next)
+                }
+            ),
+            in: BPM.minimum...BPM.maximum,
+            step: 1
+        ) {
+            HStack {
+                Text("Start BPM").foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text("\(auto.startBPM.displayInt)")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.textPrimary)
+            }
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private func automationEndRow(auto: TempoAutomation) -> some View {
+        Stepper(
+            value: Binding(
+                get: { auto.endBPM.value },
+                set: { newValue in
+                    let next = TempoAutomation(
+                        startBPM: auto.startBPM,
+                        endBPM: BPM(newValue),
+                        duration: auto.duration
+                    )
+                    song.setAutomation(next)
+                }
+            ),
+            in: BPM.minimum...BPM.maximum,
+            step: 1
+        ) {
+            HStack {
+                Text("End BPM").foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text("\(auto.endBPM.displayInt)")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.textPrimary)
+            }
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    private enum AutomationDurationKind: Hashable { case measures, seconds }
+
+    private func automationDurationKindRow(auto: TempoAutomation) -> some View {
+        Picker(
+            "Duration",
+            selection: Binding(
+                get: {
+                    switch auto.duration {
+                    case .measures: return AutomationDurationKind.measures
+                    case .seconds: return AutomationDurationKind.seconds
+                    }
+                },
+                set: { kind in
+                    let newDuration: TempoAutomation.Duration
+                    switch kind {
+                    case .measures:
+                        if case .measures = auto.duration { return }
+                        newDuration = .measures(16)
+                    case .seconds:
+                        if case .seconds = auto.duration { return }
+                        newDuration = .seconds(60)
+                    }
+                    let next = TempoAutomation(
+                        startBPM: auto.startBPM,
+                        endBPM: auto.endBPM,
+                        duration: newDuration
+                    )
+                    song.setAutomation(next)
+                }
+            )
+        ) {
+            Text("Measures").tag(AutomationDurationKind.measures)
+            Text("Seconds").tag(AutomationDurationKind.seconds)
+        }
+        .pickerStyle(.segmented)
+        .listRowBackground(DS.DSColor.bgElevated)
+    }
+
+    @ViewBuilder
+    private func automationDurationValueRow(auto: TempoAutomation) -> some View {
+        switch auto.duration {
+        case .measures(let n):
+            Stepper(value: Binding(
+                get: { n },
+                set: { newN in
+                    let next = TempoAutomation(
+                        startBPM: auto.startBPM,
+                        endBPM: auto.endBPM,
+                        duration: .measures(newN)
+                    )
+                    song.setAutomation(next)
+                }
+            ), in: 1...512, step: 1) {
+                HStack {
+                    Text("Measures").foregroundStyle(DS.DSColor.textPrimary)
+                    Spacer()
+                    Text("\(n)")
+                        .font(DS.Font.monoData)
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                }
+            }
+            .listRowBackground(DS.DSColor.bgElevated)
+        case .seconds(let s):
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                HStack {
+                    Text("Seconds").foregroundStyle(DS.DSColor.textPrimary)
+                    Spacer()
+                    Text("\(Int(s.rounded())) s")
+                        .font(DS.Font.monoData)
+                        .foregroundStyle(DS.DSColor.textPrimary)
+                }
+                Slider(value: Binding(
+                    get: { s },
+                    set: { newS in
+                        let next = TempoAutomation(
+                            startBPM: auto.startBPM,
+                            endBPM: auto.endBPM,
+                            duration: .seconds(newS.rounded())
+                        )
+                        song.setAutomation(next)
+                    }
+                ), in: 5...600, step: 1)
+                    .tint(DS.DSColor.accentTempo)
+            }
+            .listRowBackground(DS.DSColor.bgElevated)
+        }
+    }
+
+    private var automationFooter: String {
+        guard let auto = song.automation else {
+            return "Linearly ramp tempo from one BPM to another over a fixed duration (accelerando or ritardando). Begins after count-in, ends and holds at End BPM."
+        }
+        let direction = auto.endBPM > auto.startBPM ? "Accelerate" :
+                        (auto.endBPM < auto.startBPM ? "Decelerate" : "Hold")
+        let durationText: String
+        switch auto.duration {
+        case .measures(let n): durationText = "\(n) measure\(n == 1 ? "" : "s")"
+        case .seconds(let s): durationText = "\(Int(s.rounded())) seconds"
+        }
+        return "\(direction) from \(auto.startBPM.displayInt) to \(auto.endBPM.displayInt) BPM over \(durationText). Song tempo is locked to Start BPM while ramp is enabled."
     }
 
     // MARK: - Sound
