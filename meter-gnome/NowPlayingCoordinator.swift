@@ -16,6 +16,7 @@
 //
 
 import MediaPlayer
+import UIKit
 import MetronomeCore
 
 @MainActor
@@ -25,6 +26,13 @@ final class NowPlayingCoordinator {
     private weak var viewModel: MetronomeViewModel?
     private var pollTask: Task<Void, Never>?
     private var commandsRegistered = false
+    /// Lazily-resolved MPMediaItemArtwork wrapping the app icon. Built
+    /// once and cached — Now Playing reads the same image on every
+    /// publish.
+    private lazy var artwork: MPMediaItemArtwork? = {
+        guard let image = UIImage(named: "AppIcon") else { return nil }
+        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+    }()
 
     // Last published snapshot — used to skip redundant updates so the poll
     // loop isn't hammering MPNowPlayingInfoCenter every tick.
@@ -129,6 +137,9 @@ final class NowPlayingCoordinator {
         info[MPMediaItemPropertyTitle] = title
         info[MPMediaItemPropertyArtist] = artist
         info[MPNowPlayingInfoPropertyPlaybackRate] = snapshot.isRunning ? 1.0 : 0.0
+        if let artwork {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
         // Setting a non-nil dict keeps our entry in the Now Playing carousel
         // even when paused; clearing it would drop us out.
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info

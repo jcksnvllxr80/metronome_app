@@ -113,8 +113,8 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 - Allow hardware volume keys to start/stop — spec §10.4
 - Headphone remote button mapping — spec §10.4
 
-### Now Playing artwork (spec §16)
-`MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` are wired (play/pause/toggle, next/prev in setlists, song title + BPM artist line). Still backlog: `MPMediaItemPropertyArtwork` so the lock-screen card has an icon, real-device verification of AirPods double-tap + Control Center transport.
+### Now Playing — remaining (spec §16)
+`MPNowPlayingInfoCenter` + `MPRemoteCommandCenter` wired (play/pause/toggle, next/prev in setlists, song title + BPM artist line, app-icon artwork). Real-device verification of AirPods double-tap + Control Center transport still pending.
 
 ### Accent pattern library (spec §3.2)
 - Save accent patterns as named presets, scoped to time signature
