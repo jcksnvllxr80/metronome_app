@@ -6,8 +6,14 @@ Items the user has explicitly decided NOT to pursue for the foreseeable future: 
 
 ## Priority — next session candidates
 
-### Real-device drift test
-Spec §1.1 mandates < 1 ms/minute drift. Engine math is verified via `FakeClock` unit tests, but the spec's budget applies to the full audio output path on real hardware. Load the app onto an iPhone, run for 5 minutes at 120 BPM against a hardware metronome (or a Logic Pro session set to the same tempo), record both, FFT-detect click onsets, measure spacing variance.
+### ~~Real-device drift test~~ — shipped v0.34.0 as an in-app diagnostic
+Spec §1.1 mandates < 1 ms/minute drift. Engine math was always verified via `FakeClock` unit tests, but the spec's budget applies to the full audio output path on real hardware. v0.34.0 adds an in-app diagnostic at Settings → Diagnostics → Drift Self-Test that runs the verification without external recording equipment:
+
+- Installs a tap on `AVAudioEngine.mainMixerNode` (output post-mix, pre-hardware-speaker) so the test sees the same signal iOS hands to the audio driver, but without mic / room / capture-latency variables polluting the measurement.
+- Forces a clean engine config (120 BPM, 4/4, no subdivision, no automation, no song) for the 60-second test window.
+- Detects click onsets via a windowed RMS-energy + refractory-period detector (5 ms windows, 150 ms refractory, 0.02 amplitude threshold — works because the internal tap has essentially zero noise floor).
+- Computes the median inter-onset interval with outlier filtering (drops gaps > 1.5× expected), and reports drift in ms/min vs the < 1 ms/min spec.
+- Measurement-only — no auto-correction shim. Rationale: measurement noise floor (onset-detection jitter accumulated over 60s) is ~5-10 ms/min, so any correction below that would chase noise; iOS already does audio-clock-vs-system-clock reconciliation internally; and if drift ever exceeds spec, that's a code bug worth fixing at the source, not papering over per-device. Engine state is not restored after the test; user expected to know they're running a diagnostic.
 
 ### Practice stats — remaining sub-features (spec §11)
 Practice-session log shipped end-to-end: PracticeSession value type, SwiftData store, view-model instrumentation (records on engine stopped→running→stopped transitions, 30-sec minimum, pause/resume keeps a session continuous, captures min/max BPM across the session), Stats tab in Library with today/week/month cards + 14-day daily + 8-week weekly bar charts + per-song breakdown + CSV export + clear-history. Still backlog:

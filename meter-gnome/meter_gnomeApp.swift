@@ -122,6 +122,15 @@ struct meter_gnomeApp: App {
         volumeKeyMonitor.setEnabled(settingsStore.current.useVolumeKeysForStartStop)
         viewModel.volumeKeyMonitor = volumeKeyMonitor
 
+        // Drift self-test (spec §1.1) — Settings → Diagnostics drill-in.
+        // Attaches asynchronously since it needs the audio scheduler's
+        // engine + format, which are actor-isolated.
+        let driftSelfTest = DriftSelfTest()
+        viewModel.driftSelfTest = driftSelfTest
+        Task {
+            await driftSelfTest.attach(viewModel: viewModel, scheduler: scheduler)
+        }
+
         // Lock-screen + Control Center + AirPods integration. The
         // coordinator reads from the view model's mirrored engine state.
         NowPlayingCoordinator.shared.attach(viewModel: viewModel)

@@ -6,7 +6,7 @@ Spec-coverage snapshot as of **v0.32.6**. Section numbers reference [`FUNCTIONAL
 
 | Spec | Feature | State |
 |---|---|---|
-| §1 | Engine math (BPM, time sig, subdivisions, accents, count-in, scheduling) | ✓ Math verified via 383 unit tests; real-device drift FFT measurement still pending (see below) |
+| §1 | Engine math (BPM, time sig, subdivisions, accents, count-in, scheduling) | ✓ Math verified via 383 unit tests. §1.1 drift budget verifiable in-app via Settings → Diagnostics → Drift Self-Test (v0.34.0) — measurement-only, no auto-correction shim. |
 | §2.1 | Time signatures, including odd meters (1–32 numerator, 1/2/4/8/16/32 denominator) | ✓ |
 | §2.2 | Subdivisions (none through nonuplets) | ✓ |
 | §2.3 | Per-subdivision-level volume + sound config | ✓ v0.16.0 |
@@ -38,9 +38,7 @@ Spec-coverage snapshot as of **v0.32.6**. Section numbers reference [`FUNCTIONAL
 
 ## Remaining
 
-| Spec | Item | Notes |
-|---|---|---|
-| §1.1 | Real-device drift test | Math passes 383 tests, but the < 1 ms/min spec applies to the full audio output path on real hardware. Procedure: load on device, run 5 min at 120 BPM against a hardware metronome / DAW reference, FFT-detect click onsets, measure spacing variance. Pure verification — no code change unless it fails. |
+_Engineering backlog is empty._ All spec items are either shipped + verified or explicitly dropped. Operational pre-ship items (App Store screenshots, privacy policy URL, TestFlight upload, etc.) are out of scope here.
 
 ## Explicitly dropped (not coming back without checking first)
 

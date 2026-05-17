@@ -60,6 +60,7 @@ struct SettingsView: View {
                 midiSection
                 randomMuteSection
                 hapticSection
+                diagnosticsSection
             }
             .scrollContentBackground(.hidden)
             .background(DS.DSColor.bgBase)
@@ -146,6 +147,35 @@ struct SettingsView: View {
     private func importedSoundsSummary(for vm: MetronomeViewModel) -> String {
         let n = vm.userSounds.count
         return n == 0 ? "None" : "\(n)"
+    }
+
+    /// Settings → Diagnostics → Drift Self-Test (spec §1.1). Hidden
+    /// when there's no view model (preview builds) since the test
+    /// needs a live audio scheduler.
+    @ViewBuilder
+    private var diagnosticsSection: some View {
+        if let vm = userSoundsViewModel, let test = vm.driftSelfTest {
+            Section {
+                NavigationLink {
+                    DriftDiagnosticsView(test: test)
+                } label: {
+                    HStack {
+                        Text("Drift Self-Test")
+                            .foregroundStyle(DS.DSColor.textPrimary)
+                        Spacer()
+                        Text("§1.1")
+                            .font(DS.Font.monoData)
+                            .foregroundStyle(DS.DSColor.textMuted)
+                    }
+                }
+                .listRowBackground(DS.DSColor.bgElevated)
+            } header: {
+                Text("Diagnostics").foregroundStyle(DS.DSColor.textMuted)
+            } footer: {
+                Text("Verify the engine's audio output drifts less than 1 ms per minute per spec §1.1. Runs in-app — no external recording equipment needed.")
+                    .foregroundStyle(DS.DSColor.textMuted)
+            }
+        }
     }
 
     /// Per-subdivision-level click config (spec §2.3). Each level

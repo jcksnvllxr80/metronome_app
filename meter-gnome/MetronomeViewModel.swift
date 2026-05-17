@@ -42,6 +42,10 @@ final class MetronomeViewModel {
     /// in `setSettings` when `useVolumeKeysForStartStop` changes.
     /// `nil` in previews + tests.
     @ObservationIgnored var volumeKeyMonitor: VolumeKeyMonitor?
+    /// In-app drift self-test runner (spec §1.1). Set by
+    /// `meter_gnomeApp`. SettingsView surfaces this through the
+    /// Diagnostics drill-in.
+    @ObservationIgnored var driftSelfTest: DriftSelfTest?
     /// Snapshot of currently-imported user sounds, refreshed from the
     /// store on launch + after every add/delete/update. Drives the
     /// "Imported Sounds" picker rows in Settings + SongDetail.
