@@ -167,6 +167,13 @@ final class MetronomeViewModel {
             Task { [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(nanoseconds: 100_000_000)
+                    // Pull engine state so the Stage BPM hero (and time
+                    // signature + subdivision) reflect the currently-
+                    // playing section/song, not whatever was active when
+                    // playback began. Without this, multi-section + setlist
+                    // playback advances internally but the displayed
+                    // tempo stays stuck on the initial value.
+                    await self?.refresh()
                     await self?.refreshSetlistPlaybackState()
                     await self?.refreshSectionPlaybackState()
                 }
