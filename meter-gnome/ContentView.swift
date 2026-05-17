@@ -127,6 +127,11 @@ struct ContentView: View {
             meterRow
                 .padding(.top, viewModel.playingSetlistName == nil ? DS.Spacing.lg : DS.Spacing.xs)
 
+            if viewModel.automation != nil {
+                rampIndicator
+                    .padding(.top, DS.Spacing.xs)
+            }
+
             Spacer()
 
             bpmView(pulse: pulse)
@@ -182,6 +187,43 @@ struct ContentView: View {
         let n = viewModel.playingSongIndex + 1
         let total = viewModel.playingSetlistCount
         return "\(name) · \(n) of \(total)"
+    }
+
+    // MARK: - Ramp indicator (tempo automation, spec §6.3)
+
+    @ViewBuilder
+    private var rampIndicator: some View {
+        if let auto = viewModel.automation {
+            Text(rampIndicatorText(for: auto))
+                .font(DS.Font.label)
+                .monospacedDigit()
+                .foregroundStyle(DS.DSColor.accentTempo)
+                .textCase(.uppercase)
+                .tracking(2)
+                .accessibilityLabel(rampIndicatorAccessibility(for: auto))
+        }
+    }
+
+    private func rampIndicatorText(for auto: TempoAutomation) -> String {
+        let durationPart: String
+        switch auto.duration {
+        case .measures(let n): durationPart = "\(n) \(n == 1 ? "bar" : "bars")"
+        case .seconds(let s): durationPart = "\(Int(s.rounded())) sec"
+        }
+        return "Ramp \(auto.startBPM.displayInt) → \(auto.endBPM.displayInt) · \(durationPart)"
+    }
+
+    private func rampIndicatorAccessibility(for auto: TempoAutomation) -> String {
+        let direction: String
+        if auto.endBPM > auto.startBPM { direction = "Accelerando" }
+        else if auto.endBPM < auto.startBPM { direction = "Ritardando" }
+        else { direction = "Tempo hold" }
+        let durationPart: String
+        switch auto.duration {
+        case .measures(let n): durationPart = "\(n) measure\(n == 1 ? "" : "s")"
+        case .seconds(let s): durationPart = "\(Int(s.rounded())) seconds"
+        }
+        return "\(direction) from \(auto.startBPM.displayInt) to \(auto.endBPM.displayInt) BPM over \(durationPart)"
     }
 
     // MARK: - Meter row (time signature + subdivision, top)

@@ -57,6 +57,10 @@ final class MetronomeViewModel {
     /// `nil` when the engine is stopped or before the first start().
     var schedule: ClickSchedule? = nil
 
+    /// Mirror of the engine's active tempo automation. Drives the Stage
+    /// ramp indicator. `nil` when no ramp is configured (the common case).
+    var automation: TempoAutomation? = nil
+
     /// Clock time of the most recent tap on the tap-tempo button. Drives
     /// the visual flash via `tapFlashIntensity(at:)`. `-.infinity` means
     /// "never tapped" — by definition `time - (-.infinity) > 0.150`, so
@@ -108,12 +112,14 @@ final class MetronomeViewModel {
         let running = await engine.isRunning
         let sched = await engine.schedule
         let settings = await engine.settings
+        let automation = await engine.automation
         self.bpm = bpm
         self.timeSignature = ts
         self.subdivision = sub
         self.isRunning = running
         self.schedule = sched
         self.settings = settings
+        self.automation = automation
     }
 
     // MARK: - User actions
