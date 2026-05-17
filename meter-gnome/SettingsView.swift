@@ -190,6 +190,7 @@ struct SettingsView: View {
                     Text("Volume").foregroundStyle(DS.DSColor.textPrimary)
                     Slider(value: polyVolumeBinding(currentValue: poly.volume), in: 0...1)
                         .tint(DS.DSColor.accentTempo)
+                        .accessibilityLabel("Polyrhythm volume")
                     Text("\(Int((poly.volume * 100).rounded()))%")
                         .font(DS.Font.monoData)
                         .frame(width: 48, alignment: .trailing)
@@ -519,6 +520,12 @@ struct SettingsView: View {
             }
             Slider(value: value, in: 0...1)
                 .tint(DS.DSColor.accentTempo)
+                // Each haptic-intensity slider shares the "Haptics"
+                // section header, so VoiceOver hears 4 unlabeled
+                // sliders in a row without this override. Explicit
+                // labels carry the accent level (Soft / Normal / …)
+                // into the screen-reader stream.
+                .accessibilityLabel("\(label) haptic intensity")
         }
         .listRowBackground(DS.DSColor.bgElevated)
     }

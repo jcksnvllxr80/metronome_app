@@ -456,6 +456,7 @@ struct SongDetailView: View {
                     }
                 ), in: 5...600, step: 1)
                     .tint(DS.DSColor.accentTempo)
+                    .accessibilityLabel("Ramp duration in seconds")
             }
             .listRowBackground(DS.DSColor.bgElevated)
         }
@@ -1173,6 +1174,7 @@ struct SongDetailView: View {
                     Text("Volume").foregroundStyle(DS.DSColor.textPrimary)
                     Slider(value: songPolyVolumeBinding(currentValue: poly.volume), in: 0...1)
                         .tint(DS.DSColor.accentTempo)
+                        .accessibilityLabel("Polyrhythm volume")
                     Text("\(Int((poly.volume * 100).rounded()))%")
                         .font(DS.Font.monoData)
                         .frame(width: 48, alignment: .trailing)
@@ -1324,6 +1326,7 @@ struct SongDetailView: View {
                     set: { song.duration = .seconds($0.rounded()) }
                 ), in: 5...600, step: 1)
                     .tint(DS.DSColor.accentTempo)
+                    .accessibilityLabel("Song duration in seconds")
             }
             .listRowBackground(DS.DSColor.bgElevated)
         case nil:
