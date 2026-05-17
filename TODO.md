@@ -109,7 +109,6 @@ All 5 modes shipped + per-accent intensity sliders. `HapticScheduler` mirrors `A
 - iPad could host two columns (Stage left + Library right)
 
 ### Settings — UI prefs not yet exposed
-- Start-on-app-launch toggle — spec §10.2
 - Allow hardware volume keys to start/stop — spec §10.4
 - Headphone remote button mapping — spec §10.4
 

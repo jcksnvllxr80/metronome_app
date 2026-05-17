@@ -54,6 +54,9 @@ final class PersistedEngineSettings {
     /// Default `true` per EngineSettings — preserves the in-spec default
     /// for existing rows that pre-date v0.8.3.
     var keepScreenAwakeDuringPlayback: Bool = true
+    /// Default `false` (spec §10.2) — auto-start on app launch is
+    /// opt-in to avoid surprise audio when users open the app.
+    var startOnLaunch: Bool = false
 
     init(
         masterVolume: Double = 1.0,
@@ -72,7 +75,8 @@ final class PersistedEngineSettings {
         hapticIntensityNormal: Double = 0.6,
         hapticIntensityLoud: Double = 0.85,
         hapticIntensityAccent: Double = 1.0,
-        keepScreenAwakeDuringPlayback: Bool = true
+        keepScreenAwakeDuringPlayback: Bool = true,
+        startOnLaunch: Bool = false
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -91,6 +95,7 @@ final class PersistedEngineSettings {
         self.hapticIntensityLoud = hapticIntensityLoud
         self.hapticIntensityAccent = hapticIntensityAccent
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
+        self.startOnLaunch = startOnLaunch
     }
 
     convenience init(from settings: EngineSettings) {
@@ -111,7 +116,8 @@ final class PersistedEngineSettings {
             hapticIntensityNormal: settings.hapticIntensity.normal,
             hapticIntensityLoud: settings.hapticIntensity.loud,
             hapticIntensityAccent: settings.hapticIntensity.accent,
-            keepScreenAwakeDuringPlayback: settings.keepScreenAwakeDuringPlayback
+            keepScreenAwakeDuringPlayback: settings.keepScreenAwakeDuringPlayback,
+            startOnLaunch: settings.startOnLaunch
         )
     }
 
@@ -135,7 +141,8 @@ final class PersistedEngineSettings {
                 loud: hapticIntensityLoud,
                 accent: hapticIntensityAccent
             ),
-            keepScreenAwakeDuringPlayback: keepScreenAwakeDuringPlayback
+            keepScreenAwakeDuringPlayback: keepScreenAwakeDuringPlayback,
+            startOnLaunch: startOnLaunch
         )
     }
 
@@ -157,6 +164,7 @@ final class PersistedEngineSettings {
         hapticIntensityLoud = settings.hapticIntensity.loud
         hapticIntensityAccent = settings.hapticIntensity.accent
         keepScreenAwakeDuringPlayback = settings.keepScreenAwakeDuringPlayback
+        startOnLaunch = settings.startOnLaunch
     }
 }
 

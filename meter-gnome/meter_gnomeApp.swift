@@ -89,6 +89,17 @@ struct meter_gnomeApp: App {
         // coordinator reads from the view model's mirrored engine state.
         NowPlayingCoordinator.shared.attach(viewModel: viewModel)
 
+        // Auto-start on launch when the user has opted in (spec §10.2).
+        // Defer behind a small delay so the audio scheduler + session
+        // are fully configured before we kick off playback.
+        if settingsStore.current.startOnLaunch {
+            Task {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                await engine.start()
+                await viewModel.refresh()
+            }
+        }
+
         _viewModel = State(wrappedValue: viewModel)
     }
 

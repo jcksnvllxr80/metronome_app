@@ -104,6 +104,11 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// on a music stand and don't want it sleeping mid-song. The view
     /// layer toggles `UIApplication.isIdleTimerDisabled` per this flag.
     public var keepScreenAwakeDuringPlayback: Bool
+    /// When `true`, the engine auto-starts when the app launches
+    /// (spec §10.2). Default `false` — users expect to deliberately
+    /// press play; surprise audio on launch is more annoying than
+    /// helpful for most workflows.
+    public var startOnLaunch: Bool
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -124,7 +129,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         randomMutePercentage: Int = 0,
         hapticMode: HapticMode = .off,
         hapticIntensity: HapticIntensity = HapticIntensity(),
-        keepScreenAwakeDuringPlayback: Bool = true
+        keepScreenAwakeDuringPlayback: Bool = true,
+        startOnLaunch: Bool = false
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -151,6 +157,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.hapticMode = hapticMode
         self.hapticIntensity = hapticIntensity
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
+        self.startOnLaunch = startOnLaunch
     }
 }
 
@@ -176,7 +183,8 @@ extension EngineSettings {
             randomMutePercentage: try c.decodeIfPresent(Int.self, forKey: .randomMutePercentage) ?? 0,
             hapticMode: try c.decodeIfPresent(HapticMode.self, forKey: .hapticMode) ?? .off,
             hapticIntensity: try c.decodeIfPresent(HapticIntensity.self, forKey: .hapticIntensity) ?? HapticIntensity(),
-            keepScreenAwakeDuringPlayback: try c.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeDuringPlayback) ?? true
+            keepScreenAwakeDuringPlayback: try c.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeDuringPlayback) ?? true,
+            startOnLaunch: try c.decodeIfPresent(Bool.self, forKey: .startOnLaunch) ?? false
         )
     }
 }
