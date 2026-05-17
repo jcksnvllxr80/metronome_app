@@ -11,8 +11,8 @@ Spec §1.1 mandates < 1 ms/minute drift. Engine math is verified via `FakeClock`
 
 ### Practice stats — remaining sub-features (spec §11)
 Practice-session log shipped end-to-end: PracticeSession value type, SwiftData store, view-model instrumentation (records on engine stopped→running→stopped transitions, 30-sec minimum, pause/resume keeps a session continuous, captures min/max BPM across the session), Stats tab in Library with today/week/month cards + per-song breakdown + CSV export + clear-history. Still backlog:
-- Optional daily goal tracking (set a goal in Settings; show progress in Stats)
 - Richer charts beyond the 14-day daily-totals bar chart (cumulative trend, BPM-over-time across sessions, per-song progress)
+- Weekly / monthly goals (currently only daily)
 
 ### Tempo automation — remaining sub-features (spec §6.3)
 Gradual ramp + step BPM both shipped (per-song, picker chooses between the two in SongDetail). Stage indicator renders the active mode. Still backlog:

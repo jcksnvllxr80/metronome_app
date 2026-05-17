@@ -160,6 +160,7 @@ struct SettingsView: View {
             Toggle("BPM precision (0.1)", isOn: $settings.bpmPrecisionMode)
                 .tint(DS.DSColor.accentTempo)
                 .listRowBackground(DS.DSColor.bgElevated)
+            dailyGoalRow
         } header: {
             Text("Playback Behavior").foregroundStyle(DS.DSColor.textMuted)
         } footer: {
@@ -207,6 +208,25 @@ struct SettingsView: View {
             Text("Send: publish a virtual MIDI source named \"meter-gnome\" that emits MIDI Clock (24 PPQ) + Start/Stop. Listen: follow incoming MIDI Clock from connected sources — DAW transport drives play/stop, DAW tempo drives BPM.")
                 .foregroundStyle(DS.DSColor.textMuted)
         }
+    }
+
+    // MARK: - Daily practice goal (spec §11)
+
+    private var dailyGoalRow: some View {
+        Stepper(
+            value: $settings.dailyPracticeGoalMinutes,
+            in: 0...240,
+            step: 5
+        ) {
+            HStack {
+                Text("Daily goal").foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text(settings.dailyPracticeGoalMinutes == 0 ? "Off" : "\(settings.dailyPracticeGoalMinutes) min")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.textPrimary)
+            }
+        }
+        .listRowBackground(DS.DSColor.bgElevated)
     }
 
     // MARK: - Haptics (spec §9)

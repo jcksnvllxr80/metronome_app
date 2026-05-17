@@ -129,10 +129,17 @@ struct StatsView: View {
         let startOfMonth = Calendar.current.date(
             from: Calendar.current.dateComponents([.year, .month], from: now)
         ) ?? startOfToday
-        return HStack(spacing: DS.Spacing.sm) {
-            timeCard(label: "Today", total: sessions.started(onOrAfter: startOfToday).totalDuration)
-            timeCard(label: "Week", total: sessions.started(onOrAfter: startOfWeek).totalDuration)
-            timeCard(label: "Month", total: sessions.started(onOrAfter: startOfMonth).totalDuration)
+        let goalMinutes = viewModel.settings.dailyPracticeGoalMinutes
+        let todayTotal = sessions.started(onOrAfter: startOfToday).totalDuration
+        return VStack(spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.sm) {
+                timeCard(label: "Today", total: todayTotal)
+                timeCard(label: "Week", total: sessions.started(onOrAfter: startOfWeek).totalDuration)
+                timeCard(label: "Month", total: sessions.started(onOrAfter: startOfMonth).totalDuration)
+            }
+            if goalMinutes > 0 {
+                goalProgressBar(todayMinutes: todayTotal / 60, goalMinutes: Double(goalMinutes))
+            }
         }
     }
 
@@ -147,6 +154,41 @@ struct StatsView: View {
                 .foregroundStyle(DS.DSColor.textPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(DS.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md)
+                .fill(DS.DSColor.bgElevated)
+        )
+    }
+
+    /// Progress bar against the user's daily goal. Caps the visual fill
+    /// at 100% even if the user blew past the goal — the text label
+    /// shows the actual ratio either way.
+    private func goalProgressBar(todayMinutes: Double, goalMinutes: Double) -> some View {
+        let fraction = min(1, todayMinutes / goalMinutes)
+        let reached = todayMinutes >= goalMinutes
+        return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack {
+                Text("DAILY GOAL")
+                    .font(DS.Font.label)
+                    .tracking(2)
+                    .foregroundStyle(DS.DSColor.textMuted)
+                Spacer()
+                Text("\(Int(todayMinutes.rounded()))/\(Int(goalMinutes)) min")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(reached ? DS.DSColor.semanticOk : DS.DSColor.textPrimary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .fill(DS.DSColor.bgRecessed)
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .fill(reached ? DS.DSColor.semanticOk : DS.DSColor.accentTempo)
+                        .frame(width: max(2, geo.size.width * fraction))
+                }
+            }
+            .frame(height: 8)
+        }
         .padding(DS.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: DS.Radius.md)

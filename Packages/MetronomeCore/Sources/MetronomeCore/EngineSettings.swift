@@ -109,6 +109,11 @@ public struct EngineSettings: Hashable, Sendable, Codable {
     /// press play; surprise audio on launch is more annoying than
     /// helpful for most workflows.
     public var startOnLaunch: Bool
+    /// Optional daily practice goal in minutes (spec §11). 0 = no goal
+    /// set. The Stats screen renders a progress bar against this when
+    /// it's > 0. Stored as Int to match the slider's snap-to-whole
+    /// behavior.
+    public var dailyPracticeGoalMinutes: Int
 
     /// Allowed range for `randomMutePercentage` when active (0 is special-
     /// cased as "off"). Per spec §6.4 — wider ranges than 50% don't help
@@ -130,7 +135,8 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         hapticMode: HapticMode = .off,
         hapticIntensity: HapticIntensity = HapticIntensity(),
         keepScreenAwakeDuringPlayback: Bool = true,
-        startOnLaunch: Bool = false
+        startOnLaunch: Bool = false,
+        dailyPracticeGoalMinutes: Int = 0
     ) {
         self.masterVolume = max(0.0, min(1.0, masterVolume))
         self.latencyOffsetSeconds = max(
@@ -158,6 +164,7 @@ public struct EngineSettings: Hashable, Sendable, Codable {
         self.hapticIntensity = hapticIntensity
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
         self.startOnLaunch = startOnLaunch
+        self.dailyPracticeGoalMinutes = max(0, dailyPracticeGoalMinutes)
     }
 }
 
@@ -184,7 +191,8 @@ extension EngineSettings {
             hapticMode: try c.decodeIfPresent(HapticMode.self, forKey: .hapticMode) ?? .off,
             hapticIntensity: try c.decodeIfPresent(HapticIntensity.self, forKey: .hapticIntensity) ?? HapticIntensity(),
             keepScreenAwakeDuringPlayback: try c.decodeIfPresent(Bool.self, forKey: .keepScreenAwakeDuringPlayback) ?? true,
-            startOnLaunch: try c.decodeIfPresent(Bool.self, forKey: .startOnLaunch) ?? false
+            startOnLaunch: try c.decodeIfPresent(Bool.self, forKey: .startOnLaunch) ?? false,
+            dailyPracticeGoalMinutes: try c.decodeIfPresent(Int.self, forKey: .dailyPracticeGoalMinutes) ?? 0
         )
     }
 }

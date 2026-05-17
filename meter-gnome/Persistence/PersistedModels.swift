@@ -57,6 +57,8 @@ final class PersistedEngineSettings {
     /// Default `false` (spec §10.2) — auto-start on app launch is
     /// opt-in to avoid surprise audio when users open the app.
     var startOnLaunch: Bool = false
+    /// Daily practice goal in minutes (spec §11). 0 = no goal.
+    var dailyPracticeGoalMinutes: Int = 0
 
     init(
         masterVolume: Double = 1.0,
@@ -76,7 +78,8 @@ final class PersistedEngineSettings {
         hapticIntensityLoud: Double = 0.85,
         hapticIntensityAccent: Double = 1.0,
         keepScreenAwakeDuringPlayback: Bool = true,
-        startOnLaunch: Bool = false
+        startOnLaunch: Bool = false,
+        dailyPracticeGoalMinutes: Int = 0
     ) {
         self.masterVolume = masterVolume
         self.latencyOffsetSeconds = latencyOffsetSeconds
@@ -96,6 +99,7 @@ final class PersistedEngineSettings {
         self.hapticIntensityAccent = hapticIntensityAccent
         self.keepScreenAwakeDuringPlayback = keepScreenAwakeDuringPlayback
         self.startOnLaunch = startOnLaunch
+        self.dailyPracticeGoalMinutes = dailyPracticeGoalMinutes
     }
 
     convenience init(from settings: EngineSettings) {
@@ -117,7 +121,8 @@ final class PersistedEngineSettings {
             hapticIntensityLoud: settings.hapticIntensity.loud,
             hapticIntensityAccent: settings.hapticIntensity.accent,
             keepScreenAwakeDuringPlayback: settings.keepScreenAwakeDuringPlayback,
-            startOnLaunch: settings.startOnLaunch
+            startOnLaunch: settings.startOnLaunch,
+            dailyPracticeGoalMinutes: settings.dailyPracticeGoalMinutes
         )
     }
 
@@ -142,7 +147,8 @@ final class PersistedEngineSettings {
                 accent: hapticIntensityAccent
             ),
             keepScreenAwakeDuringPlayback: keepScreenAwakeDuringPlayback,
-            startOnLaunch: startOnLaunch
+            startOnLaunch: startOnLaunch,
+            dailyPracticeGoalMinutes: dailyPracticeGoalMinutes
         )
     }
 
@@ -165,6 +171,7 @@ final class PersistedEngineSettings {
         hapticIntensityAccent = settings.hapticIntensity.accent
         keepScreenAwakeDuringPlayback = settings.keepScreenAwakeDuringPlayback
         startOnLaunch = settings.startOnLaunch
+        dailyPracticeGoalMinutes = settings.dailyPracticeGoalMinutes
     }
 }
 
