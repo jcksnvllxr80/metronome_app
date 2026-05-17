@@ -63,3 +63,39 @@ public struct Click: Hashable, Sendable {
         subdivisionIndex == 0
     }
 }
+
+/// One scheduled polyrhythm event (spec §2.4). Parallel to `Click` but
+/// without beat / subdivision / accent semantics — polyrhythm clicks are
+/// a flat stream of N evenly-spaced pulses per primary-meter measure,
+/// each carrying just the sound + volume from the active
+/// `PolyrhythmConfig`. They share the primary measure's start boundary
+/// so polyrhythm[0] of each measure aligns with the downbeat.
+public struct PolyClick: Hashable, Sendable {
+    /// 0-based primary-meter measure this pulse belongs to. Matches
+    /// `Click.measureIndex` for the same measure.
+    public let measureIndex: Int
+    /// 0-based pulse-within-measure, 0…(pulses-1).
+    public let pulseIndex: Int
+    /// When this pulse fires, in `EngineClock` time.
+    public let time: TimeInterval
+    /// Sound to play, from the active `PolyrhythmConfig`.
+    public let sound: ClickSound
+    /// 0.0–1.0 stream volume from the active `PolyrhythmConfig`. The
+    /// audio scheduler still multiplies by `EngineSettings.masterVolume`
+    /// at output time.
+    public let volume: Double
+
+    public init(
+        measureIndex: Int,
+        pulseIndex: Int,
+        time: TimeInterval,
+        sound: ClickSound,
+        volume: Double
+    ) {
+        self.measureIndex = measureIndex
+        self.pulseIndex = pulseIndex
+        self.time = time
+        self.sound = sound
+        self.volume = volume
+    }
+}

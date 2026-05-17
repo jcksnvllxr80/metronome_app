@@ -41,6 +41,14 @@ public struct ClickSchedule: Hashable, Sendable {
     /// before spec §2.3 keep working unchanged. The engine pulls this
     /// from `settings.subdivisionConfigs[subdivision]` when rebuilding.
     public let subdivisionConfig: SubdivisionConfig?
+    /// Same-measure polyrhythm config (spec §2.4). When non-nil, the
+    /// schedule produces a parallel stream of `PolyClick` events at
+    /// `N` evenly-spaced positions across each measure of the primary
+    /// meter, where `N == polyrhythm.pulses`. Polyrhythm clicks share
+    /// the measure boundary (pulse 0 aligns with the downbeat) but
+    /// otherwise have their own period — they do not align with
+    /// subdivisions. Polyrhythm doesn't fire during count-in.
+    public let polyrhythm: PolyrhythmConfig?
 
     /// Precondition: if `accentPattern` is non-nil, its `timeSignature` must
     /// equal `timeSignature`. The caller (engine) clears mismatched patterns
@@ -56,7 +64,8 @@ public struct ClickSchedule: Hashable, Sendable {
         accentPattern: AccentPattern? = nil,
         countInMeasures: Int = 0,
         automation: TempoAutomation? = nil,
-        subdivisionConfig: SubdivisionConfig? = nil
+        subdivisionConfig: SubdivisionConfig? = nil,
+        polyrhythm: PolyrhythmConfig? = nil
     ) {
         if let pattern = accentPattern {
             precondition(
@@ -79,6 +88,7 @@ public struct ClickSchedule: Hashable, Sendable {
         self.countInMeasures = countInMeasures
         self.automation = automation
         self.subdivisionConfig = subdivisionConfig
+        self.polyrhythm = polyrhythm
     }
 
     /// Seconds between consecutive clicks (including subdivision clicks).
@@ -215,5 +225,96 @@ public struct ClickSchedule: Hashable, Sendable {
     /// count-in main-beat click.
     private func defaultBeatConfig(beat: Int) -> BeatConfig {
         beat == 0 ? .downbeat : .mainBeat
+    }
+
+    // MARK: - Polyrhythm (spec §2.4)
+
+    /// Compute the Nth polyrhythm pulse since the first post-count-in
+    /// downbeat. Returns nil when no polyrhythm is configured.
+    ///
+    /// Pulse 0 aligns with the first downbeat (measure 0, pulse 0).
+    /// Pulse `N` falls at index `N % pulses` of measure `N / pulses`.
+    /// The pulse's beat position within the song is
+    /// `(N / pulses + (N % pulses) / pulses) * numerator`, mapped to
+    /// wall-clock through the active tempo curve (constant BPM if no
+    /// automation is set).
+    public func polyClick(at index: Int) -> PolyClick? {
+        guard let poly = polyrhythm else { return nil }
+        precondition(index >= 0, "Poly click index must be non-negative")
+        let pulses = poly.pulses
+        let measureIndex = index / pulses
+        let pulseIndex = index % pulses
+        let pulseBeatPosition = (Double(measureIndex)
+            + Double(pulseIndex) / Double(pulses)) * Double(timeSignature.numerator)
+        let time = timeForPolyBeatPosition(pulseBeatPosition)
+        return PolyClick(
+            measureIndex: measureIndex,
+            pulseIndex: pulseIndex,
+            time: time,
+            sound: poly.sound,
+            volume: poly.volume
+        )
+    }
+
+    /// Index of the first polyrhythm pulse at-or-after `time`. Returns
+    /// 0 when `time` precedes the song's first downbeat (count-in
+    /// inclusive) — polyrhythm never fires during count-in, so the
+    /// caller will see the first pulse land exactly at the first
+    /// post-count-in downbeat.
+    public func firstPolyClickIndex(atOrAfter time: TimeInterval) -> Int {
+        guard let poly = polyrhythm else { return 0 }
+        let pulses = poly.pulses
+        let firstPulseStart = startTime + countInDuration
+        guard time > firstPulseStart else { return 0 }
+        let elapsed = time - firstPulseStart
+
+        // No automation → constant pulse period, direct division.
+        if automation == nil {
+            let measurePeriod = bpm.beatPeriod * Double(timeSignature.numerator)
+            let pulsePeriod = measurePeriod / Double(pulses)
+            let raw = elapsed / pulsePeriod
+            return Int(raw.rounded(.up))
+        }
+
+        // Automation → convert elapsed song-time to a beat position,
+        // then map beat position to pulse index. `automation.beatPosition`
+        // is monotonic, so ceil yields the smallest index whose time is
+        // at-or-after `time`. Guard with a single forward refinement in
+        // case ceil lands on a pulse that's a hair before `time`
+        // (floating-point boundary case).
+        let auto = automation!
+        let beatPos = auto.beatPosition(forTime: elapsed, timeSignature: timeSignature)
+        let pulsesPerMeasure = Double(pulses)
+        let measureCount = beatPos / Double(timeSignature.numerator)
+        var guess = Int((measureCount * pulsesPerMeasure).rounded(.up))
+        // Defensive refinement: ensure the returned index's pulse time
+        // is genuinely >= time. Bounded — automation curves are
+        // monotonic so this loop converges in 0–1 steps in practice.
+        while guess > 0, let pc = polyClick(at: guess - 1), pc.time >= time {
+            guess -= 1
+        }
+        return guess
+    }
+
+    /// Returns `count` consecutive polyrhythm pulses starting at-or-after
+    /// `time`. Empty when polyrhythm is disabled.
+    public func polyClicks(from time: TimeInterval, count: Int) -> [PolyClick] {
+        precondition(count >= 0, "Poly click count must be non-negative")
+        guard polyrhythm != nil else { return [] }
+        let start = firstPolyClickIndex(atOrAfter: time)
+        return (0..<count).compactMap { polyClick(at: start + $0) }
+    }
+
+    /// Map a polyrhythm pulse's beat position (in primary-meter beats
+    /// since the first post-count-in downbeat) to wall-clock time.
+    /// Mirrors `timeForClickIndex` but indexed in beat-position rather
+    /// than click-index, since polyrhythm pulses don't align with the
+    /// primary subdivision grid.
+    private func timeForPolyBeatPosition(_ beatPosition: Double) -> TimeInterval {
+        if let auto = automation {
+            return startTime + countInDuration
+                + auto.time(forBeatPosition: beatPosition, timeSignature: timeSignature)
+        }
+        return startTime + countInDuration + beatPosition * bpm.beatPeriod
     }
 }
