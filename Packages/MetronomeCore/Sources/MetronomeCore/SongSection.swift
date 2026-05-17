@@ -32,11 +32,19 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
     /// in al-fine mode (see `isFine`). Spec §7.3.
     public var endAction: SectionEndAction
     /// When true, this section is the "Fine" point in a D.C. al Fine
-    /// structure: if the player is in al-fine mode (because some
-    /// earlier section had `endAction = .daCapoAlFine`), playback
-    /// stops after this section's repeats finish. Has no effect when
-    /// not in al-fine mode. Spec §7.3.
+    /// or D.S. al Fine structure: if the player is in al-fine mode
+    /// (because some earlier section had `endAction = .daCapoAlFine`
+    /// or `.dalSegnoAlFine`), playback stops after this section's
+    /// repeats finish. Has no effect when not in al-fine mode.
+    /// Spec §7.3.
     public var isFine: Bool
+    /// When true, this section is the "Segno" mark — the jump target
+    /// for any later section with `endAction = .dalSegnoAlFine`. Like
+    /// the head section in D.C. notation but explicit so the form's
+    /// real repeat target can sit mid-song. When multiple sections
+    /// carry the flag, D.S. jumps to the nearest preceding one.
+    /// Spec §7.3.
+    public var isSegno: Bool
 
     /// Returns `nil` if `measureCount < 1` or
     /// `accentPattern.timeSignature != timeSignature`.
@@ -51,7 +59,8 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         soundPreset: String? = nil,
         repeatCount: Int = 1,
         endAction: SectionEndAction = .continue,
-        isFine: Bool = false
+        isFine: Bool = false,
+        isSegno: Bool = false
     ) {
         guard measureCount >= 1 else { return nil }
         if let pattern = accentPattern, pattern.timeSignature != timeSignature {
@@ -68,6 +77,7 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
         self.repeatCount = max(1, repeatCount)
         self.endAction = endAction
         self.isFine = isFine
+        self.isSegno = isSegno
     }
 
     /// Set or clear the accent pattern. Returns `true` if accepted,
@@ -96,7 +106,8 @@ public struct SongSection: Hashable, Sendable, Identifiable, Codable {
 extension SongSection {
     private enum CodingKeys: String, CodingKey {
         case id, name, bpm, timeSignature, subdivision, measureCount,
-             accentPattern, soundPreset, repeatCount, endAction, isFine
+             accentPattern, soundPreset, repeatCount, endAction, isFine,
+             isSegno
     }
 
     public init(from decoder: Decoder) throws {
@@ -113,6 +124,7 @@ extension SongSection {
         let repeatCount = (try c.decodeIfPresent(Int.self, forKey: .repeatCount)) ?? 1
         let endAction = (try c.decodeIfPresent(SectionEndAction.self, forKey: .endAction)) ?? .continue
         let isFine = (try c.decodeIfPresent(Bool.self, forKey: .isFine)) ?? false
+        let isSegno = (try c.decodeIfPresent(Bool.self, forKey: .isSegno)) ?? false
         guard let section = SongSection(
             id: id,
             name: name,
@@ -124,7 +136,8 @@ extension SongSection {
             soundPreset: soundPreset,
             repeatCount: repeatCount,
             endAction: endAction,
-            isFine: isFine
+            isFine: isFine,
+            isSegno: isSegno
         ) else {
             throw DecodingError.dataCorruptedError(
                 forKey: .measureCount, in: c,
@@ -149,5 +162,6 @@ extension SongSection {
         try c.encode(repeatCount, forKey: .repeatCount)
         try c.encode(endAction, forKey: .endAction)
         try c.encode(isFine, forKey: .isFine)
+        try c.encode(isSegno, forKey: .isSegno)
     }
 }

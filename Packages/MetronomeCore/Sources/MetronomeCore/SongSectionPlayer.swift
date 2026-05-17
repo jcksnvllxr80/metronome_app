@@ -225,6 +225,8 @@ public actor SongSectionPlayer {
                     await endNaturally()
                 case .daCapoAlFine:
                     await jumpToDaCapoAlFine()
+                case .dalSegnoAlFine:
+                    await jumpToDalSegnoAlFine()
                 case .continue:
                     await advanceToNextSection()
                 }
@@ -282,6 +284,25 @@ public actor SongSectionPlayer {
         let firstSection = sections[0]
         let materialized = Self.materialize(section: firstSection, parentSong: song)
         await engine.applyForSectionTransition(materialized, sectionMeasureCount: firstSection.measureCount)
+    }
+
+    /// D.S. al Fine jump: scan backwards from the current section for
+    /// the nearest section flagged `isSegno`; jump there and enter
+    /// al-fine mode. If no segno mark exists, fall back to D.C.
+    /// behavior (jump to section 0) so the chart still resolves.
+    private func jumpToDalSegnoAlFine() async {
+        guard let song,
+              let sections = song.sections,
+              !sections.isEmpty,
+              let engine = engineRef
+        else { return }
+        let segnoIndex = (0..<currentIndex).reversed().first { sections[$0].isSegno } ?? 0
+        currentIndex = segnoIndex
+        currentRepetition = 0
+        isAlFineMode = true
+        let target = sections[segnoIndex]
+        let materialized = Self.materialize(section: target, parentSong: song)
+        await engine.applyForSectionTransition(materialized, sectionMeasureCount: target.measureCount)
     }
 
     /// Synthesize a single-section Song from a SongSection + its parent

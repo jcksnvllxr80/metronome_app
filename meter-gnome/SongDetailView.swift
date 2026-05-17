@@ -892,10 +892,17 @@ struct SongDetailView: View {
                 }
             }
             sectionEndActionMenu(index: index, section: section)
-            Toggle("Fine (D.C. al Fine target)", isOn: Binding(
+            Toggle("Fine (D.C./D.S. al Fine target)", isOn: Binding(
                 get: { section.isFine },
                 set: { newValue in
                     updateSection(at: index) { $0.isFine = newValue }
+                }
+            ))
+            .tint(DS.DSColor.accentTempo)
+            Toggle("Segno (D.S. jump target)", isOn: Binding(
+                get: { section.isSegno },
+                set: { newValue in
+                    updateSection(at: index) { $0.isSegno = newValue }
                 }
             ))
             .tint(DS.DSColor.accentTempo)
