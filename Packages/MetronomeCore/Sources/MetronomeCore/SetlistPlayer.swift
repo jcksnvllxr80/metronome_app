@@ -19,6 +19,13 @@ import Foundation
 /// End of setlist: engine stops, player state clears.
 public actor SetlistPlayer {
     public private(set) weak var engine: MetronomeEngine?
+    /// Weak reference to the section player. When the current setlist
+    /// song `.isMultiSection`, `startCurrentSong` routes through this
+    /// player with a completion callback so section auto-advance drives
+    /// end-of-song detection (instead of `song.duration`). Optional —
+    /// when nil, multi-section songs fall back to flat playback at the
+    /// song's top-level BPM.
+    private weak var sectionPlayer: SongSectionPlayer?
     private let clock: any EngineClock
 
     public private(set) var setlist: Setlist?
@@ -43,8 +50,13 @@ public actor SetlistPlayer {
     /// beat at 400 BPM, 1/24 of a beat at 60 BPM.
     private static let pollIntervalMs: UInt64 = 50
 
-    public init(engine: MetronomeEngine, clock: any EngineClock = SystemClock()) {
+    public init(
+        engine: MetronomeEngine,
+        sectionPlayer: SongSectionPlayer? = nil,
+        clock: any EngineClock = SystemClock()
+    ) {
         self.engine = engine
+        self.sectionPlayer = sectionPlayer
         self.clock = clock
     }
 
@@ -76,7 +88,13 @@ public actor SetlistPlayer {
         pollTask = nil
         setlist = nil
         currentIndex = -1
-        await engine?.stop()
+        // Stop the section player too if it was driving a multi-section
+        // song. Its own stop path clears the scheduler cap + engine.
+        if let sectionPlayer, await sectionPlayer.isActive {
+            await sectionPlayer.stop()
+        } else {
+            await engine?.stop()
+        }
     }
 
     /// Manual next-song. Skips count-in (manual advance is intent-driven).
@@ -107,6 +125,21 @@ public actor SetlistPlayer {
 
     private func startCurrentSong(countInMeasures: Int) async {
         guard let song = currentSong else { return }
+        // Multi-section songs route through SongSectionPlayer so section
+        // auto-advance works inside the setlist. The completion callback
+        // signals "song finished" back here, which then advances the
+        // setlist per its advanceMode. Count-in for the first section is
+        // not yet plumbed through this path (TODO — for now, .countdown
+        // mode on a multi-section song will skip count-in).
+        if song.isMultiSection, let sectionPlayer {
+            await sectionPlayer.play(song) { [weak self] in
+                guard let self else { return }
+                await self.handleSectionsExhausted()
+            }
+            // Duration tracking is moot — SongSectionPlayer drives end.
+            songStartTime = clock.now
+            return
+        }
         await engine?.apply(song)
         let countIn = CountIn(rawValue: countInMeasures) ?? .off
         await engine?.start(countIn: countIn)
@@ -116,6 +149,18 @@ public actor SetlistPlayer {
             * Double(song.timeSignature.numerator)
             * song.bpm.beatPeriod
         songStartTime = clock.now + countInDuration
+    }
+
+    /// Invoked by `SongSectionPlayer` (via the play() completion
+    /// callback) when a multi-section song's sections naturally end.
+    /// Advances the setlist per its advance mode just like a duration-
+    /// based timeout would have.
+    private func handleSectionsExhausted() async {
+        guard let setlist, isActive else { return }
+        isAdvancing = true
+        await advance(mode: setlist.advanceMode)
+        isAdvancing = false
+        lastEngineRunning = await engine?.isRunning ?? false
     }
 
     private func startPolling() {
@@ -147,6 +192,9 @@ public actor SetlistPlayer {
         if isWaitingForResume { return }
         guard let setlist, let song = currentSong, let duration = song.duration
         else { return }
+        // Multi-section songs end when sections exhaust, not on duration.
+        // The SongSectionPlayer fires `handleSectionsExhausted` directly.
+        if song.isMultiSection, sectionPlayer != nil { return }
 
         let shouldAdvance: Bool
         switch duration {

@@ -68,13 +68,16 @@ struct meter_gnomeApp: App {
             }
         }
 
-        // Setlist playback coordinator — watches engine clock + drives
-        // song transitions per the active setlist's advance mode.
-        let setlistPlayer = SetlistPlayer(engine: engine)
-
         // Section playback coordinator — for multi-section songs (spec
         // §7.3), advances section-by-section on measure boundaries.
         let songSectionPlayer = SongSectionPlayer(engine: engine)
+
+        // Setlist playback coordinator — watches engine clock + drives
+        // song transitions per the active setlist's advance mode. Holds
+        // a weak ref to the section player so multi-section songs in a
+        // setlist auto-advance section-by-section, then chain to the
+        // next setlist entry when sections naturally exhaust.
+        let setlistPlayer = SetlistPlayer(engine: engine, sectionPlayer: songSectionPlayer)
 
         // Haptic feedback (spec §9). Falls through to a no-op on
         // devices without CoreHaptics or in the simulator.

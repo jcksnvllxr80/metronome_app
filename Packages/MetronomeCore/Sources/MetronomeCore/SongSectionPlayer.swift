@@ -26,7 +26,8 @@ public actor SongSectionPlayer {
     /// Local clock used for time-based boundary detection. Same backing
     /// source (mach_absolute_time) as the engine's clock, so the times
     /// we compare against `schedule.startTime` are in the same timebase.
-    private let clock = SystemClock()
+    /// Injectable so tests can drive `FakeClock`-synchronized advance.
+    private let clock: any EngineClock
     /// Zero-based count of completed passes through the current
     /// section. When this hits `section.repeatCount - 1` AND another
     /// measure-boundary fires, the player advances to the next
@@ -40,9 +41,16 @@ public actor SongSectionPlayer {
     public private(set) var isAlFineMode: Bool = false
     private var pollTask: Task<Void, Never>?
     private var isAdvancing: Bool = false
+    /// Optional handler invoked when the song's sections naturally
+    /// exhaust (continue-past-last, .stop endAction, or al-fine hits a
+    /// Fine-marked section). Set by `SetlistPlayer` so it can advance
+    /// to the next song without the section player stopping the engine.
+    /// When nil (standalone playback), natural end stops the engine.
+    private var onSectionsExhausted: (@Sendable () async -> Void)?
 
-    public init(engine: MetronomeEngine) {
+    public init(engine: MetronomeEngine, clock: any EngineClock = SystemClock()) {
         self.engineRef = engine
+        self.clock = clock
     }
 
     /// The currently-playing section, or nil before `play` / after `stop`.
@@ -62,7 +70,17 @@ public actor SongSectionPlayer {
     /// Start playback from the first section. Engine is started here so
     /// callers don't have to remember the order (player first, then
     /// engine.start). No-op if the song isn't multi-section.
-    public func play(_ song: Song, startingAt index: Int = 0) async {
+    ///
+    /// `onSectionsExhausted` is invoked when the song's sections end
+    /// naturally — used by `SetlistPlayer` to chain into the next song
+    /// without the section player tearing down the engine. When the
+    /// callback is set, natural-end paths skip `engine.stop()` and the
+    /// caller is responsible for the next action.
+    public func play(
+        _ song: Song,
+        startingAt index: Int = 0,
+        onSectionsExhausted: (@Sendable () async -> Void)? = nil
+    ) async {
         guard song.isMultiSection,
               let sections = song.sections,
               !sections.isEmpty,
@@ -74,6 +92,7 @@ public actor SongSectionPlayer {
         self.currentRepetition = 0
         self.isAlFineMode = false
         self.isActive = true
+        self.onSectionsExhausted = onSectionsExhausted
         let firstSection = sections[safeIndex]
         let materialized = Self.materialize(section: firstSection, parentSong: song)
         // First-section start: standard apply + start the engine. The
@@ -93,21 +112,45 @@ public actor SongSectionPlayer {
     }
 
     /// Stop section playback. Stops the engine + clears local state.
+    /// Manual stop path — discards any exhausted-callback so the caller
+    /// (typically the user pressing Stop) is treated as final.
     public func stop() async {
+        await teardown(stopEngine: true)
+    }
+
+    /// Natural end-of-song path. If a completion callback was registered
+    /// (setlist playback), invoke it AFTER clearing local state, leaving
+    /// the engine running so the caller can transition into the next
+    /// song. Otherwise, fall through to the same teardown as `stop()`
+    /// (stops the engine — standalone playback).
+    private func endNaturally() async {
+        if let callback = onSectionsExhausted {
+            await teardown(stopEngine: false)
+            await callback()
+        } else {
+            await teardown(stopEngine: true)
+        }
+    }
+
+    private func teardown(stopEngine: Bool) async {
         isActive = false
         currentIndex = -1
         currentRepetition = 0
         isAlFineMode = false
+        onSectionsExhausted = nil
         pollTask?.cancel()
         pollTask = nil
         if let engine = engineRef {
             // Clear the scheduling cap so any later non-section play
-            // doesn't inherit it. engine.stop tears the engine down,
-            // but the scheduler instance persists.
+            // doesn't inherit it. The scheduler instance persists even
+            // when the engine is stopped, so the stale cap would leak
+            // through.
             if let scheduler = await engine.scheduler {
                 await scheduler.setSchedulingEndTime(nil)
             }
-            await engine.stop()
+            if stopEngine {
+                await engine.stop()
+            }
         }
         song = nil
     }
@@ -167,11 +210,11 @@ public actor SongSectionPlayer {
             } else if isAlFineMode && section.isFine {
                 // Spec §7.3: in al-fine mode, the first Fine-marked
                 // section ends the song.
-                await stop()
+                await endNaturally()
             } else {
                 switch section.endAction {
                 case .stop:
-                    await stop()
+                    await endNaturally()
                 case .daCapoAlFine:
                     await jumpToDaCapoAlFine()
                 case .continue:
@@ -205,7 +248,7 @@ public actor SongSectionPlayer {
         else { return }
         let nextIdx = currentIndex + 1
         if nextIdx >= sections.count {
-            await stop()
+            await endNaturally()
             return
         }
         currentIndex = nextIdx

@@ -252,3 +252,92 @@ private func makeSong(_ title: String, bpm: Double, duration: SongDuration? = ni
     #expect(idx == -1)
     #expect(running == false)
 }
+
+// MARK: - Setlist × multi-section integration
+
+/// Helper — builds a multi-section Song with the given (BPM, measures)
+/// per section. All sections default to 4/4 time + .continue endAction.
+private func makeMultiSectionSong(_ title: String, sections: [(Double, Int)]) -> Song {
+    let songSections: [SongSection] = sections.map { (bpm, measures) in
+        SongSection(bpm: BPM(bpm), measureCount: measures)!
+    }
+    return Song(title: title, bpm: BPM(sections.first?.0 ?? 120), sections: songSections)!
+}
+
+@Test func multiSectionSongInSetlistRoutesThroughSectionPlayer() async {
+    // First song is multi-section — when the setlist starts, the section
+    // player should be the one running, with the engine on section 0's
+    // tempo (not the song's top-level fallback BPM).
+    let clock = FakeClock()
+    let engine = MetronomeEngine(clock: clock)
+    let sectionPlayer = SongSectionPlayer(engine: engine, clock: clock)
+    let setlistPlayer = SetlistPlayer(engine: engine, sectionPlayer: sectionPlayer, clock: clock)
+
+    let multi = makeMultiSectionSong("MultiA", sections: [(80, 2), (160, 2)])
+    let flat = makeSong("FlatB", bpm: 100)
+    let setlist = Setlist(name: "Set", songs: [multi, flat], advanceMode: .immediate)
+
+    await setlistPlayer.play(setlist)
+
+    let sectionActive = await sectionPlayer.isActive
+    let engineBPM = await engine.bpm
+    let engineRunning = await engine.isRunning
+    #expect(sectionActive, "Multi-section song routes through SongSectionPlayer")
+    #expect(engineBPM == BPM(80), "Engine BPM follows section 0, not song-level fallback")
+    #expect(engineRunning)
+}
+
+@Test func multiSectionExhaustionAdvancesSetlistToNextSong() async {
+    // Two-section first song → after all sections complete, the setlist
+    // should advance to the second song (a flat song). The completion
+    // callback path is what wires that transition.
+    let clock = FakeClock()
+    let engine = MetronomeEngine(clock: clock)
+    let sectionPlayer = SongSectionPlayer(engine: engine, clock: clock)
+    let setlistPlayer = SetlistPlayer(engine: engine, sectionPlayer: sectionPlayer, clock: clock)
+
+    // Two 1-measure sections at 60 BPM → 4 seconds per section, 8 total.
+    let multi = makeMultiSectionSong("Multi", sections: [(60, 1), (60, 1)])
+    let flat = makeSong("Flat", bpm: 150)
+    let setlist = Setlist(name: "Set", songs: [multi, flat], advanceMode: .immediate)
+
+    await setlistPlayer.play(setlist)
+    // After play(): scheduled start = startupLeadIn (0.25s). Section 0's
+    // boundary = startupLeadIn + 4s. Section 1's boundary = +4s after
+    // its own reanchor at clock.now + reanchorLeadIn.
+    //
+    // Driving the section player's tick at section-boundary times to
+    // simulate the live poll task. With FakeClock we just step forward
+    // and call tick directly.
+    clock.advance(by: 5)
+    await sectionPlayer.tick()        // crosses section 0 → section 1
+    clock.advance(by: 5)
+    await sectionPlayer.tick()        // crosses section 1 → exhausted → callback fires
+
+    let setlistIdx = await setlistPlayer.currentIndex
+    let setlistSong = await setlistPlayer.currentSong
+    let engineBPM = await engine.bpm
+    #expect(setlistIdx == 1, "Setlist advanced past the multi-section song")
+    #expect(setlistSong?.title == "Flat", "Now playing the second setlist entry")
+    #expect(engineBPM == BPM(150), "Engine BPM follows the new flat song")
+}
+
+@Test func setlistStopAlsoStopsSectionPlayer() async {
+    // When the user stops the setlist while a multi-section song is
+    // playing, the section player must be torn down too — otherwise its
+    // poll task keeps firing and the scheduling cap leaks into any later
+    // non-section playback.
+    let clock = FakeClock()
+    let engine = MetronomeEngine(clock: clock)
+    let sectionPlayer = SongSectionPlayer(engine: engine, clock: clock)
+    let setlistPlayer = SetlistPlayer(engine: engine, sectionPlayer: sectionPlayer, clock: clock)
+
+    let multi = makeMultiSectionSong("Multi", sections: [(90, 2), (120, 2)])
+    await setlistPlayer.play(Setlist(name: "Set", songs: [multi], advanceMode: .immediate))
+    await setlistPlayer.stop()
+
+    let sectionActive = await sectionPlayer.isActive
+    let engineRunning = await engine.isRunning
+    #expect(sectionActive == false)
+    #expect(engineRunning == false)
+}
