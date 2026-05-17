@@ -36,6 +36,12 @@ public actor AudioScheduler {
 
     public let avEngine: AVAudioEngine
     public let playerNode: AVAudioPlayerNode
+    /// Secondary player node for the polyrhythm stream (spec §2.4).
+    /// Owns its own volume so the polyrhythm config's volume slider is
+    /// applied independent of the primary mix. Receives buffers built
+    /// from the polyrhythm's configured sound at `.accent` level so
+    /// each pulse reads clearly against the primary stream.
+    public let polyPlayerNode: AVAudioPlayerNode
     public let format: AVAudioFormat
 
     private let clock = SystemClock()
@@ -76,15 +82,24 @@ public actor AudioScheduler {
     /// to ask the engine only for clicks AFTER this point — prevents
     /// re-scheduling the same click on every refill pass.
     private var lastScheduledTime: TimeInterval = -.infinity
+    /// Same as `lastScheduledTime` but for the polyrhythm stream.
+    /// Separate counter because the two streams are at different
+    /// periods — primary refills don't tell us anything about which
+    /// poly pulses have already been queued.
+    private var lastPolyScheduledTime: TimeInterval = -.infinity
 
     public init() {
         let engine = AVAudioEngine()
         let node = AVAudioPlayerNode()
+        let polyNode = AVAudioPlayerNode()
         engine.attach(node)
+        engine.attach(polyNode)
         let fmt = engine.mainMixerNode.outputFormat(forBus: 0)
         engine.connect(node, to: engine.mainMixerNode, format: fmt)
+        engine.connect(polyNode, to: engine.mainMixerNode, format: fmt)
         self.avEngine = engine
         self.playerNode = node
+        self.polyPlayerNode = polyNode
         self.format = fmt
 
         // Pre-render one buffer per (sound, accent, pitch) combo.
@@ -117,6 +132,7 @@ public actor AudioScheduler {
     public func start(engine: MetronomeEngine) async {
         self.engineRef = engine
         lastScheduledTime = -.infinity
+        lastPolyScheduledTime = -.infinity
 
         activateSession()
 
@@ -126,6 +142,9 @@ public actor AudioScheduler {
         }
         if !playerNode.isPlaying {
             playerNode.play()
+        }
+        if !polyPlayerNode.isPlaying {
+            polyPlayerNode.play()
         }
 
         refillTask?.cancel()
@@ -142,9 +161,12 @@ public actor AudioScheduler {
         refillTask = nil
 
         playerNode.stop()
+        polyPlayerNode.stop()
         avEngine.stop()
         playerNode.reset()
+        polyPlayerNode.reset()
         lastScheduledTime = -.infinity
+        lastPolyScheduledTime = -.infinity
 
         deactivateSession()
         engineRef = nil
@@ -158,8 +180,11 @@ public actor AudioScheduler {
         refillTask?.cancel()
         refillTask = nil
         playerNode.stop()
+        polyPlayerNode.stop()
         playerNode.reset()
+        polyPlayerNode.reset()
         lastScheduledTime = -.infinity
+        lastPolyScheduledTime = -.infinity
     }
 
     /// Pair to `pause()`. Re-attaches the engine reference and restarts
@@ -169,11 +194,13 @@ public actor AudioScheduler {
     public func resume(engine: MetronomeEngine) async {
         self.engineRef = engine
         lastScheduledTime = -.infinity
+        lastPolyScheduledTime = -.infinity
         if !avEngine.isRunning {
             do { try avEngine.start() }
             catch { print("AudioScheduler: avEngine.start failed on resume: \(error)") }
         }
         playerNode.play()
+        polyPlayerNode.play()
         refillTask?.cancel()
         refillTask = Task { [weak self] in
             await self?.refillLoop()
@@ -188,12 +215,13 @@ public actor AudioScheduler {
     /// could fully close.
     public func scheduleReset() async {
         guard playerNode.isPlaying else { return }
-        // Drop our tracking high-water mark so refill pulls clicks
-        // from the new schedule's beginning. The `.interrupts` flag
-        // on the first scheduled buffer in the same pass tells the
-        // player node to abandon its in-flight queue and play this
-        // one instead.
+        // Drop both tracking high-water marks so the refill pulls
+        // clicks (primary AND polyrhythm) from the new schedule's
+        // beginning. The `.interrupts` flag on the first scheduled
+        // buffer of each stream tells the player nodes to abandon
+        // their in-flight queues and play the new buffers instead.
         lastScheduledTime = -.infinity
+        lastPolyScheduledTime = -.infinity
         await refillOnce(interruptsFirst: true)
     }
 
@@ -220,6 +248,7 @@ public actor AudioScheduler {
     public func scheduleResetWithCap(_ newCap: TimeInterval?) async {
         self.schedulingEndTime = newCap
         lastScheduledTime = -.infinity
+        lastPolyScheduledTime = -.infinity
         guard playerNode.isPlaying else { return }
         await refillOnce(interruptsFirst: true)
     }
@@ -236,9 +265,12 @@ public actor AudioScheduler {
     public func scheduleResetWithFlush() async {
         guard playerNode.isPlaying else { return }
         playerNode.stop()
+        polyPlayerNode.stop()
         playerNode.play()
+        polyPlayerNode.play()
         lastScheduledTime = -.infinity
-        // No need for `.interrupts` — the queue is already empty.
+        lastPolyScheduledTime = -.infinity
+        // No need for `.interrupts` — the queues are already empty.
         await refillOnce(interruptsFirst: false)
     }
 
@@ -351,6 +383,38 @@ public actor AudioScheduler {
             playerNode.scheduleBuffer(buffer, at: audioTime, options: options, completionHandler: nil)
             lastScheduledTime = click.time
             didScheduleAny = true
+        }
+
+        // Polyrhythm stream (spec §2.4). Independent player node so the
+        // poly volume slider doesn't fight the primary mix. Skip entirely
+        // when polyrhythm is off — saves a refill call into the engine.
+        if let poly = settings.polyrhythm {
+            polyPlayerNode.volume = Float(settings.masterVolume * poly.volume)
+            let upcomingPoly = await engine.polyClicks(
+                after: lastPolyScheduledTime,
+                count: lookahead
+            )
+            var didSchedulePolyAny = false
+            for pc in upcomingPoly {
+                if let endTime = endTime, pc.time >= endTime { break }
+                let bufferKey = BufferKey(
+                    sound: pc.sound,
+                    accent: .accent,
+                    pitch: .unison
+                )
+                guard let buffer = clickBuffers[bufferKey] else { continue }
+                let adjustedTime = pc.time + settings.latencyOffsetSeconds
+                let audioTime = clock.audioTime(forEngineTime: adjustedTime)
+                let options: AVAudioPlayerNodeBufferOptions =
+                    (interruptsFirst && !didSchedulePolyAny) ? [.interrupts] : []
+                polyPlayerNode.scheduleBuffer(buffer, at: audioTime, options: options, completionHandler: nil)
+                lastPolyScheduledTime = pc.time
+                didSchedulePolyAny = true
+            }
+        } else {
+            // Polyrhythm disabled — silence the secondary node so any
+            // residual queue from a recent toggle clears.
+            polyPlayerNode.volume = 0
         }
     }
 
