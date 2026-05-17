@@ -74,9 +74,10 @@ Settings → MIDI now shows a "Source" picker when "Listen for MIDI Clock" is on
 ## UI gaps
 
 ### iPad-specific layouts
-- Size-class branching covers the basics: BPM scales 180→280pt on `.regular`. Large display mode (spec §10.3) shipped in v0.16.2 — Settings → Display → Large Display jumps the hero to 260pt on iPhone / 440pt on iPad, persisted in `EngineSettings.largeDisplayMode`.
-- ~~iPad two-column layout (Stage left + Library right)~~ — shipped in v0.29.0. ContentView branches on horizontalSizeClass: `.regular` renders HStack(stageBody, Divider, LibraryView with 420pt fixed width); `.compact` keeps the original sheet-based flow. BPM hero gets `.minimumScaleFactor(0.4)` + `.lineLimit(1)` so the 280pt iPad font collapses to fit the narrower Stage column. Library's `Done` button is hidden on iPad split since its `dismiss()` would have no presenter to dismiss to. Library button on Stage is hidden on iPad (library is always visible).
-- Still backlog: viewport-relative scaling via GeometryReader as a polish step over the four-way static font-size table. Resizable splitter / collapsible dock if users want to focus on Stage on iPad.
+- Size-class branching covers the basics: BPM scales viewport-relative via GeometryReader (v0.32.0) instead of the legacy four-way static table. Large display mode (spec §10.3) shipped in v0.16.2; in v0.32.0 it switched from fixed point sizes to bumped width/height factors fed into the same GeometryReader formula.
+- ~~iPad two-column layout (Stage left + Library right)~~ — shipped in v0.29.0; refined v0.32.0 with a collapsible dock. Library button on Stage now doubles as a dock toggle on iPad (collapse → reclaim full width for Stage; expand → re-dock the panel). Preference persists via `@AppStorage("ipadLibraryDocked")`.
+- ~~Viewport-relative scaling via GeometryReader~~ — shipped in v0.32.0. `bpmFontSize` computes from the Stage column's actual size: `min(height * heightFactor, width / widthDivisor)`, with floor/ceiling clamps. Replaces the static (size class × large-display) lookup table. Adapts cleanly to iPad split (~414pt column), iPad full-screen with dock collapsed (~1194pt column), iPhone, and any future external display.
+- Backlog: resizable splitter (currently the Library dock is fixed at 420pt; users with very wide iPads might want a wider sidebar). Skipping unless asked.
 
 ### Settings — UI prefs not yet exposed
 - Allow hardware volume keys to start/stop — spec §10.4

@@ -34,30 +34,51 @@ struct ContentView: View {
     @State private var lastAnnounceAt: TimeInterval = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion: Bool
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    /// Persisted preference for the iPad Library dock. `true` (default)
+    /// shows Library beside the Stage; `false` collapses to a Stage-
+    /// only layout where the libraryButton reappears to surface the
+    /// sheet path. Persists via @AppStorage so the user's choice
+    /// survives relaunch without round-tripping through EngineSettings.
+    @AppStorage("ipadLibraryDocked") private var libraryDocked: Bool = true
 
     private static let announceBPMThreshold = 5
     private static let announceMinIntervalSeconds: TimeInterval = 0.5
 
-    /// Stage BPM hero font size. Four-way table on
-    /// (size class × large-display setting). Large-display mode (spec
-    /// §10.3) bumps the digit roughly +50% so the number stays legible
-    /// from across the room when the device is on a music stand.
-    /// DESIGN.md asks for ~55% of viewport height — the iPad-large
-    /// variant approximates that on typical iPad portrait at ~1024pt.
+    /// Stage column's available size, captured by a GeometryReader at
+    /// `stageBody`'s root. Drives viewport-relative scaling of the BPM
+    /// hero — replaces the v0.29.x four-way static font-size table so
+    /// iPad split, iPad full-screen, iPhone, and Large Display mode
+    /// all derive a sensible hero size without separate branches.
+    @State private var stageSize: CGSize = .zero
+
+    /// Stage BPM hero font size, computed from the Stage column's
+    /// actual width + height per DESIGN.md's ~55% of viewport heuristic.
+    /// Picks the more constraining of two limits so the digit never
+    /// overflows horizontally OR pushes the controls off the bottom:
+    ///   - height-based: `height * heightFactor`
+    ///   - width-based:  `width / widthDivisor`  (JetBrains Mono Bold
+    ///     digits are roughly 0.55em wide, so 3 digits at width
+    ///     `W` fit a font size up to `W / 1.65`)
+    /// Large-display mode (spec §10.3) bumps both factors so the
+    /// digit reads from across the room when the device is on a stand.
+    /// Falls back to a sensible iPhone-portrait default before the
+    /// GeometryReader fires its first measurement (stageSize == .zero).
     private var bpmFontSize: CGFloat {
-        let isIPad = horizontalSizeClass == .regular
+        guard stageSize.width > 0, stageSize.height > 0 else { return 180 }
         let isLarge = viewModel.settings.largeDisplayMode
-        switch (isIPad, isLarge) {
-        case (true,  true):  return 440
-        case (true,  false): return 280
-        case (false, true):  return 260
-        case (false, false): return 180
-        }
+        let heightFactor: CGFloat = isLarge ? 0.62 : 0.45
+        let widthDivisor: CGFloat = isLarge ? 1.25 : 1.70
+        let byHeight = stageSize.height * heightFactor
+        let byWidth = stageSize.width / widthDivisor
+        // Floor + ceiling so degenerate viewport sizes (zero-width
+        // during layout passes, gigantic external display) don't
+        // produce comically small or large digits.
+        return min(max(min(byHeight, byWidth), 120), 520)
     }
 
     var body: some View {
         Group {
-            if horizontalSizeClass == .regular {
+            if horizontalSizeClass == .regular && libraryDocked {
                 // iPad split: Stage on the left, Library docked on the
                 // right. Library stays put when songs load — `dismiss()`
                 // calls inside LibraryView become no-ops because the
@@ -73,12 +94,17 @@ struct ContentView: View {
                         .frame(width: librarySidebarWidth)
                 }
                 .background(DS.DSColor.bgBase.ignoresSafeArea())
+                .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: libraryDocked)
             } else {
+                // Stage-only layout: iPhone always, iPad when the user
+                // collapsed the dock. Library still reachable via the
+                // sheet flow that appears in the top-left button.
                 stageBody
                     .sheet(isPresented: $showLibrary) {
                         LibraryView(viewModel: viewModel)
                             .presentationDetents([.large])
                     }
+                    .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: libraryDocked)
             }
         }
         .preferredColorScheme(.dark)
@@ -105,6 +131,18 @@ struct ContentView: View {
         ZStack(alignment: .top) {
             DS.DSColor.bgBase.ignoresSafeArea()
 
+            // GeometryReader captures the Stage column's actual size
+            // so `bpmFontSize` can compute a viewport-relative hero
+            // size — replaces the four-way static table that didn't
+            // know about iPad-split column widths or external displays.
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { stageSize = proxy.size }
+                    .onChange(of: proxy.size) { _, newSize in
+                        stageSize = newSize
+                    }
+            }
+
             // TimelineView re-evaluates the body at the animation frame rate
             // so the pulse + active beat dot + tap flash track the engine
             // clock smoothly. When isRunning is false, pulseIntensity short-
@@ -119,11 +157,14 @@ struct ContentView: View {
             // and a small Ramp (tempo automation quick-sheet) button next
             // to Settings. Icons stay small + muted so they recede during
             // performance and DESIGN.md's 5-element rule applies in spirit.
-            // On iPad the library is docked beside the Stage, so the
-            // libraryButton is redundant there and is hidden.
+            // On iPad, the library button doubles as the dock toggle when
+            // the Library is currently docked — the dock-aware version
+            // collapses the sidebar instead of presenting a sheet.
             HStack {
-                if horizontalSizeClass != .regular {
+                if horizontalSizeClass != .regular || !libraryDocked {
                     libraryButton
+                } else {
+                    libraryDockToggle
                 }
                 Spacer()
                 tempoAutomationButton
@@ -167,7 +208,16 @@ struct ContentView: View {
     private var libraryButton: some View {
         Button {
             viewModel.refreshLibrary()
-            showLibrary = true
+            // iPad in collapsed-dock mode: tapping the library button
+            // re-docks the panel instead of opening the sheet, so the
+            // affordance "matches" what the user collapsed away.
+            // iPhone (or iPad with dock collapsed but user wants the
+            // sheet) still gets the sheet path via showLibrary.
+            if horizontalSizeClass == .regular {
+                libraryDocked = true
+            } else {
+                showLibrary = true
+            }
         } label: {
             Image(systemName: "music.note.list")
                 .font(.system(size: 18, weight: .regular))
@@ -176,7 +226,26 @@ struct ContentView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Library")
+        .accessibilityLabel(horizontalSizeClass == .regular ? "Show library panel" : "Library")
+    }
+
+    /// iPad-only button shown in the Stage top-overlay when the
+    /// Library is currently docked. Tapping collapses the dock so
+    /// the Stage takes the full width — handy when the BPM hero
+    /// needs to be readable from across the room. The libraryButton
+    /// then reappears as the affordance to redock.
+    private var libraryDockToggle: some View {
+        Button {
+            libraryDocked = false
+        } label: {
+            Image(systemName: "sidebar.right")
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(DS.DSColor.textMuted)
+                .padding(DS.Spacing.lg)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Hide library panel")
     }
 
     private var settingsButton: some View {
