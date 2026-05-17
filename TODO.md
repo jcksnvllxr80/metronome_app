@@ -19,8 +19,7 @@ All three §6.3 modes shipped: gradual, step, and ramp-loop. SongDetail's picker
 - Stage-quick-sheet variant (current UI is per-song only)
 
 ### Speed trainer — remaining sub-features (spec §6.4)
-Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tempo Automation → Step: start BPM, increment per step, measures per step, optional ceiling that holds BPM constant once reached. Still backlog:
-- Engine-stops-on-ceiling: when the step ceiling is hit, automatically stop playback (currently the schedule clamps BPM but the engine keeps running)
+Random-mute mode + step BPM both shipped. Step mode lives at Song detail → Tempo Automation → Step: start BPM, increment per step, measures per step, optional ceiling that holds BPM constant once reached. Engine auto-stops when the ceiling is hit (spec §6.4) — view-model polling consults `engine.hasReachedAutomationCeiling` each tick and stops the active player (section / setlist / engine) when it flips true. Still backlog:
 - "Reverse on ceiling" alternative — instead of stopping, count back down
 - "Successful loops" trigger — increment only after the user completes N error-free passes; needs practice-stats integration to detect "successful"
 

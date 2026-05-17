@@ -353,6 +353,33 @@ public actor MetronomeEngine {
         return (0..<count).map { schedule.click(at: startIdx + $0) }
     }
 
+    /// True when step-mode tempo automation has reached its BPM ceiling
+    /// at the current clock time. Spec §6.4 says the engine should stop
+    /// playback when the user's target tempo is reached; the schedule
+    /// math just clamps BPM after the ceiling step, which would otherwise
+    /// let playback continue at the ceiling BPM forever. The view model
+    /// polls this and calls `stop()` when it flips to true.
+    ///
+    /// Returns false when:
+    /// - not running, or no schedule
+    /// - no automation, or automation isn't `.step`
+    /// - step has no ceiling configured
+    /// - we haven't yet crossed past the ceiling step's first beat
+    public var hasReachedAutomationCeiling: Bool {
+        guard isRunning,
+              let schedule,
+              case .step(let step) = automation,
+              step.ceiling != nil
+        else { return false }
+        let countInSeconds = Double(schedule.countInClicks) * schedule.clickPeriod
+        let elapsed = clock.now - schedule.startTime - countInSeconds
+        guard elapsed > 0 else { return false }
+        let beat = TempoAutomation.step(step)
+            .beatPosition(forTime: elapsed, timeSignature: schedule.timeSignature)
+        let stepIdx = step.step(atBeat: beat, timeSignature: schedule.timeSignature)
+        return step.ceilingReached(atStep: stepIdx)
+    }
+
     // MARK: - Private
 
     /// Lead-in applied to the schedule anchor on a cold `start()` or

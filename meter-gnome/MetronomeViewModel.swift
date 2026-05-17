@@ -192,6 +192,11 @@ final class MetronomeViewModel {
         let sched = await engine.schedule
         let settings = await engine.settings
         let automation = await engine.automation
+        // Spec §6.4: step-mode tempo automation with a ceiling stops the
+        // engine when the ceiling is reached. The schedule math clamps
+        // BPM past the ceiling step, which would otherwise let the click
+        // keep going at the ceiling tempo forever.
+        let ceilingHit = await engine.hasReachedAutomationCeiling
         self.bpm = bpm
         self.timeSignature = ts
         self.subdivision = sub
@@ -200,8 +205,23 @@ final class MetronomeViewModel {
         self.settings = settings
         self.automation = automation
 
-        trackPracticeSession(running: running, paused: paused, currentBPM: bpm)
-        updateIdleTimer(running: running)
+        if ceilingHit && running {
+            // Route through standalone or section-aware stop so any
+            // active SongSectionPlayer / SetlistPlayer also tear down.
+            if loadedSongHasSections, let player = songSectionPlayer {
+                await player.stop()
+            } else if let player = setlistPlayer, await player.isActive {
+                await player.stop()
+            } else {
+                await engine.stop()
+            }
+            // Re-read state after stopping so the practice session is
+            // finalized in the same tick.
+            self.isRunning = false
+        }
+
+        trackPracticeSession(running: self.isRunning, paused: paused, currentBPM: bpm)
+        updateIdleTimer(running: self.isRunning)
     }
 
     /// Keep the screen awake while the engine is playing if the user
