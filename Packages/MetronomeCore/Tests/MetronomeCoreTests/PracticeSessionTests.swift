@@ -211,6 +211,81 @@ import Foundation
     #expect(dates == dates.sorted(), "Buckets returned oldest → newest")
 }
 
+@Test func bpmHistoryFiltersOutFreestyleAndUnderMinSessions() {
+    // Freestyle sessions (no songID) shouldn't appear in history.
+    // Songs with only 1 session shouldn't appear when minSessions=2.
+    let now = Date()
+    let songA = UUID()
+    let songB = UUID()
+    let sessions = [
+        // Song A: 3 sessions — should appear.
+        PracticeSession(startedAt: now.addingTimeInterval(-86400 * 3),
+                        endedAt: now.addingTimeInterval(-86400 * 3 + 60),
+                        bpmAtStart: BPM(80), bpmAtStop: BPM(85),
+                        bpmMin: BPM(80), bpmMax: BPM(85),
+                        songID: songA, songTitle: "A"),
+        PracticeSession(startedAt: now.addingTimeInterval(-86400 * 2),
+                        endedAt: now.addingTimeInterval(-86400 * 2 + 60),
+                        bpmAtStart: BPM(85), bpmAtStop: BPM(95),
+                        bpmMin: BPM(85), bpmMax: BPM(95),
+                        songID: songA, songTitle: "A"),
+        PracticeSession(startedAt: now, endedAt: now.addingTimeInterval(60),
+                        bpmAtStart: BPM(95), bpmAtStop: BPM(110),
+                        bpmMin: BPM(95), bpmMax: BPM(110),
+                        songID: songA, songTitle: "A"),
+        // Song B: 1 session — should NOT appear with minSessions=2.
+        PracticeSession(startedAt: now, endedAt: now.addingTimeInterval(60),
+                        bpmAtStart: BPM(120), bpmAtStop: BPM(120),
+                        bpmMin: BPM(120), bpmMax: BPM(120),
+                        songID: songB, songTitle: "B"),
+        // Freestyle (no songID).
+        PracticeSession(startedAt: now, endedAt: now.addingTimeInterval(60),
+                        bpmAtStart: BPM(60), bpmAtStop: BPM(60)),
+    ]
+    let history = sessions.bpmHistoryBySong(minSessions: 2)
+    #expect(history.count == 1, "Only song A qualifies")
+    let entry = history.first!
+    #expect(entry.songID == songA)
+    #expect(entry.title == "A")
+    #expect(entry.sessions.count == 3)
+    // Verify the sessions are chronologically ordered (oldest first).
+    let dates = entry.sessions.map { $0.date }
+    #expect(dates == dates.sorted(), "Sessions returned oldest-first")
+    // Verify min/max are carried through.
+    #expect(entry.sessions.last?.bpmMax == BPM(110))
+}
+
+@Test func bpmHistorySortsByCountDescending() {
+    // Most-practiced song should come first so the chart picks the
+    // user's top focus.
+    let now = Date()
+    let songWith2 = UUID()
+    let songWith5 = UUID()
+    var sessions: [PracticeSession] = []
+    for i in 0..<2 {
+        sessions.append(PracticeSession(
+            startedAt: now.addingTimeInterval(TimeInterval(i * 60)),
+            endedAt: now.addingTimeInterval(TimeInterval(i * 60 + 30)),
+            bpmAtStart: BPM(100), bpmAtStop: BPM(100),
+            bpmMin: BPM(100), bpmMax: BPM(100),
+            songID: songWith2, songTitle: "Two"
+        ))
+    }
+    for i in 0..<5 {
+        sessions.append(PracticeSession(
+            startedAt: now.addingTimeInterval(TimeInterval(i * 60)),
+            endedAt: now.addingTimeInterval(TimeInterval(i * 60 + 30)),
+            bpmAtStart: BPM(100), bpmAtStop: BPM(100),
+            bpmMin: BPM(100), bpmMax: BPM(100),
+            songID: songWith5, songTitle: "Five"
+        ))
+    }
+    let history = sessions.bpmHistoryBySong(minSessions: 2)
+    #expect(history.count == 2)
+    #expect(history.first?.title == "Five", "Top by session count comes first")
+    #expect(history.last?.title == "Two")
+}
+
 @Test func explicitMinMaxAreRespected() {
     let now = Date()
     let session = PracticeSession(

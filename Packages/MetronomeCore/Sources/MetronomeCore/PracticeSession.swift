@@ -142,6 +142,30 @@ public extension Sequence where Element == PracticeSession {
             .sorted { $0.date < $1.date }
     }
 
+    /// Per-song BPM range trajectory — for each non-freestyle song, the
+    /// list of (startedAt, bpmMin, bpmMax) entries sorted oldest-first.
+    /// Songs with at least `minSessions` rows are returned, sorted by
+    /// session count descending so the chart picks the user's most-
+    /// practiced songs first. Used by the Stats per-song progression
+    /// chart (spec §11 "richer charts").
+    func bpmHistoryBySong(minSessions: Int = 2) -> [(songID: UUID, title: String, sessions: [(date: Date, bpmMin: BPM, bpmMax: BPM)])] {
+        var buckets: [UUID: (title: String, points: [(date: Date, bpmMin: BPM, bpmMax: BPM)])] = [:]
+        for session in self {
+            guard let songID = session.songID else { continue }
+            let title = session.songTitle ?? "Untitled"
+            var bucket = buckets[songID] ?? (title, [])
+            bucket.points.append((date: session.startedAt, bpmMin: session.bpmMin, bpmMax: session.bpmMax))
+            buckets[songID] = bucket
+        }
+        return buckets
+            .compactMap { kv -> (songID: UUID, title: String, sessions: [(date: Date, bpmMin: BPM, bpmMax: BPM)])? in
+                guard kv.value.points.count >= minSessions else { return nil }
+                let sorted = kv.value.points.sorted { $0.date < $1.date }
+                return (songID: kv.key, title: kv.value.title, sessions: sorted)
+            }
+            .sorted { $0.sessions.count > $1.sessions.count }
+    }
+
     /// Group by `songID`, returning aggregated stats per song sorted
     /// by total duration descending. Sessions with no `songID`
     /// aggregate under a sentinel UUID (`.zero`) so freestyle practice

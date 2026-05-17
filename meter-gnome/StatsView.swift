@@ -73,6 +73,7 @@ struct StatsView: View {
                 summaryCards
                 dailyChart
                 weeklyChart
+                bpmProgressionSection
                 bySongSection
                 actionsSection
             }
@@ -161,6 +162,101 @@ struct StatsView: View {
                     .fill(DS.DSColor.bgElevated)
             )
         }
+    }
+
+    // MARK: - Per-song BPM-over-time chart
+
+    /// Shows the user's tempo progression on their most-practiced songs.
+    /// A line metronome's most distinctive analytic — you start at 80
+    /// BPM, you end up at 120 BPM, and the trajectory makes the
+    /// improvement visible. Renders top 3 songs by session count
+    /// (anything more clutters; the per-song breakdown below covers
+    /// the rest). One mini chart per song.
+    @ViewBuilder
+    private var bpmProgressionSection: some View {
+        let histories = sessions.bpmHistoryBySong(minSessions: 2).prefix(3)
+        if !histories.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                Text("BPM PROGRESSION")
+                    .font(DS.Font.label)
+                    .tracking(2)
+                    .foregroundStyle(DS.DSColor.textMuted)
+                VStack(spacing: DS.Spacing.md) {
+                    ForEach(Array(histories), id: \.songID) { history in
+                        bpmProgressionCard(history)
+                    }
+                }
+            }
+        }
+    }
+
+    private func bpmProgressionCard(
+        _ history: (songID: UUID, title: String, sessions: [(date: Date, bpmMin: BPM, bpmMax: BPM)])
+    ) -> some View {
+        let points = history.sessions
+        let allBPMs = points.flatMap { [$0.bpmMin.displayInt, $0.bpmMax.displayInt] }
+        let yMin = max(20, (allBPMs.min() ?? 60) - 10)
+        let yMax = min(400, (allBPMs.max() ?? 120) + 10)
+        return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack {
+                Text(history.title)
+                    .font(DS.Font.headline)
+                    .foregroundStyle(DS.DSColor.textPrimary)
+                Spacer()
+                Text("\(points.count) sessions")
+                    .font(DS.Font.monoData)
+                    .foregroundStyle(DS.DSColor.textMuted)
+            }
+            Chart {
+                ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                    // Vertical bar between bpmMin and bpmMax — shows the
+                    // tempo span the user worked in during that session.
+                    RuleMark(
+                        x: .value("Date", point.date),
+                        yStart: .value("Min", point.bpmMin.displayInt),
+                        yEnd: .value("Max", point.bpmMax.displayInt)
+                    )
+                    .foregroundStyle(DS.DSColor.accentTempo.opacity(0.6))
+                    .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round))
+                    PointMark(
+                        x: .value("Date", point.date),
+                        y: .value("Max", point.bpmMax.displayInt)
+                    )
+                    .foregroundStyle(DS.DSColor.accentTempo)
+                    .symbolSize(28)
+                }
+                // Trend line through the session maxes — show whether
+                // the user is climbing toward higher tempos over time.
+                ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                    LineMark(
+                        x: .value("Date", point.date),
+                        y: .value("Max", point.bpmMax.displayInt),
+                        series: .value("Series", "max")
+                    )
+                    .foregroundStyle(DS.DSColor.accentTempo.opacity(0.4))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+                }
+            }
+            .chartYScale(domain: yMin...yMax)
+            .chartYAxis {
+                AxisMarks(position: .leading) { _ in
+                    AxisGridLine().foregroundStyle(DS.DSColor.textDim.opacity(0.3))
+                    AxisValueLabel().foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+            .chartXAxis {
+                AxisMarks { _ in
+                    AxisValueLabel(format: .dateTime.day(.defaultDigits).month(.abbreviated))
+                        .foregroundStyle(DS.DSColor.textMuted)
+                }
+            }
+            .frame(height: 110)
+        }
+        .padding(DS.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.md)
+                .fill(DS.DSColor.bgElevated)
+        )
     }
 
     // MARK: - Time-window cards
