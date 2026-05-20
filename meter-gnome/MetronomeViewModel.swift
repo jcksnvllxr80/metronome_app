@@ -375,6 +375,34 @@ final class MetronomeViewModel {
         settings.bpmPrecisionMode ? 0.1 : 1.0
     }
 
+    /// Live BPM during automation playback. The engine's stored `bpm`
+    /// stays pinned at `startBPM` for the whole ramp because click times
+    /// are solved directly off the automation curve — leaving the
+    /// displayed value frozen unless we compute it ourselves. Falls back
+    /// to the cached `bpm` whenever there's no schedule, no automation,
+    /// or playback isn't running, so the BPM hero stays correct at rest.
+    func liveBPM(at now: TimeInterval) -> BPM {
+        guard isRunning,
+              let schedule = self.schedule,
+              schedule.automation != nil else {
+            return bpm
+        }
+        return schedule.currentBPM(atWallClock: now)
+    }
+
+    /// Display string version of `liveBPM(at:)` — same precision-mode
+    /// formatting as `bpmDisplay`. The Stage's BPM hero reads this on
+    /// every animation tick; the underlying value only changes when the
+    /// integer (or 0.1 step) crosses, which matches the spec's "update
+    /// when the ramp hits the integers" behavior without continuous churn.
+    func liveBPMDisplay(at now: TimeInterval) -> String {
+        let live = liveBPM(at: now)
+        if settings.bpmPrecisionMode {
+            return String(format: "%.1f", live.value)
+        }
+        return "\(live.displayInt)"
+    }
+
     func togglePlay() {
         Task {
             let isRunning = await engine.isRunning

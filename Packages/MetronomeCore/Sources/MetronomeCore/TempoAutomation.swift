@@ -304,6 +304,42 @@ public enum TempoAutomation: Hashable, Sendable {
         }
     }
 
+    /// Current BPM at `t` seconds from the start of the song (post
+    /// count-in). Drives the live BPM display during a ramp — the
+    /// `MetronomeEngine.bpm` scalar stays at `startBPM` for the whole
+    /// ramp because the schedule math solves click times directly from
+    /// the curve's integral, so the displayed value has to be computed
+    /// off the same curve. Before the ramp begins (`t < 0`), returns
+    /// `startBPM`. After it ends, returns the terminal BPM (gradual:
+    /// `endBPM`; step: clamped per ceiling behavior; loop: wraps).
+    public func bpm(atSongTime t: TimeInterval, timeSignature: TimeSignature) -> BPM {
+        switch self {
+        case .gradual(let g):
+            if t <= 0 { return g.startBPM }
+            let D = Self.gradualRampSeconds(g, timeSignature: timeSignature)
+            if t >= D { return g.endBPM }
+            let frac = t / D
+            return BPM(g.startBPM.value + (g.endBPM.value - g.startBPM.value) * frac)
+        case .step(let s):
+            if t <= 0 { return s.startBPM }
+            let beats = Self.stepBeatPosition(s, t: t, timeSignature: timeSignature)
+            let idx = s.step(atBeat: beats, timeSignature: timeSignature)
+            return s.bpm(atStep: idx)
+        case .loop(let l):
+            let cycleSeconds = l.secondsPerCycle(timeSignature: timeSignature)
+            guard cycleSeconds > 0 else { return l.stages[0].bpm }
+            var remaining = t.truncatingRemainder(dividingBy: cycleSeconds)
+            if remaining < 0 { remaining += cycleSeconds }
+            for stage in l.stages {
+                let beats = Double(stage.measures * timeSignature.numerator)
+                let stageSeconds = beats * 60.0 / stage.bpm.value
+                if remaining <= stageSeconds { return stage.bpm }
+                remaining -= stageSeconds
+            }
+            return l.stages.last?.bpm ?? l.stages[0].bpm
+        }
+    }
+
     /// Wall-clock seconds at which the given beat position occurs (from
     /// the start of the song, post count-in). `beat` may be fractional.
     public func time(forBeatPosition beat: Double, timeSignature: TimeSignature) -> TimeInterval {

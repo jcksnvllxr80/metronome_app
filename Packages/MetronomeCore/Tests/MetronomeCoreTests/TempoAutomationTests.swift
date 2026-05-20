@@ -566,3 +566,122 @@ import Foundation
     }
     #expect(maxError < 1e-9, "max click-time deviation \(maxError) exceeds floating-point noise")
 }
+
+// MARK: - bpm(atSongTime:) — live BPM during a ramp (drives the Stage hero)
+
+@Test func gradualBPMAtSongTimeBeforeStartReturnsStart() {
+    let auto = TempoAutomation.gradual(startBPM: BPM(60), endBPM: BPM(180), duration: .seconds(60))!
+    #expect(auto.bpm(atSongTime: -1, timeSignature: .fourFour) == BPM(60))
+    #expect(auto.bpm(atSongTime: 0, timeSignature: .fourFour) == BPM(60))
+}
+
+@Test func gradualBPMAtSongTimeMidRampLinearInterp() {
+    // 60→180 over 60s — halfway through, BPM should be 120.
+    let auto = TempoAutomation.gradual(startBPM: BPM(60), endBPM: BPM(180), duration: .seconds(60))!
+    let mid = auto.bpm(atSongTime: 30, timeSignature: .fourFour)
+    #expect(abs(mid.value - 120) < 1e-9)
+    // Quarter-way: 60 + 30 = 90
+    let quarter = auto.bpm(atSongTime: 15, timeSignature: .fourFour)
+    #expect(abs(quarter.value - 90) < 1e-9)
+}
+
+@Test func gradualBPMAtSongTimePastEndReturnsEnd() {
+    let auto = TempoAutomation.gradual(startBPM: BPM(60), endBPM: BPM(180), duration: .seconds(30))!
+    #expect(auto.bpm(atSongTime: 30, timeSignature: .fourFour) == BPM(180))
+    #expect(auto.bpm(atSongTime: 100, timeSignature: .fourFour) == BPM(180))
+}
+
+@Test func gradualBPMAtSongTimeRitardando() {
+    // Descending ramp: 200 → 80 over 30s. Halfway = 140.
+    let auto = TempoAutomation.gradual(startBPM: BPM(200), endBPM: BPM(80), duration: .seconds(30))!
+    let mid = auto.bpm(atSongTime: 15, timeSignature: .fourFour)
+    #expect(abs(mid.value - 140) < 1e-9)
+}
+
+@Test func stepBPMAtSongTimeAdvancesByStep() {
+    // 60 BPM start, +20 per step, 1 measure per step, 4/4 → step duration
+    // at 60 BPM = 4s; at 80 BPM = 3s; at 100 BPM = 2.4s.
+    let auto = TempoAutomation.step(startBPM: BPM(60), increment: 20, measuresPerStep: 1)!
+    // Just before first boundary: still at 60.
+    #expect(auto.bpm(atSongTime: 3.9, timeSignature: .fourFour) == BPM(60))
+    // Just past first boundary: at 80.
+    #expect(auto.bpm(atSongTime: 4.1, timeSignature: .fourFour) == BPM(80))
+    // Past second boundary (4 + 3 = 7s): at 100.
+    #expect(auto.bpm(atSongTime: 7.1, timeSignature: .fourFour) == BPM(100))
+}
+
+@Test func stepBPMAtSongTimeClampsAtCeiling() {
+    // 60 BPM start, +20 per step, ceiling 100, .stop behavior. Past the
+    // ceiling step boundary the BPM holds at 100.
+    let auto = TempoAutomation.step(
+        startBPM: BPM(60), increment: 20, measuresPerStep: 1, ceiling: BPM(100)
+    )!
+    // Long past the ramp end — still at the ceiling.
+    #expect(auto.bpm(atSongTime: 60, timeSignature: .fourFour) == BPM(100))
+}
+
+@Test func stepBPMAtSongTimeReverseDescends() {
+    // Triangle ramp: 60 → 100 → 60, +20 per step, .reverse.
+    // Ascent: 60(0-4s), 80(4-7s), 100(7-9.4s peak).
+    // Descent: 80(after peak), then 60.
+    let auto = TempoAutomation.step(
+        startBPM: BPM(60),
+        increment: 20,
+        measuresPerStep: 1,
+        ceiling: BPM(100),
+        ceilingBehavior: .reverse
+    )!
+    // Peak step (step 2 in the ascent) reached around t≈7s.
+    #expect(auto.bpm(atSongTime: 8, timeSignature: .fourFour) == BPM(100))
+    // After the peak, BPM steps DOWN — eventually back to 80, then 60.
+    // Step 3 (first descent step) = 80 BPM, duration 3s. So step 2 ends
+    // around t = 4 + 3 + 2.4 = 9.4s; step 3 runs 9.4 → 12.4s.
+    #expect(auto.bpm(atSongTime: 10.5, timeSignature: .fourFour) == BPM(80))
+}
+
+@Test func loopBPMAtSongTimeCyclesStages() {
+    // Two stages: 60 BPM for 1 measure (4s), 120 BPM for 1 measure (2s).
+    // Cycle = 6s.
+    let auto = TempoAutomation.loop(stages: [
+        TempoAutomation.Loop.Stage(bpm: BPM(60), measures: 1),
+        TempoAutomation.Loop.Stage(bpm: BPM(120), measures: 1)
+    ])!
+    #expect(auto.bpm(atSongTime: 1, timeSignature: .fourFour) == BPM(60))
+    #expect(auto.bpm(atSongTime: 5, timeSignature: .fourFour) == BPM(120))
+    // Wraps: t=7 is into the second cycle's first stage.
+    #expect(auto.bpm(atSongTime: 7, timeSignature: .fourFour) == BPM(60))
+    // Wraps deep: t=12 + 1 = into third cycle's first stage.
+    #expect(auto.bpm(atSongTime: 13, timeSignature: .fourFour) == BPM(60))
+}
+
+@Test func scheduleCurrentBPMHandlesCountIn() {
+    // 60→120 over 30s, 1 measure (4 beats) count-in at 60 BPM = 4s.
+    // During count-in, currentBPM should stay at 60 (startBPM).
+    let auto = TempoAutomation.gradual(startBPM: BPM(60), endBPM: BPM(120), duration: .seconds(30))!
+    let s = ClickSchedule(
+        bpm: BPM(60),
+        timeSignature: .fourFour,
+        subdivision: .none,
+        startTime: 100,    // arbitrary anchor
+        countInMeasures: 1,
+        automation: auto
+    )
+    // Wall-clock 100 = startTime, well inside count-in: should be 60.
+    #expect(s.currentBPM(atWallClock: 100) == BPM(60))
+    #expect(s.currentBPM(atWallClock: 103) == BPM(60))
+    // Wall-clock 104 = first downbeat → ramp begins → still 60.
+    #expect(abs(s.currentBPM(atWallClock: 104).value - 60) < 1e-6)
+    // Wall-clock 119 = 15s into ramp = halfway = 90.
+    #expect(abs(s.currentBPM(atWallClock: 119).value - 90) < 1e-9)
+}
+
+@Test func scheduleCurrentBPMNoAutomationReturnsConstant() {
+    let s = ClickSchedule(
+        bpm: BPM(140),
+        timeSignature: .fourFour,
+        subdivision: .none,
+        startTime: 0
+    )
+    #expect(s.currentBPM(atWallClock: 0) == BPM(140))
+    #expect(s.currentBPM(atWallClock: 99) == BPM(140))
+}

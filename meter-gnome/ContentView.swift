@@ -426,7 +426,7 @@ struct ContentView: View {
 
             Spacer()
 
-            bpmView(pulse: pulse)
+            bpmView(pulse: pulse, now: now)
 
             Spacer()
 
@@ -694,13 +694,24 @@ struct ContentView: View {
 
     // MARK: - BPM hero
 
-    private func bpmView(pulse: Double) -> some View {
+    private func bpmView(pulse: Double, now: TimeInterval) -> some View {
         let digitColor = viewModel.isRunning
             ? DS.DSColor.textPrimary.mix(with: DS.DSColor.accentTempo, by: pulse)
             : DS.DSColor.textPrimary
+        // During a tempo ramp the engine's stored BPM stays at startBPM
+        // for the whole ramp (click times are solved off the automation
+        // curve directly). Read the live BPM off the schedule so the
+        // hero ticks integer-by-integer as the ramp moves. The animation
+        // key is snapped to display precision (1 BPM, or 0.1 BPM in
+        // precision mode) so .numericText only retriggers when the
+        // visible digit actually changes — not 60 times a second.
+        let liveDisplay = viewModel.liveBPMDisplay(at: now)
+        let liveValue = viewModel.liveBPM(at: now).value
+        let precisionStep = viewModel.bpmNudgeStep
+        let snappedAnimationKey = (liveValue / precisionStep).rounded() * precisionStep
 
         return VStack(spacing: DS.Spacing.sm) {
-            Text(viewModel.bpmDisplay)
+            Text(liveDisplay)
                 .font(.custom("JetBrainsMono-Bold", size: bpmFontSize))
                 .monospacedDigit()
                 .tracking(-bpmFontSize * 0.022)  // ~ -2% per DESIGN.md
@@ -710,9 +721,9 @@ struct ContentView: View {
                 // Animated digit transition fades + slides between BPM
                 // values; with Reduce Motion the digit snaps. Spec §15
                 // requires the engine to respect this system pref.
-                .contentTransition(reduceMotion ? .identity : .numericText(value: viewModel.bpm.value))
-                .animation(reduceMotion ? nil : .snappy(duration: 0.15), value: viewModel.bpm.value)
-                .accessibilityLabel("Tempo, \(viewModel.bpmDisplay) BPM")
+                .contentTransition(reduceMotion ? .identity : .numericText(value: snappedAnimationKey))
+                .animation(reduceMotion ? nil : .snappy(duration: 0.15), value: snappedAnimationKey)
+                .accessibilityLabel("Tempo, \(liveDisplay) BPM")
                 .accessibilityHint("Double tap for Italian tempo presets")
                 .accessibilityAddTraits(.isButton)
             Text(tempoMarkingLabel)
