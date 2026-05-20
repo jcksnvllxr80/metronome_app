@@ -101,6 +101,19 @@ public struct ClickSchedule: Hashable, Sendable {
         timeSignature.numerator * subdivision.partsPerBeat
     }
 
+    /// BPM in effect at wall-clock time `t`. Honors count-in (BPM stays
+    /// at the schedule's base value until the first downbeat) and the
+    /// active automation curve. When no automation is set, returns the
+    /// constant `bpm`. The view layer uses this from a 60fps ticker so
+    /// the BPM hero tracks a gradual ramp instead of freezing at
+    /// `startBPM` — see `MetronomeViewModel.liveBPM(at:)`.
+    public func currentBPM(atWallClock t: TimeInterval) -> BPM {
+        guard let automation else { return bpm }
+        let firstDownbeat = startTime + countInDuration
+        if t < firstDownbeat { return automation.startBPM }
+        return automation.bpm(atSongTime: t - firstDownbeat, timeSignature: timeSignature)
+    }
+
     /// Number of clicks the count-in occupies (0 when count-in is off).
     public var countInClicks: Int {
         countInMeasures * clicksPerMeasure
