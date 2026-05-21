@@ -32,7 +32,7 @@
                             <constraint firstItem="safe-area" firstAttribute="trailing" secondItem="tagline-label" secondAttribute="trailing" constant="16" id="cst-3"/>
                             <constraint firstItem="icon-image" firstAttribute="centerX" secondItem="root-view" secondAttribute="centerX" id="cst-4"/>
                             <constraint firstItem="icon-image" firstAttribute="centerY" secondItem="root-view" secondAttribute="centerY" id="cst-5"/>
-                            <constraint firstItem="icon-image" firstAttribute="width" secondItem="root-view" secondAttribute="width" multiplier="0.65" id="cst-6"/>
+                            <constraint firstItem="icon-image" firstAttribute="width" secondItem="root-view" secondAttribute="width" multiplier="1" id="cst-6"/>
                             <constraint firstAttribute="height" secondItem="icon-image" secondAttribute="width" id="cst-7"/>
                         </constraints>
                     </view>
