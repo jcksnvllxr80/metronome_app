@@ -65,15 +65,14 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .background(DS.DSColor.bgBase)
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .foregroundStyle(DS.DSColor.accentTempo)
                 }
             }
-            .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .compatBarBackground(DS.DSColor.bgBase)
         }
         .preferredColorScheme(.dark)
         .onChange(of: settings) { _, newValue in
@@ -713,9 +712,8 @@ private struct SubdivisionConfigList: View {
         .scrollContentBackground(.hidden)
         .background(DS.DSColor.bgBase)
         .navigationTitle("Subdivisions")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .inlineNavigationTitle()
+        .compatBarBackground(DS.DSColor.bgBase)
     }
 
     private func accentPicker(for level: Subdivision) -> some View {

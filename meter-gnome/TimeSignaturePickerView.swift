@@ -58,7 +58,7 @@ struct TimeSignaturePickerView: View {
                 }
             }
             .navigationTitle("Time Signature")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -79,8 +79,7 @@ struct TimeSignaturePickerView: View {
                     }
                 }
             }
-            .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .compatBarBackground(DS.DSColor.bgBase)
         }
         .preferredColorScheme(.dark)
     }

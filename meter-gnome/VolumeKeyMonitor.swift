@@ -21,15 +21,22 @@
 //  fire AVAudioSession volume KVO. This class is structurally correct
 //  but unverified on real hardware as of the v0.32.x build window.
 //
+//  macOS has no equivalent (volume keys aren't interceptable and there's
+//  no AVAudioSession), so the whole mechanism compiles to a no-op there
+//  while keeping the public API intact for the shared app entry point.
+//
 
 import Foundation
+#if os(iOS)
 import AVFoundation
 import UIKit
 import MediaPlayer
+#endif
 
 @MainActor
 final class VolumeKeyMonitor {
     private weak var viewModel: MetronomeViewModel?
+    #if os(iOS)
     private var observation: NSKeyValueObservation?
     /// Last observed volume — used to ignore the first KVO callback
     /// that fires immediately on attaching the observer (it carries
@@ -41,6 +48,7 @@ final class VolumeKeyMonitor {
     /// publish changes reliably.
     private var hiddenVolumeView: MPVolumeView?
     private var enabled: Bool = false
+    #endif
 
     init() {}
 
@@ -50,10 +58,10 @@ final class VolumeKeyMonitor {
         self.viewModel = viewModel
     }
 
-    /// Enable or disable the monitor. Idempotent. When enabled,
-    /// attaches the session KVO + parks a hidden MPVolumeView in
-    /// the key window so iOS keeps publishing volume changes.
+    /// Enable or disable the monitor. Idempotent. On macOS this is a
+    /// no-op (no interceptable volume keys, no AVAudioSession).
     func setEnabled(_ on: Bool) {
+        #if os(iOS)
         guard on != enabled else { return }
         enabled = on
         if on {
@@ -63,8 +71,10 @@ final class VolumeKeyMonitor {
             detachObservation()
             removeHiddenVolumeView()
         }
+        #endif
     }
 
+    #if os(iOS)
     private func attachObservation() {
         let session = AVAudioSession.sharedInstance()
         lastVolume = session.outputVolume
@@ -109,4 +119,5 @@ final class VolumeKeyMonitor {
         hiddenVolumeView?.removeFromSuperview()
         hiddenVolumeView = nil
     }
+    #endif
 }

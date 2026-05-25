@@ -16,7 +16,11 @@
 //
 
 import MediaPlayer
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 import MetronomeCore
 
 @MainActor
@@ -36,7 +40,7 @@ final class NowPlayingCoordinator {
     /// once and cached — Now Playing reads the same image on every
     /// publish.
     private lazy var artwork: MPMediaItemArtwork? = {
-        guard let image = UIImage(named: "AppIcon") else { return nil }
+        guard let image = PlatformImage(named: "AppIcon") else { return nil }
         return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
     }()
 

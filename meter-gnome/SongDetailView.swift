@@ -48,16 +48,21 @@ struct SongDetailView: View {
             .scrollContentBackground(.hidden)
         }
         .navigationTitle("Song")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             // Secondary action — enables the drag handles on the
             // multi-section and tempo-loop lists. Visible always so
             // users can tell reorder is available; no-op when neither
             // list has > 1 item.
+            #if os(iOS)
+            // EditButton drives the iOS list edit mode for drag-to-reorder.
+            // macOS lists reorder without an explicit edit toggle, so this
+            // control is iOS-only.
             ToolbarItem(placement: .secondaryAction) {
                 EditButton()
                     .foregroundStyle(DS.DSColor.accentTempo)
             }
+            #endif
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     onLoad(song)
@@ -68,8 +73,7 @@ struct SongDetailView: View {
                 .foregroundStyle(DS.DSColor.accentTempo)
             }
         }
-        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .compatBarBackground(DS.DSColor.bgBase)
         .onChange(of: song) { _, newValue in
             onSave(newValue)
         }
@@ -101,7 +105,7 @@ struct SongDetailView: View {
     private var titleSection: some View {
         Section {
             TextField("Song title", text: $song.title)
-                .textInputAutocapitalization(.words)
+                .wordsAutocapitalization()
                 .listRowBackground(DS.DSColor.bgElevated)
         } header: {
             Text("Title").foregroundStyle(DS.DSColor.textMuted)
@@ -848,7 +852,7 @@ struct SongDetailView: View {
                     }
                 )
             )
-            .textInputAutocapitalization(.words)
+            .wordsAutocapitalization()
             Stepper(
                 value: Binding(
                     get: { section.bpm.value },

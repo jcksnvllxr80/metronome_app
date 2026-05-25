@@ -74,7 +74,7 @@ struct TempoAutomationQuickView: View {
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("Tempo Ramp")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -86,8 +86,7 @@ struct TempoAutomationQuickView: View {
                         .disabled(!canApply)
                 }
             }
-            .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .compatBarBackground(DS.DSColor.bgBase)
         }
         .preferredColorScheme(.dark)
     }

@@ -31,15 +31,14 @@ struct SubdivisionPickerView: View {
                 }
             }
             .navigationTitle("Subdivision")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                         .foregroundStyle(DS.DSColor.textMuted)
                 }
             }
-            .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .compatBarBackground(DS.DSColor.bgBase)
         }
         .preferredColorScheme(.dark)
     }
