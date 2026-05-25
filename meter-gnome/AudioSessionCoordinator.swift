@@ -25,6 +25,7 @@ import MetronomeCore
 final class AudioSessionCoordinator {
     static let shared = AudioSessionCoordinator()
 
+    #if os(iOS)
     /// Tracks whether the category has been set at least once. The
     /// initial `configure(...)` flips this so subsequent calls can
     /// detect that they're a reconfiguration (mixWithOthers toggled
@@ -34,6 +35,7 @@ final class AudioSessionCoordinator {
     /// no-op reconfigure (same value) doesn't bounce the category.
     private var lastMixWithOthers: Bool?
     private var observing = false
+    #endif
     private weak var engine: MetronomeEngine?
 
     private init() {}
@@ -42,7 +44,9 @@ final class AudioSessionCoordinator {
     /// `pause()` / `resume()`. Safe to call before or after `configure()`.
     func attach(engine: MetronomeEngine) {
         self.engine = engine
+        #if os(iOS)
         startObserving()
+        #endif
     }
 
     /// Set the session category. Safe to call multiple times — calls
@@ -59,6 +63,7 @@ final class AudioSessionCoordinator {
     /// (and Now Playing), at the cost of pausing whatever else was
     /// playing when meter-gnome starts.
     func configure(mixWithOthers: Bool) {
+        #if os(iOS)
         guard mixWithOthers != lastMixWithOthers else { return }
         lastMixWithOthers = mixWithOthers
         do {
@@ -71,7 +76,10 @@ final class AudioSessionCoordinator {
         } catch {
             print("AudioSessionCoordinator: setCategory failed: \(error)")
         }
+        #endif
     }
+
+    #if os(iOS)
 
     // MARK: - Notification observers
 
@@ -144,4 +152,5 @@ final class AudioSessionCoordinator {
             }
         }
     }
+    #endif
 }

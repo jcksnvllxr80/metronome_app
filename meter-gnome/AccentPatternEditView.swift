@@ -70,7 +70,7 @@ struct AccentPatternEditView: View {
         .onAppear { refreshPresets() }
         .alert("Save as Preset", isPresented: $showSavePresetAlert) {
             TextField("Preset name", text: $newPresetName)
-                .textInputAutocapitalization(.words)
+                .wordsAutocapitalization()
             Button("Save") {
                 let trimmedNewName = newPresetName.trimmingCharacters(in: .whitespacesAndNewlines)
                 let pattern = currentDraftPattern()
@@ -86,7 +86,7 @@ struct AccentPatternEditView: View {
             Text("Stores the current pattern under a name. Available in any song with the same time signature.")
         }
         .navigationTitle("Accent Pattern")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
@@ -100,8 +100,7 @@ struct AccentPatternEditView: View {
                 .disabled(!isSaveable)
             }
         }
-        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .compatBarBackground(DS.DSColor.bgBase)
     }
 
     // MARK: - Sections
@@ -109,7 +108,7 @@ struct AccentPatternEditView: View {
     private var nameSection: some View {
         Section {
             TextField("Pattern name", text: $name)
-                .textInputAutocapitalization(.words)
+                .wordsAutocapitalization()
                 .listRowBackground(DS.DSColor.bgElevated)
         } header: {
             Text("Name").foregroundStyle(DS.DSColor.textMuted)

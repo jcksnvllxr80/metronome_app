@@ -33,7 +33,7 @@ struct SongPickerView: View {
                 }
             }
             .navigationTitle("Add Songs")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -49,8 +49,7 @@ struct SongPickerView: View {
                     .foregroundStyle(selectedIDs.isEmpty ? DS.DSColor.textDim : DS.DSColor.accentTempo)
                 }
             }
-            .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .compatBarBackground(DS.DSColor.bgBase)
         }
         .preferredColorScheme(.dark)
     }

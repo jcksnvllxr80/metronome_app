@@ -1,0 +1,85 @@
+name: macOS DMG
+
+# Tier 1 (unsigned) DMG build. On a version tag (v*) this builds the native
+# macOS app, packages it into a .dmg, uploads it as a workflow artifact, and
+# attaches it to the GitHub Release for that tag. workflow_dispatch lets you
+# build a DMG on demand from any branch.
+#
+# This DMG is NOT code-signed or notarized, so Gatekeeper will warn on first
+# open ("unidentified developer") — users right-click → Open once, or run
+# `xattr -dr com.apple.quarantine /Applications/meter-gnome.app`. Tier 2
+# (Developer ID signing + notaryool + stapling) is a follow-up that adds the
+# certificate/API-key secrets and a sign+notarize step.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to attach the DMG to a Release
+
+jobs:
+  build-dmg:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The project targets the macOS 26.5 SDK (Xcode 26.5). The runner image
+      # must provide a matching toolchain; pin the version here once GitHub's
+      # images ship it. `latest-stable` is a sane default in the meantime.
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Archive (unsigned, macOS)
+        run: |
+          xcodebuild \
+            -project meter-gnome.xcodeproj \
+            -scheme meter-gnome \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/meter-gnome.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            archive
+
+      - name: Package DMG
+        id: dmg
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          DMG="meter-gnome-${VERSION}.dmg"
+          APP="build/meter-gnome.xcarchive/Products/Applications/meter-gnome.app"
+          test -d "$APP" || { echo "::error::app not found at $APP"; exit 1; }
+          rm -rf dmg_staging && mkdir dmg_staging
+          cp -R "$APP" dmg_staging/
+          ln -s /Applications dmg_staging/Applications
+          hdiutil create \
+            -volname "meter-gnome" \
+            -srcfolder dmg_staging \
+            -ov -format UDZO \
+            "$DMG"
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meter-gnome-dmg
+          path: ${{ steps.dmg.outputs.dmg }}
+
+      - name: Attach to Release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.dmg.outputs.dmg }}

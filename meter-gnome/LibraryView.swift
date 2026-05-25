@@ -61,7 +61,7 @@ struct LibraryView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 // When docked inline (iPad split), there's no presenting
                 // context to dismiss to. Hide the Done button so users
@@ -96,11 +96,10 @@ struct LibraryView: View {
                     }
                 }
             }
-            .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
+            .compatBarBackground(DS.DSColor.bgBase)
             .alert("Save as Song", isPresented: $showSaveSongAlert) {
                 TextField("Song name", text: $newSongTitle)
-                    .textInputAutocapitalization(.words)
+                    .wordsAutocapitalization()
                 Button("Save") {
                     if viewModel.saveCurrentAsSong(title: newSongTitle) {
                         newSongTitle = ""
@@ -112,7 +111,7 @@ struct LibraryView: View {
             }
             .alert("New Setlist", isPresented: $showNewSetlistAlert) {
                 TextField("Setlist name", text: $newSetlistName)
-                    .textInputAutocapitalization(.words)
+                    .wordsAutocapitalization()
                 Button("Create") {
                     _ = viewModel.createSetlist(name: newSetlistName)
                     newSetlistName = ""

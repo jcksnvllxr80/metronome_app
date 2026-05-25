@@ -11,7 +11,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import MetronomeCore
 
 struct ContentView: View {
@@ -114,7 +116,7 @@ struct ContentView: View {
                 stageBody
                     .sheet(isPresented: $showLibrary) {
                         LibraryView(viewModel: viewModel)
-                            .presentationDetents([.large])
+                            .compatDetentsLarge()
                     }
                     .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: libraryDocked)
             }
@@ -255,17 +257,17 @@ struct ContentView: View {
             TimeSignaturePickerView(current: viewModel.timeSignature) { selected in
                 viewModel.setTimeSignature(selected)
             }
-            .presentationDetents([.medium, .large])
+            .compatDetentsMediumLarge()
         }
         .sheet(isPresented: $showSubdivisionPicker) {
             SubdivisionPickerView(current: viewModel.subdivision) { selected in
                 viewModel.setSubdivision(selected)
             }
-            .presentationDetents([.medium, .large])
+            .compatDetentsMediumLarge()
         }
         .sheet(isPresented: $showTempoAutomation) {
             TempoAutomationQuickView(viewModel: viewModel)
-                .presentationDetents([.medium, .large])
+                .compatDetentsMediumLarge()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(
@@ -275,13 +277,13 @@ struct ContentView: View {
             ) { updated in
                 viewModel.setSettings(updated)
             }
-            .presentationDetents([.large])
+            .compatDetentsLarge()
         }
         .sheet(isPresented: $showTempoPresets) {
             TempoMarkingPickerView(currentBPM: viewModel.bpm) { selected in
                 viewModel.setBPM(selected)
             }
-            .presentationDetents([.medium, .large])
+            .compatDetentsMediumLarge()
         }
     }
 
@@ -353,6 +355,7 @@ struct ContentView: View {
     /// mandates BPM-change announcements; debouncing keeps active
     /// ramps from spamming the assistive output.
     private func announceBPMIfNeeded(_ newBPM: BPM) {
+        #if os(iOS)
         guard UIAccessibility.isVoiceOverRunning else { return }
         let display = newBPM.displayInt
         let now = SystemClock().now
@@ -363,6 +366,7 @@ struct ContentView: View {
         lastAnnouncedBPMDisplay = display
         lastAnnounceAt = now
         UIAccessibility.post(notification: .announcement, argument: "\(display) BPM")
+        #endif
     }
 
     /// Announce engine play/stop transitions to VoiceOver. Single
@@ -370,11 +374,13 @@ struct ContentView: View {
     /// bursts. Skipped when VoiceOver isn't running so non-AT users
     /// pay no cost. Spec §15.
     private func announceRunStateIfNeeded(_ isRunning: Bool) {
+        #if os(iOS)
         guard UIAccessibility.isVoiceOverRunning else { return }
         UIAccessibility.post(
             notification: .announcement,
             argument: isRunning ? "Playing" : "Stopped"
         )
+        #endif
     }
 
     private var tempoAutomationButton: some View {

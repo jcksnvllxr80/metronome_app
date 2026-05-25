@@ -39,10 +39,14 @@ struct SetlistDetailView: View {
                 songsSection
             }
             .scrollContentBackground(.hidden)
+            #if os(iOS)
+            // Force the list into edit mode so drag handles are always
+            // visible (iOS-only environment key).
             .environment(\.editMode, .constant(.active))
+            #endif
         }
         .navigationTitle(setlist.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -53,7 +57,7 @@ struct SetlistDetailView: View {
                 .foregroundStyle(DS.DSColor.accentTempo)
                 .accessibilityLabel("Add songs to setlist")
             }
-            ToolbarItem(placement: .bottomBar) {
+            ToolbarItem(placement: compatBottomBarPlacement) {
                 Button {
                     onPlay(setlist)
                 } label: {
@@ -64,8 +68,7 @@ struct SetlistDetailView: View {
                 .foregroundStyle(setlist.songs.isEmpty ? DS.DSColor.textDim : DS.DSColor.accentTempo)
             }
         }
-        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .compatBarBackground(DS.DSColor.bgBase)
         .sheet(isPresented: $showSongPicker) {
             SongPickerView(availableSongs: availableSongs) { picked in
                 setlist.songs.append(contentsOf: picked)

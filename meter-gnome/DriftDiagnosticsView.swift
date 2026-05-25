@@ -42,9 +42,8 @@ struct DriftDiagnosticsView: View {
         .scrollContentBackground(.hidden)
         .background(DS.DSColor.bgBase.ignoresSafeArea())
         .navigationTitle("Drift Self-Test")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .inlineNavigationTitle()
+        .compatBarBackground(DS.DSColor.bgBase)
         .onDisappear {
             progressTask?.cancel()
         }

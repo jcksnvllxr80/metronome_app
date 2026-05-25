@@ -38,7 +38,7 @@ struct UserSoundsView: View {
             }
         }
         .navigationTitle("Imported Sounds")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button {
@@ -50,8 +50,7 @@ struct UserSoundsView: View {
                 .accessibilityLabel("Import sound")
             }
         }
-        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .compatBarBackground(DS.DSColor.bgBase)
         .background(DS.DSColor.bgBase.ignoresSafeArea())
         .fileImporter(
             isPresented: $showImporter,
@@ -187,7 +186,7 @@ private struct UserSoundEditView: View {
         Form {
             Section {
                 TextField("Name", text: $name)
-                    .textInputAutocapitalization(.words)
+                    .wordsAutocapitalization()
                     .listRowBackground(DS.DSColor.bgElevated)
             } header: {
                 Text("Name").foregroundStyle(DS.DSColor.textMuted)
@@ -213,7 +212,7 @@ private struct UserSoundEditView: View {
         .scrollContentBackground(.hidden)
         .background(DS.DSColor.bgBase.ignoresSafeArea())
         .navigationTitle("Edit Sound")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
@@ -234,7 +233,6 @@ private struct UserSoundEditView: View {
                 .foregroundStyle(DS.DSColor.accentTempo)
             }
         }
-        .toolbarBackground(DS.DSColor.bgBase, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
+        .compatBarBackground(DS.DSColor.bgBase)
     }
 }

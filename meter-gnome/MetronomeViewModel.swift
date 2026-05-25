@@ -10,7 +10,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import MetronomeCore
 
 @Observable
@@ -278,14 +280,31 @@ final class MetronomeViewModel {
     /// the display sleeping mid-song is bad. Off by default would be
     /// safer for battery, but the spec asks for default-on and that
     /// matches the "stage-confident instrument" identity.
+    /// Holds a macOS power-management assertion while playback should keep
+    /// the display awake. iOS uses `UIApplication.isIdleTimerDisabled`
+    /// (no token); on macOS we retain the activity returned by
+    /// `ProcessInfo.beginActivity` and end it when playback stops.
+    @ObservationIgnored private var sleepActivity: (any NSObjectProtocol)?
+
     private func updateIdleTimer(running: Bool) {
-        guard settings.keepScreenAwakeDuringPlayback else {
-            // If the user has the setting off, the idle timer should
-            // always be at its default (enabled) — even mid-playback.
-            UIApplication.shared.isIdleTimerDisabled = false
-            return
+        // Disable display sleep only when the setting is on AND we're
+        // actually playing; otherwise restore the platform default.
+        let keepAwake = settings.keepScreenAwakeDuringPlayback && running
+        #if os(iOS)
+        UIApplication.shared.isIdleTimerDisabled = keepAwake
+        #elseif os(macOS)
+        if keepAwake {
+            if sleepActivity == nil {
+                sleepActivity = ProcessInfo.processInfo.beginActivity(
+                    options: [.idleDisplaySleepDisabled],
+                    reason: "Metronome playing"
+                )
+            }
+        } else if let token = sleepActivity {
+            ProcessInfo.processInfo.endActivity(token)
+            sleepActivity = nil
         }
-        UIApplication.shared.isIdleTimerDisabled = running
+        #endif
     }
 
     // MARK: - Practice-session tracking (spec §11)
