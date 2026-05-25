@@ -53,6 +53,39 @@ The app target is `meter-gnome`. The local Swift Package `MetronomeCore` (engine
 
 **Free-account limitation:** the build expires after **7 days**. Re-run from Xcode (⌘R) to re-sign. A paid Apple Developer account ($99/yr) removes this limit.
 
+### Build the macOS app (DMG)
+
+`meter-gnome` is a multiplatform target — the same scheme builds a native macOS app (Intel + Apple Silicon universal). To produce a distributable `.dmg` locally:
+
+```sh
+# 1. Archive the macOS app, unsigned (Tier 1 — no Developer ID needed)
+xcodebuild -project meter-gnome.xcodeproj -scheme meter-gnome \
+           -configuration Release \
+           -destination 'generic/platform=macOS' \
+           -archivePath build/meter-gnome.xcarchive \
+           CODE_SIGNING_ALLOWED=NO archive
+
+# 2. Package the .app into a drag-to-install DMG
+APP="build/meter-gnome.xcarchive/Products/Applications/meter-gnome.app"
+rm -rf build/dmg && mkdir -p build/dmg
+cp -R "$APP" build/dmg/
+ln -s /Applications build/dmg/Applications
+hdiutil create -volname "meter-gnome" -srcfolder build/dmg \
+               -ov -format UDZO build/meter-gnome.dmg
+```
+
+The DMG lands at `build/meter-gnome.dmg` (everything under `build/` is gitignored).
+
+**Unsigned-build caveat:** because Tier 1 skips code signing, Gatekeeper blocks the *first* launch ("unidentified developer"). Right-click the app → **Open** → **Open**, or clear the quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/meter-gnome.app
+```
+
+Signed + notarized DMGs (no Gatekeeper warning) are **Tier 2** — they need a Developer ID Application certificate and an App Store Connect API key, then a `codesign` → `notarytool submit` → `stapler staple` pass.
+
+**CI:** [`.github/workflows/macos-dmg.yml`](.github/workflows/macos-dmg.yml) runs this same flow on every `v*` tag (and on demand), uploads the DMG as a workflow artifact, and attaches it to the GitHub Release.
+
 ### Run the package tests (CLI)
 
 ```sh
