@@ -57,12 +57,10 @@ jobs:
           fi
 
       # The project's macOS deployment target is 26.5, so it must be built with
-      # Xcode 26.5 (older SDKs can't satisfy a 26.5 target — that's the cause of
-      # the archive failure on the 26.2 SDK). We intentionally pin to 26.5 and
-      # do NOT lower the deployment target. As of 2026-05 the macos-26 image
-      # ships up to Xcode 26.4.1, so this step fails fast with a clear
-      # "26.5 not available" message until GitHub adds it — then the build goes
-      # green automatically with no further change.
+      # Xcode 26.5 (older SDKs can't satisfy a 26.5 target — that's what failed
+      # the archive on the macos-15 / 26.2-SDK runner). The macos-26 image ships
+      # Xcode 26.5 (image 20260520+); its default is 26.4.1, so pin 26.5
+      # explicitly rather than relying on latest-stable.
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
