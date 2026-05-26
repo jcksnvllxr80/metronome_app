@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   build-dmg:
-    runs-on: macos-15
+    runs-on: macos-26 # macOS Tahoe image — the one that receives the newest Xcodes
     env:
       GH_TOKEN: ${{ github.token }} # for `gh release view`
     steps:
@@ -56,13 +56,15 @@ jobs:
             echo "::notice::Release v$VERSION does not exist yet — will create tag + Release."
           fi
 
-      # The project targets the macOS 26.5 SDK (Xcode 26.5). The runner image
-      # must provide a matching toolchain; pin the version here once GitHub's
-      # images ship it. `latest-stable` is a sane default in the meantime.
+      # The project's macOS deployment target is 26.5, so it must be built with
+      # Xcode 26.5 (older SDKs can't satisfy a 26.5 target — that's what failed
+      # the archive on the macos-15 / 26.2-SDK runner). The macos-26 image ships
+      # Xcode 26.5 (image 20260520+); its default is 26.4.1, so pin 26.5
+      # explicitly rather than relying on latest-stable.
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest-stable
+          xcode-version: "26.5"
 
       - name: Archive (unsigned, macOS)
         run: |
