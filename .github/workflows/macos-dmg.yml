@@ -1,31 +1,60 @@
 name: macOS DMG
 
-# Tier 1 (unsigned) DMG build. On a version tag (v*) this builds the native
-# macOS app, packages it into a .dmg, uploads it as a workflow artifact, and
-# attaches it to the GitHub Release for that tag. workflow_dispatch lets you
-# build a DMG on demand from any branch.
+# Tier 1 (unsigned) DMG build + release on every push to `main` (which
+# includes PR merges) and on manual dispatch.
 #
-# This DMG is NOT code-signed or notarized, so Gatekeeper will warn on first
+# Flow: read MARKETING_VERSION from the Xcode project, build the native macOS
+# app, package it into a .dmg, and upload it as a workflow artifact. If the
+# project's version names a release that does not exist yet, also create the
+# matching `v<version>` tag + GitHub Release and attach the .dmg to it.
+#
+# This means: bump MARKETING_VERSION in your PR and merging to `main` cuts the
+# release automatically. Commits that DON'T bump the version (docs, follow-ups)
+# still build a DMG artifact but skip the release step, since the `v<version>`
+# tag already exists — no failures, no duplicate releases.
+#
+# The DMG is NOT code-signed or notarized, so Gatekeeper will warn on first
 # open ("unidentified developer") — users right-click → Open once, or run
 # `xattr -dr com.apple.quarantine /Applications/meter-gnome.app`. Tier 2
-# (Developer ID signing + notaryool + stapling) is a follow-up that adds the
+# (Developer ID signing + notarytool + stapling) is a follow-up that adds the
 # certificate/API-key secrets and a sign+notarize step.
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write # needed to attach the DMG to a Release
+  contents: write # needed to create the tag + Release and attach the DMG
+
+concurrency:
+  group: macos-dmg-${{ github.ref }}
+  cancel-in-progress: false # don't cancel a release mid-publish
 
 jobs:
   build-dmg:
     runs-on: macos-15
+    env:
+      GH_TOKEN: ${{ github.token }} # for `gh release view`
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: ver
+        run: |
+          VERSION=$(grep -m1 'MARKETING_VERSION' meter-gnome.xcodeproj/project.pbxproj \
+            | sed -E 's/.*= *([^;]+);.*/\1/' | tr -d ' ')
+          [[ -n "$VERSION" ]] || { echo "::error::could not read MARKETING_VERSION"; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "release_exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release v$VERSION already exists — building DMG but skipping the release step."
+          else
+            echo "release_exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release v$VERSION does not exist yet — will create tag + Release."
+          fi
 
       # The project targets the macOS 26.5 SDK (Xcode 26.5). The runner image
       # must provide a matching toolchain; pin the version here once GitHub's
@@ -34,15 +63,6 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
-
-      - name: Resolve version
-        id: ver
-        run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Archive (unsigned, macOS)
         run: |
@@ -75,11 +95,15 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: meter-gnome-dmg
+          name: meter-gnome-dmg-${{ steps.ver.outputs.version }}
           path: ${{ steps.dmg.outputs.dmg }}
 
-      - name: Attach to Release
-        if: github.ref_type == 'tag'
+      - name: Create tag + Release
+        if: steps.ver.outputs.release_exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
           files: ${{ steps.dmg.outputs.dmg }}
